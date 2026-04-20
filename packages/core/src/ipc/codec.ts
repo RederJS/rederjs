@@ -16,10 +16,10 @@ export function encode(obj: unknown): Buffer {
 }
 
 export class FrameDecoder {
-  private buf = Buffer.alloc(0);
+  private buf: Buffer = Buffer.alloc(0);
 
   push(chunk: Buffer): unknown[] {
-    this.buf = this.buf.length === 0 ? chunk : Buffer.concat([this.buf, chunk]);
+    this.buf = this.buf.length === 0 ? chunk : (Buffer.concat([this.buf, chunk]) as Buffer);
     const out: unknown[] = [];
     while (this.buf.length >= 4) {
       const len = this.buf.readUInt32BE(0);
@@ -35,6 +35,6 @@ export class FrameDecoder {
   }
 
   reset(): void {
-    this.buf = Buffer.alloc(0);
+    this.buf = Buffer.alloc(0) as Buffer;
   }
 }
