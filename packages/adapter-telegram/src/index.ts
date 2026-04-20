@@ -18,6 +18,8 @@ import {
   parsePermissionCallback,
   type StoredPrompt,
 } from './permission-prompt.js';
+import { downloadAndCache, FileTooLargeError } from './media.js';
+import { join } from 'node:path';
 
 export interface TelegramAdapterOptions {
   transportFactory?: (token: string) => TelegramTransport;
@@ -379,10 +381,17 @@ export class TelegramAdapter extends Adapter {
         await this.handleCallbackQuery(runtime, norm.callback);
         return;
       }
-      case 'photo':
-      case 'document':
+      case 'photo': {
+        if (!norm.imageFileId) return;
+        await this.handlePhoto(runtime, norm.imageFileId);
+        return;
+      }
+      case 'document': {
+        if (!norm.documentFileId) return;
+        await this.handleDocument(runtime, norm.documentFileId);
+        return;
+      }
       case 'ignore':
-        // Handled in later milestones (M9 media).
         return;
     }
   }
@@ -557,6 +566,146 @@ export class TelegramAdapter extends Adapter {
       receivedAt: new Date(),
     };
     await this.gateInboundAndIngest(runtime, inbound);
+  }
+
+  private mediaCacheDir(): string {
+    return join(this.ctx.dataDir, 'media', 'telegram');
+  }
+
+  private async handlePhoto(
+    runtime: BotRuntime,
+    info: { chatId: number; senderId: string; fileId: string; caption: string | undefined },
+  ): Promise<void> {
+    const paired = this.ctx.router.isPaired('telegram', info.senderId, runtime.sessionId);
+    if (!paired) {
+      await this.initiatePairing(runtime, this.stubInboundForChat(info.chatId, info.senderId, runtime.sessionId));
+      return;
+    }
+    try {
+      const cached = await downloadAndCache({
+        transport: runtime.transport,
+        fileId: info.fileId,
+        cacheDir: this.mediaCacheDir(),
+        defaultExtension: '.jpg',
+      });
+      const content = info.caption ?? '';
+      await this.ctx.router.ingestInbound({
+        adapter: 'telegram',
+        sessionId: runtime.sessionId,
+        senderId: info.senderId,
+        content,
+        meta: {
+          chat_id: String(info.chatId),
+          chat_type: 'private',
+          image_path: cached.path,
+          attachment_kind: 'image',
+          attachment_mime: 'image/jpeg',
+          attachment_sha256: cached.sha256,
+        },
+        files: [cached.path],
+        idempotencyKey: `telegram:${info.chatId}:photo:${cached.sha256}`,
+        receivedAt: new Date(),
+      });
+    } catch (err) {
+      if (err instanceof FileTooLargeError) {
+        try {
+          await runtime.transport.sendMessage(
+            info.chatId,
+            `Image too large: ${Math.round(err.size / 1024 / 1024)} MB (limit 20 MB).`,
+          );
+        } catch {
+          // best-effort
+        }
+        return;
+      }
+      this.logger.warn({ err }, 'photo download failed');
+    }
+  }
+
+  private async handleDocument(
+    runtime: BotRuntime,
+    info: {
+      chatId: number;
+      senderId: string;
+      fileId: string;
+      filename: string | undefined;
+      mimeType: string | undefined;
+      size: number | undefined;
+      caption: string | undefined;
+    },
+  ): Promise<void> {
+    const paired = this.ctx.router.isPaired('telegram', info.senderId, runtime.sessionId);
+    if (!paired) {
+      await this.initiatePairing(runtime, this.stubInboundForChat(info.chatId, info.senderId, runtime.sessionId));
+      return;
+    }
+    if (info.size !== undefined && info.size > 20 * 1024 * 1024) {
+      try {
+        await runtime.transport.sendMessage(
+          info.chatId,
+          `File too large: ${Math.round(info.size / 1024 / 1024)} MB (limit 20 MB).`,
+        );
+      } catch {
+        // best-effort
+      }
+      return;
+    }
+    try {
+      const cached = await downloadAndCache({
+        transport: runtime.transport,
+        fileId: info.fileId,
+        cacheDir: this.mediaCacheDir(),
+        ...(info.filename ? { defaultExtension: '.' + info.filename.split('.').pop() } : {}),
+      });
+      const content = info.caption ?? '';
+      await this.ctx.router.ingestInbound({
+        adapter: 'telegram',
+        sessionId: runtime.sessionId,
+        senderId: info.senderId,
+        content,
+        meta: {
+          chat_id: String(info.chatId),
+          chat_type: 'private',
+          file_path: cached.path,
+          attachment_kind: 'file',
+          ...(info.filename ? { attachment_name: info.filename } : {}),
+          ...(info.mimeType ? { attachment_mime: info.mimeType } : {}),
+          attachment_sha256: cached.sha256,
+        },
+        files: [cached.path],
+        idempotencyKey: `telegram:${info.chatId}:doc:${cached.sha256}`,
+        receivedAt: new Date(),
+      });
+    } catch (err) {
+      if (err instanceof FileTooLargeError) {
+        try {
+          await runtime.transport.sendMessage(
+            info.chatId,
+            `File too large: ${Math.round(err.size / 1024 / 1024)} MB (limit 20 MB).`,
+          );
+        } catch {
+          // best-effort
+        }
+        return;
+      }
+      this.logger.warn({ err }, 'document download failed');
+    }
+  }
+
+  private stubInboundForChat(
+    chatId: number,
+    senderId: string,
+    sessionId: string,
+  ): import('@reder/core/adapter').InboundMessage {
+    return {
+      adapter: 'telegram',
+      sessionId,
+      senderId,
+      content: '',
+      meta: { chat_id: String(chatId) },
+      files: [],
+      receivedAt: new Date(),
+    };
   }
 
   override async onPairingCompleted(binding: {
