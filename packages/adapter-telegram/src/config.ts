@@ -1,0 +1,24 @@
+import { z } from 'zod';
+
+export const TelegramAdapterConfigSchema = z.object({
+  bots: z
+    .array(
+      z.object({
+        token_env: z.string().min(1).optional(),
+        token: z.string().min(1).optional(),
+        session_id: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,62}$/),
+        allow_groups: z.boolean().default(false),
+        allow_topics: z.boolean().default(true),
+      }),
+    )
+    .default([]),
+  rendering: z
+    .object({
+      markdown: z.boolean().default(true),
+      code_block_threshold_chars: z.number().int().positive().default(60),
+    })
+    .default({}),
+  long_poll_timeout_seconds: z.number().int().min(1).max(300).default(30),
+});
+
+export type TelegramAdapterConfig = z.infer<typeof TelegramAdapterConfigSchema>;
