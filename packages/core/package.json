@@ -1,0 +1,23 @@
+{
+  "name": "@reder/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": "./dist/index.js" },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pino": "^9.0.0",
+    "zod": "^3.23.0",
+    "yaml": "^2.5.0",
+    "better-sqlite3": "^11.0.0",
+    "argon2": "^0.40.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/better-sqlite3": "^7.0.0"
+  }
+}
