@@ -8,7 +8,7 @@
     ".": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"import('node:fs').then(({cpSync, mkdirSync}) => { mkdirSync('dist/storage/migrations', { recursive: true }); cpSync('src/storage/migrations', 'dist/storage/migrations', { recursive: true }); })\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
