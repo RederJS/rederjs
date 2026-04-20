@@ -13,6 +13,11 @@ import { createGrammyTransport } from './grammy-transport.js';
 import { normalizeUpdate } from './inbound.js';
 import { renderToMarkdownV2, renderPlain } from './rendering.js';
 import { splitMessage } from './splitting.js';
+import {
+  renderPermissionPrompt,
+  parsePermissionCallback,
+  type StoredPrompt,
+} from './permission-prompt.js';
 
 export interface TelegramAdapterOptions {
   transportFactory?: (token: string) => TelegramTransport;
@@ -159,12 +164,100 @@ export class TelegramAdapter extends Adapter {
     };
   }
 
-  override async sendPermissionPrompt(_prompt: PermissionPrompt): Promise<void> {
-    // Implemented in Milestone 8.
+  override async sendPermissionPrompt(prompt: PermissionPrompt): Promise<void> {
+    const runtime = this.bots.find((b) => b.sessionId === prompt.sessionId);
+    if (!runtime) return;
+
+    // Look up the most recent binding (paired user) for this session on this adapter.
+    // Use the first binding's metadata chat_id.
+    const recipientChatId = this.findRecipientChatId(prompt.sessionId);
+    if (recipientChatId === null) {
+      this.logger.warn(
+        { session_id: prompt.sessionId, request_id: prompt.requestId, component: 'adapter.telegram' },
+        'no paired Telegram recipient for permission prompt; skipping',
+      );
+      return;
+    }
+
+    const rendered = renderPermissionPrompt(prompt);
+    try {
+      const sent = await runtime.transport.sendMessage(recipientChatId, rendered.text, {
+        parse_mode: rendered.parse_mode,
+        reply_markup: rendered.markup,
+      });
+      const stored: StoredPrompt = {
+        chatId: recipientChatId,
+        messageId: sent.message_id,
+        requestId: prompt.requestId,
+        sessionId: prompt.sessionId,
+        toolName: prompt.toolName,
+      };
+      await this.ctx.storage.set(`perm:${prompt.requestId}`, JSON.stringify(stored));
+    } catch (err) {
+      this.logger.warn(
+        { err, request_id: prompt.requestId },
+        'failed to send permission prompt',
+      );
+    }
   }
 
-  override async cancelPermissionPrompt(_requestId: string, _finalVerdict?: string): Promise<void> {
-    // Implemented in Milestone 8.
+  override async cancelPermissionPrompt(requestId: string, finalVerdict?: string): Promise<void> {
+    const runtime = this.bots[0];
+    if (!runtime) return;
+    const buf = await this.ctx.storage.get(`perm:${requestId}`);
+    if (!buf) return;
+    let stored: StoredPrompt;
+    try {
+      stored = JSON.parse(buf.toString('utf8')) as StoredPrompt;
+    } catch {
+      await this.ctx.storage.delete(`perm:${requestId}`);
+      return;
+    }
+
+    const suffix = this.suffixFor(finalVerdict);
+    const text =
+      '🔒 Permission request (resolved)\n' +
+      `Tool: ${stored.toolName}\n` +
+      suffix;
+    try {
+      const botForSession = this.bots.find((b) => b.sessionId === stored.sessionId) ?? runtime;
+      await botForSession.transport.editMessageText(stored.chatId, stored.messageId, text);
+    } catch (err) {
+      this.logger.debug({ err, request_id: requestId }, 'editMessageText failed on cancel');
+    }
+    await this.ctx.storage.delete(`perm:${requestId}`);
+  }
+
+  private suffixFor(v: string | undefined): string {
+    switch (v) {
+      case 'allow':
+        return '✅ Allowed';
+      case 'deny':
+        return '❌ Denied';
+      case 'timeout':
+        return '⏰ Timed out — denied by default';
+      case 'terminal':
+        return 'ℹ️ Answered in Claude Code terminal';
+      case 'persistent':
+        return '✅ Auto-allowed (persistent approval)';
+      default:
+        return 'ℹ️ Resolved';
+    }
+  }
+
+  private findRecipientChatId(sessionId: string): number | null {
+    const bindings = this.ctx.router.listBindingsForSession('telegram', sessionId);
+    if (bindings.length === 0) return null;
+    // Prefer the most recent binding (index 0); fall back to chat_id in metadata,
+    // else sender_id (private DMs only).
+    const b = bindings[0]!;
+    const chatIdFromMeta = (b.metadata?.['chat_id'] ?? null) as string | number | null;
+    if (chatIdFromMeta !== null && chatIdFromMeta !== undefined) {
+      const n = Number(chatIdFromMeta);
+      if (Number.isFinite(n)) return n;
+    }
+    const n = Number(b.senderId);
+    return Number.isFinite(n) ? n : null;
   }
 
   private isMarkdownParseError(err: Error | undefined): boolean {
@@ -281,13 +374,62 @@ export class TelegramAdapter extends Adapter {
         }
         return;
       }
+      case 'callback_query': {
+        if (!norm.callback) return;
+        await this.handleCallbackQuery(runtime, norm.callback);
+        return;
+      }
       case 'photo':
       case 'document':
-      case 'callback_query':
       case 'ignore':
-        // Handled in later milestones (M8 permissions, M9 media).
+        // Handled in later milestones (M9 media).
         return;
     }
+  }
+
+  private async handleCallbackQuery(
+    runtime: BotRuntime,
+    cbq: { id: string; data: string; senderId: string; chatId: number; messageId: number },
+  ): Promise<void> {
+    const parsed = parsePermissionCallback(cbq.data);
+    if (!parsed) {
+      try {
+        await runtime.transport.answerCallbackQuery(cbq.id);
+      } catch {
+        // best-effort
+      }
+      return;
+    }
+
+    // Acknowledge the button press immediately (Telegram requires <15s).
+    try {
+      await runtime.transport.answerCallbackQuery(
+        cbq.id,
+        parsed.decision === 'deny' ? 'Denied' : 'Allowed',
+      );
+    } catch {
+      // best-effort
+    }
+
+    // Only accept verdicts from paired senders.
+    const allowed = this.ctx.router.isPaired('telegram', cbq.senderId, runtime.sessionId);
+    if (!allowed) {
+      this.logger.warn(
+        { sender_id: cbq.senderId, session_id: runtime.sessionId, component: 'adapter.telegram' },
+        'callback from unpaired sender; dropping',
+      );
+      return;
+    }
+
+    const persistent = parsed.decision === 'always';
+    const behavior: 'allow' | 'deny' = parsed.decision === 'deny' ? 'deny' : 'allow';
+
+    await this.ctx.router.ingestPermissionVerdict({
+      requestId: parsed.requestId,
+      behavior,
+      respondent: `telegram:${cbq.senderId}`,
+      persistent,
+    });
   }
 
   private async gateInboundAndIngest(

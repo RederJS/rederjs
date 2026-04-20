@@ -7,10 +7,17 @@ export interface AdapterStorage {
   list(prefix?: string): Promise<string[]>;
 }
 
+export interface AdapterBinding {
+  senderId: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 export interface RouterHandle {
   ingestInbound(msg: InboundMessage): Promise<void>;
   ingestPermissionVerdict(verdict: PermissionVerdict): Promise<void>;
   isPaired(adapter: string, senderId: string, sessionId: string): boolean;
+  listBindingsForSession(adapter: string, sessionId: string): AdapterBinding[];
   createPairCode(input: {
     adapter: string;
     senderId: string;

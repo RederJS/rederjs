@@ -373,6 +373,25 @@ export function createRouter(opts: RouterOptions): Router {
       return isPairedDb(db, adapter, senderId, sessionId);
     },
 
+    listBindingsForSession(adapter, sessionId) {
+      const rows = db
+        .prepare(
+          `SELECT sender_id, metadata, created_at FROM bindings
+             WHERE adapter = ? AND session_id = ?
+             ORDER BY rowid DESC`,
+        )
+        .all(adapter, sessionId) as Array<{
+        sender_id: string;
+        metadata: string | null;
+        created_at: string;
+      }>;
+      return rows.map((r) => ({
+        senderId: r.sender_id,
+        metadata: r.metadata ? (JSON.parse(r.metadata) as Record<string, unknown>) : null,
+        createdAt: r.created_at,
+      }));
+    },
+
     createPairCode(input) {
       const record = createPairCodeRecord(db, {
         adapter: input.adapter,
