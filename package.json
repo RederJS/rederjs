@@ -2,8 +2,12 @@
   "name": "reder-monorepo",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
-  "workspaces": ["packages/*"],
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",

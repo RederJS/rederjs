@@ -4,7 +4,9 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": { "rederd": "./dist/index.js" },
+  "bin": {
+    "rederd": "./dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"
