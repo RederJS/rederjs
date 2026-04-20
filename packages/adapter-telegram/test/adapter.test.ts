@@ -9,6 +9,7 @@ import { createAuditLog } from '../../core/src/audit.js';
 import { createIpcServer, type IpcServer } from '../../core/src/ipc/server.js';
 import { createRouter, type Router } from '../../core/src/router.js';
 import { createAdapterStorage } from '../../core/src/storage/kv.js';
+import { createBinding } from '../../core/src/pairing.js';
 import type { AdapterContext, InboundMessage } from '../../core/src/adapter.js';
 import { TelegramAdapter } from '../src/index.js';
 import { FakeTelegramTransport } from './fake-transport.js';
@@ -63,8 +64,13 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-describe('TelegramAdapter inbound', () => {
+function preBind(senderId: string, sessionId: string): void {
+  createBinding(db.raw, { adapter: 'telegram', senderId, sessionId });
+}
+
+describe('TelegramAdapter inbound (paired)', () => {
   it('forwards a text message to the router as InboundMessage', async () => {
+    preBind('5', 'booknerds');
     fake.enqueueText({ update_id: 1, chatId: 100, senderId: 5, text: 'hello world' });
     await waitFor(() => received.length > 0, 2000);
     expect(received[0]).toMatchObject({
@@ -77,6 +83,7 @@ describe('TelegramAdapter inbound', () => {
   });
 
   it('advances the offset only after router ingest', async () => {
+    preBind('2', 'booknerds');
     fake.enqueueText({ update_id: 10, chatId: 1, senderId: 2, text: 'a' });
     await waitFor(() => received.length > 0, 2000);
     const stored = await createAdapterStorage(db.raw, 'telegram').get('offset:booknerds');
@@ -84,6 +91,7 @@ describe('TelegramAdapter inbound', () => {
   });
 
   it('dedupes repeated deliveries of the same update_id via idempotency_key', async () => {
+    preBind('2', 'booknerds');
     fake.enqueueText({ update_id: 1, chatId: 1, senderId: 2, text: 'once', messageId: 99 });
     await waitFor(() => received.length > 0, 2000);
     fake.enqueueText({ update_id: 1, chatId: 1, senderId: 2, text: 'once', messageId: 99 });
@@ -95,6 +103,7 @@ describe('TelegramAdapter inbound', () => {
   });
 
   it('ignores non-text non-handled messages silently', async () => {
+    preBind('1', 'booknerds');
     fake.enqueueUpdate({
       update_id: 5,
       message: {

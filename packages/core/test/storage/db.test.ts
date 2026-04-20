@@ -52,18 +52,21 @@ describe('storage/db', () => {
     const row = db.raw
       .prepare('SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1')
       .get() as { version: number } | undefined;
-    expect(row?.version).toBe(1);
+    expect(row?.version).toBeGreaterThanOrEqual(1);
   });
 
   it('is idempotent across re-opens', () => {
     const path = join(tmpDir, 'test.db');
     db = openDatabase(path);
+    const initialCount = (
+      db.raw.prepare('SELECT COUNT(*) AS c FROM schema_migrations').get() as { c: number }
+    ).c;
     db.close();
     db = openDatabase(path);
     const rows = db.raw.prepare('SELECT version FROM schema_migrations').all() as Array<{
       version: number;
     }>;
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(initialCount);
   });
 
   it('supports inserting + reading a session row', () => {

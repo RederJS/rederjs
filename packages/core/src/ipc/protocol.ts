@@ -31,6 +31,10 @@ export const ShimToDaemon = z.discriminatedUnion('kind', [
     kind: z.literal('channel_ack'),
     message_id: z.string().min(1),
   }),
+  z.object({
+    kind: z.literal('admin_pair_request'),
+    code: z.string().min(1),
+  }),
   z.object({ kind: z.literal('ping') }),
 ]);
 
@@ -63,6 +67,14 @@ export const DaemonToShim = z.discriminatedUnion('kind', [
     kind: z.literal('error'),
     code: z.string().min(1),
     message: z.string(),
+  }),
+  z.object({
+    kind: z.literal('admin_pair_result'),
+    success: z.boolean(),
+    adapter: z.string().optional(),
+    sender_id: z.string().optional(),
+    session_id: z.string().optional(),
+    error: z.string().optional(),
   }),
   z.object({ kind: z.literal('pong') }),
 ]);

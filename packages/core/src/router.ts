@@ -18,15 +18,30 @@ import {
   incrementOutboundAttempt,
   listPendingInboundForSession,
 } from './storage/outbox.js';
-import type { IpcServer, ReplyToolCallEvent, ChannelAckEvent, PermissionRequestEvent } from './ipc/server.js';
+import type {
+  IpcServer,
+  ReplyToolCallEvent,
+  ChannelAckEvent,
+  PermissionRequestEvent,
+  AdminPairRequestEvent,
+} from './ipc/server.js';
 import type { AuditLog } from './audit.js';
 import { PermissionManager, type PermissionManagerOptions } from './permissions.js';
+import {
+  lookupPairCode,
+  consumePairCode,
+  createBinding,
+  createPairCode as createPairCodeRecord,
+  isPaired as isPairedDb,
+} from './pairing.js';
+import type { Config } from './config.js';
 
 export interface RouterOptions {
   db: Db;
   ipcServer: IpcServer;
   logger: Logger;
   audit: AuditLog;
+  config?: Pick<Config, 'sessions'>;
   permissions?: Partial<PermissionManagerOptions>;
   outboundMaxAttempts?: number;
   outboundInitialBackoffMs?: number;
@@ -101,6 +116,10 @@ export function createRouter(opts: RouterOptions): Router {
 
   ipcServer.on('permission_request', (evt: PermissionRequestEvent) => {
     void permissions.handleRequest(evt);
+  });
+
+  ipcServer.on('admin_pair_request', (evt: AdminPairRequestEvent) => {
+    void handleAdminPairRequest(evt);
   });
 
   // Inbound path ---------------------------------------------------------------
@@ -239,6 +258,73 @@ export function createRouter(opts: RouterOptions): Router {
     }
   }
 
+  // Admin pair request ---------------------------------------------------------
+
+  async function handleAdminPairRequest(evt: AdminPairRequestEvent): Promise<void> {
+    const code = evt.code.toLowerCase();
+    const rec = lookupPairCode(db, code);
+    if (!rec) {
+      ipcServer.sendToSession(evt.session_id, {
+        kind: 'admin_pair_result',
+        success: false,
+        error: 'pairing code not found or expired',
+      });
+      return;
+    }
+    if (isPairedDb(db, rec.adapter, rec.senderId, evt.session_id)) {
+      consumePairCode(db, code);
+      ipcServer.sendToSession(evt.session_id, {
+        kind: 'admin_pair_result',
+        success: true,
+        adapter: rec.adapter,
+        sender_id: rec.senderId,
+        session_id: evt.session_id,
+        error: 'already paired',
+      });
+      return;
+    }
+    createBinding(db, {
+      sessionId: evt.session_id,
+      adapter: rec.adapter,
+      senderId: rec.senderId,
+      ...(rec.senderMetadata ? { metadata: rec.senderMetadata } : {}),
+    });
+    consumePairCode(db, code);
+    audit.write({
+      kind: 'pair',
+      session_id: evt.session_id,
+      adapter: rec.adapter,
+      sender_id: rec.senderId,
+    });
+    ipcServer.sendToSession(evt.session_id, {
+      kind: 'admin_pair_result',
+      success: true,
+      adapter: rec.adapter,
+      sender_id: rec.senderId,
+      session_id: evt.session_id,
+    });
+    // Notify adapter
+    const reg = adapters.get(rec.adapter);
+    if (reg?.adapter.onPairingCompleted) {
+      try {
+        const payload: Parameters<NonNullable<typeof reg.adapter.onPairingCompleted>>[0] = {
+          sessionId: evt.session_id,
+          senderId: rec.senderId,
+        };
+        if (rec.senderMetadata) payload.metadata = rec.senderMetadata;
+        const displayName = opts.config?.sessions.find((s) => s.session_id === evt.session_id)
+          ?.display_name;
+        if (displayName !== undefined) payload.displayName = displayName;
+        await reg.adapter.onPairingCompleted(payload);
+      } catch (err) {
+        logger.warn(
+          { err, adapter: rec.adapter, component: 'core.router' },
+          'adapter onPairingCompleted threw',
+        );
+      }
+    }
+  }
+
   // Public API -----------------------------------------------------------------
 
   return {
@@ -281,6 +367,19 @@ export function createRouter(opts: RouterOptions): Router {
 
     async ingestPermissionVerdict(verdict: PermissionVerdict): Promise<void> {
       await permissions.handleVerdict(verdict);
+    },
+
+    isPaired(adapter, senderId, sessionId) {
+      return isPairedDb(db, adapter, senderId, sessionId);
+    },
+
+    createPairCode(input) {
+      const record = createPairCodeRecord(db, {
+        adapter: input.adapter,
+        senderId: input.senderId,
+        ...(input.metadata ? { senderMetadata: input.metadata } : {}),
+      });
+      return { code: record.code, expiresAt: record.expiresAt };
     },
 
     async stop(): Promise<void> {

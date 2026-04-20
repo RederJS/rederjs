@@ -10,6 +10,12 @@ export interface AdapterStorage {
 export interface RouterHandle {
   ingestInbound(msg: InboundMessage): Promise<void>;
   ingestPermissionVerdict(verdict: PermissionVerdict): Promise<void>;
+  isPaired(adapter: string, senderId: string, sessionId: string): boolean;
+  createPairCode(input: {
+    adapter: string;
+    senderId: string;
+    metadata?: Record<string, unknown>;
+  }): { code: string; expiresAt: string };
 }
 
 export interface AdapterContext {
@@ -83,4 +89,15 @@ export abstract class Adapter {
   abstract cancelPermissionPrompt(requestId: string, finalVerdict?: string): Promise<void>;
 
   healthCheck?(): Promise<AdapterHealth>;
+
+  /**
+   * Called when a pair code the adapter generated is successfully redeemed,
+   * so the adapter can notify the end user (e.g. via DM "✅ paired").
+   */
+  onPairingCompleted?(binding: {
+    sessionId: string;
+    senderId: string;
+    displayName?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void>;
 }

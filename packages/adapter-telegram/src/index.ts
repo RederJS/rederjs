@@ -6,6 +6,7 @@ import {
   type PermissionPrompt,
   type SendResult,
 } from '@reder/core/adapter';
+import { RateLimiter } from '@reder/core/ratelimit';
 import { TelegramAdapterConfigSchema, type TelegramAdapterConfig } from './config.js';
 import type { TelegramTransport } from './transport.js';
 import { createGrammyTransport } from './grammy-transport.js';
@@ -15,6 +16,8 @@ import { splitMessage } from './splitting.js';
 
 export interface TelegramAdapterOptions {
   transportFactory?: (token: string) => TelegramTransport;
+  rateLimitPerMinute?: number;
+  pairAttemptsPerHour?: number;
 }
 
 interface BotRuntime {
@@ -35,9 +38,13 @@ export class TelegramAdapter extends Adapter {
   private config!: TelegramAdapterConfig;
   private bots: BotRuntime[] = [];
   private pollLoops: Array<Promise<void>> = [];
+  private messageRateLimiter: RateLimiter;
+  private pairRateLimiter: RateLimiter;
 
   constructor(private readonly opts: TelegramAdapterOptions = {}) {
     super();
+    this.messageRateLimiter = new RateLimiter(opts.rateLimitPerMinute ?? 60, 60_000);
+    this.pairRateLimiter = new RateLimiter(opts.pairAttemptsPerHour ?? 5, 3_600_000);
   }
 
   override async start(ctx: AdapterContext): Promise<void> {
@@ -249,15 +256,20 @@ export class TelegramAdapter extends Adapter {
       : never,
   ): Promise<void> {
     const norm = normalizeUpdate(update, { sessionId: runtime.sessionId });
+
     switch (norm.kind) {
       case 'text': {
         if (!norm.inbound) return;
-        await this.ctx.router.ingestInbound(norm.inbound);
+        await this.gateInboundAndIngest(runtime, norm.inbound);
+        return;
+      }
+      case 'command': {
+        if (!norm.command) return;
+        await this.handleCommand(runtime, norm.command);
         return;
       }
       case 'voice': {
         if (!norm.voiceNote) return;
-        // Reject voice notes in v0.1 (STT deferred).
         try {
           await runtime.transport.sendMessage(
             norm.voiceNote.chatId,
@@ -271,11 +283,159 @@ export class TelegramAdapter extends Adapter {
       }
       case 'photo':
       case 'document':
-      case 'command':
       case 'callback_query':
       case 'ignore':
-        // Handled in later milestones (M7 pairing, M8 permissions, M9 media).
+        // Handled in later milestones (M8 permissions, M9 media).
         return;
+    }
+  }
+
+  private async gateInboundAndIngest(
+    runtime: BotRuntime,
+    msg: import('@reder/core/adapter').InboundMessage,
+  ): Promise<void> {
+    // 1. Sender allowlist (deny by default)
+    const paired = this.ctx.router.isPaired('telegram', msg.senderId, msg.sessionId);
+    if (!paired) {
+      // First contact from an unpaired sender → initiate pairing.
+      await this.initiatePairing(runtime, msg);
+      return;
+    }
+
+    // 2. Rate limit.
+    const rl = this.messageRateLimiter.check(`telegram:${msg.senderId}:${msg.sessionId}`);
+    if (!rl.allowed) {
+      this.logger.warn(
+        { sender_id: msg.senderId, session_id: msg.sessionId, component: 'adapter.telegram' },
+        'rate limit exceeded; dropping message',
+      );
+      const chatId = Number(msg.meta['chat_id']);
+      if (Number.isFinite(chatId)) {
+        const resetInS = Math.ceil((rl.resetInMs ?? 60_000) / 1000);
+        try {
+          await runtime.transport.sendMessage(
+            chatId,
+            `Rate limit: too many messages. Wait ~${resetInS}s before sending more.`,
+          );
+        } catch {
+          // best-effort
+        }
+      }
+      return;
+    }
+
+    // 3. Forward to router.
+    await this.ctx.router.ingestInbound(msg);
+  }
+
+  private async initiatePairing(
+    runtime: BotRuntime,
+    msg: import('@reder/core/adapter').InboundMessage,
+  ): Promise<void> {
+    const chatId = Number(msg.meta['chat_id']);
+    if (!Number.isFinite(chatId)) return;
+
+    // Rate limit pair attempts per sender.
+    const rl = this.pairRateLimiter.check(`telegram-pair:${msg.senderId}`);
+    if (!rl.allowed) {
+      try {
+        await runtime.transport.sendMessage(
+          chatId,
+          'Too many pairing attempts. Please try again later.',
+        );
+      } catch {
+        // best-effort
+      }
+      return;
+    }
+
+    const { code } = this.ctx.router.createPairCode({
+      adapter: 'telegram',
+      senderId: msg.senderId,
+      metadata: {
+        chat_id: String(chatId),
+        session_id_target: runtime.sessionId,
+        ...(msg.meta['username'] !== undefined ? { username: msg.meta['username'] } : {}),
+      },
+    });
+
+    const text =
+      `This Telegram account is not paired to a Claude Code session yet.\n\n` +
+      `Your pairing code is: *${code}*\n\n` +
+      `In the project directory where your Claude Code shim for session ` +
+      `"${runtime.sessionId}" is registered, run:\n\n` +
+      '`reder pair ' +
+      code +
+      '`\n\n' +
+      `The code expires in 10 minutes.`;
+
+    try {
+      await runtime.transport.sendMessage(chatId, text, { parse_mode: 'MarkdownV2' });
+    } catch (err) {
+      this.logger.warn({ err, chat_id: chatId }, 'failed to send pairing instructions');
+      try {
+        await runtime.transport.sendMessage(
+          chatId,
+          `Pairing code: ${code}. Run "reder pair ${code}" in your Claude Code session. Expires in 10 minutes.`,
+        );
+      } catch {
+        // best-effort
+      }
+    }
+  }
+
+  private async handleCommand(
+    runtime: BotRuntime,
+    cmd: { name: string; args: string; senderId: string; chatId: number },
+  ): Promise<void> {
+    // Built-in commands. /pair is intentionally NOT accepted here — the
+    // instructions direct users to run `reder pair` locally so that sender
+    // identity is proven via local project access, not trust in Telegram input.
+    if (cmd.name === 'start' || cmd.name === 'help') {
+      try {
+        await runtime.transport.sendMessage(
+          cmd.chatId,
+          `Reder Telegram channel for session "${runtime.sessionId}". ` +
+            `Send any message to pair or talk to Claude Code.`,
+        );
+      } catch {
+        // best-effort
+      }
+      return;
+    }
+    // Unknown command → treat as a normal text message (fall through to gate).
+    const inbound: import('@reder/core/adapter').InboundMessage = {
+      adapter: 'telegram',
+      sessionId: runtime.sessionId,
+      senderId: cmd.senderId,
+      content: `/${cmd.name}${cmd.args ? ' ' + cmd.args : ''}`,
+      meta: { chat_id: String(cmd.chatId), chat_type: 'private' },
+      files: [],
+      idempotencyKey: `telegram:${cmd.chatId}:cmd:${cmd.name}:${Date.now()}`,
+      receivedAt: new Date(),
+    };
+    await this.gateInboundAndIngest(runtime, inbound);
+  }
+
+  override async onPairingCompleted(binding: {
+    sessionId: string;
+    senderId: string;
+    displayName?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    const runtime = this.bots.find((b) => b.sessionId === binding.sessionId);
+    if (!runtime) return;
+    const chatIdRaw = binding.metadata?.['chat_id'];
+    const chatId = typeof chatIdRaw === 'string' ? Number(chatIdRaw) : Number(chatIdRaw);
+    if (!Number.isFinite(chatId)) return;
+    const label = binding.displayName ?? binding.sessionId;
+    try {
+      await runtime.transport.sendMessage(
+        chatId,
+        `✅ Paired to Claude Code session "${label}". You can chat normally now.`,
+      );
+    } catch (err) {
+      this.logger.warn({ err }, 'failed to send pairing-success reply');
     }
   }
 }

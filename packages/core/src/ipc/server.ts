@@ -51,12 +51,18 @@ export type ChannelAckEvent = {
   message_id: string;
 };
 
+export type AdminPairRequestEvent = {
+  session_id: string;
+  code: string;
+};
+
 type IpcEvents = {
   shim_connected: (sessionId: string) => void;
   shim_disconnected: (sessionId: string) => void;
   reply_tool_call: (event: ReplyToolCallEvent) => void;
   permission_request: (event: PermissionRequestEvent) => void;
   channel_ack: (event: ChannelAckEvent) => void;
+  admin_pair_request: (event: AdminPairRequestEvent) => void;
 };
 
 export interface IpcServer {
@@ -210,6 +216,10 @@ export async function createIpcServer(opts: CreateIpcServerOptions): Promise<Ipc
       case 'channel_ack':
         resetHeartbeat(ctx);
         emitter.emit('channel_ack', { session_id: ctx.sessionId!, message_id: msg.message_id });
+        return;
+      case 'admin_pair_request':
+        resetHeartbeat(ctx);
+        emitter.emit('admin_pair_request', { session_id: ctx.sessionId!, code: msg.code });
         return;
     }
   }
