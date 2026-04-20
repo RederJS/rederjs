@@ -122,7 +122,7 @@ export function listPendingInboundForSession(db: Db, sessionId: string): Inbound
               content, meta_json, files_json, received_at, state
          FROM inbound_messages
         WHERE session_id = ? AND state IN ('received', 'delivered')
-        ORDER BY received_at, message_id`,
+        ORDER BY received_at, rowid`,
     )
     .all(sessionId) as Array<Parameters<typeof rowToInbound>[0]>;
   return rows.map(rowToInbound);
@@ -234,7 +234,7 @@ export function listPendingOutbound(db: Db, adapter: string, limit: number): Out
               content, meta_json, files_json, created_at, state, attempt_count, last_error
          FROM outbound_messages
         WHERE adapter = ? AND state = 'pending'
-        ORDER BY created_at, message_id
+        ORDER BY created_at, rowid
         LIMIT ?`,
     )
     .all(adapter, limit) as Array<Parameters<typeof rowToOutbound>[0]>;

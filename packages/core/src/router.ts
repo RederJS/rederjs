@@ -1,0 +1,290 @@
+import { randomUUID } from 'node:crypto';
+import type { Database as Db } from 'better-sqlite3';
+import type { Logger } from 'pino';
+import type {
+  Adapter,
+  InboundMessage,
+  OutboundMessage,
+  PermissionVerdict,
+  RouterHandle,
+} from './adapter.js';
+import {
+  insertInbound,
+  markInboundDelivered,
+  markInboundAcknowledged,
+  insertOutbound,
+  markOutboundSent,
+  markOutboundFailed,
+  incrementOutboundAttempt,
+  listPendingInboundForSession,
+} from './storage/outbox.js';
+import type { IpcServer, ReplyToolCallEvent, ChannelAckEvent, PermissionRequestEvent } from './ipc/server.js';
+import type { AuditLog } from './audit.js';
+import { PermissionManager, type PermissionManagerOptions } from './permissions.js';
+
+export interface RouterOptions {
+  db: Db;
+  ipcServer: IpcServer;
+  logger: Logger;
+  audit: AuditLog;
+  permissions?: Partial<PermissionManagerOptions>;
+  outboundMaxAttempts?: number;
+  outboundInitialBackoffMs?: number;
+}
+
+export interface AdapterRegistration {
+  adapter: Adapter;
+}
+
+export interface Router extends RouterHandle {
+  registerAdapter(name: string, reg: AdapterRegistration): void;
+  unregisterAdapter(name: string): void;
+  permissions(): PermissionManager;
+  stop(): Promise<void>;
+}
+
+interface LastInboundBySession {
+  adapter: string;
+  senderId: string;
+  messageId: string;
+}
+
+const OUTBOUND_DEFAULT_MAX_ATTEMPTS = 5;
+const OUTBOUND_DEFAULT_INITIAL_BACKOFF_MS = 250;
+
+export function createRouter(opts: RouterOptions): Router {
+  const { db, ipcServer, logger, audit } = opts;
+  const adapters = new Map<string, AdapterRegistration>();
+  const lastInboundBySession = new Map<string, LastInboundBySession>();
+
+  const permissions = new PermissionManager({
+    db,
+    adapters: {
+      send: async (name, prompt) => {
+        const reg = adapters.get(name);
+        if (!reg) return;
+        await reg.adapter.sendPermissionPrompt(prompt);
+      },
+      cancel: async (name, requestId, finalVerdict) => {
+        const reg = adapters.get(name);
+        if (!reg) return;
+        await reg.adapter.cancelPermissionPrompt(requestId, finalVerdict);
+      },
+      allNames: () => [...adapters.keys()],
+    },
+    logger: logger.child({ component: 'core.permissions' }),
+    audit,
+    timeoutSeconds: opts.permissions?.timeoutSeconds ?? 600,
+    defaultOnTimeout: opts.permissions?.defaultOnTimeout ?? 'deny',
+    dispatchVerdict: (sessionId, requestId, behavior) => {
+      ipcServer.sendToSession(sessionId, {
+        kind: 'permission_verdict',
+        request_id: requestId,
+        behavior,
+      });
+    },
+  });
+
+  // IPC event wiring -----------------------------------------------------------
+
+  ipcServer.on('shim_connected', (sessionId) => {
+    void flushPendingForSession(sessionId);
+  });
+
+  ipcServer.on('channel_ack', (evt: ChannelAckEvent) => {
+    markInboundAcknowledged(db, evt.message_id);
+  });
+
+  ipcServer.on('reply_tool_call', (evt: ReplyToolCallEvent) => {
+    void handleReplyToolCall(evt);
+  });
+
+  ipcServer.on('permission_request', (evt: PermissionRequestEvent) => {
+    void permissions.handleRequest(evt);
+  });
+
+  // Inbound path ---------------------------------------------------------------
+
+  async function deliverInbound(sessionId: string, messageId: string, content: string, meta: Record<string, string>): Promise<void> {
+    const sent = ipcServer.sendToSession(sessionId, {
+      kind: 'channel_event',
+      message_id: messageId,
+      content,
+      meta,
+    });
+    if (sent) {
+      markInboundDelivered(db, messageId);
+    }
+  }
+
+  async function flushPendingForSession(sessionId: string): Promise<void> {
+    const rows = listPendingInboundForSession(db, sessionId);
+    for (const row of rows) {
+      await deliverInbound(sessionId, row.message_id, row.content, row.meta);
+    }
+    logger.debug(
+      { session_id: sessionId, count: rows.length, component: 'core.router' },
+      'flushed pending inbound for session',
+    );
+  }
+
+  // Outbound path --------------------------------------------------------------
+
+  function resolveRecipient(sessionId: string, inReplyTo?: string): { adapter: string; recipient: string } | null {
+    if (inReplyTo) {
+      const row = db
+        .prepare(
+          `SELECT adapter, sender_id FROM inbound_messages WHERE message_id = ? AND session_id = ?`,
+        )
+        .get(inReplyTo, sessionId) as { adapter: string; sender_id: string } | undefined;
+      if (row) return { adapter: row.adapter, recipient: row.sender_id };
+    }
+    const last = lastInboundBySession.get(sessionId);
+    if (last) return { adapter: last.adapter, recipient: last.senderId };
+
+    const row = db
+      .prepare(
+        `SELECT adapter, sender_id FROM inbound_messages
+          WHERE session_id = ?
+          ORDER BY received_at DESC, message_id DESC
+          LIMIT 1`,
+      )
+      .get(sessionId) as { adapter: string; sender_id: string } | undefined;
+    if (row) return { adapter: row.adapter, recipient: row.sender_id };
+    return null;
+  }
+
+  async function dispatchOutboundWithRetry(
+    reg: AdapterRegistration,
+    msg: OutboundMessage,
+    messageId: string,
+  ): Promise<{ success: boolean; error?: string; transportMessageId?: string }> {
+    const maxAttempts = opts.outboundMaxAttempts ?? OUTBOUND_DEFAULT_MAX_ATTEMPTS;
+    const initialBackoff = opts.outboundInitialBackoffMs ?? OUTBOUND_DEFAULT_INITIAL_BACKOFF_MS;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      incrementOutboundAttempt(db, messageId);
+      const result = await reg.adapter.sendOutbound(msg);
+      if (result.success) {
+        return {
+          success: true,
+          ...(result.transportMessageId !== undefined
+            ? { transportMessageId: result.transportMessageId }
+            : {}),
+        };
+      }
+      if (!result.retriable || attempt === maxAttempts) {
+        return { success: false, error: result.error ?? 'send failed' };
+      }
+      await new Promise((r) => setTimeout(r, initialBackoff * 2 ** (attempt - 1)));
+    }
+    return { success: false, error: 'exhausted retries' };
+  }
+
+  async function handleReplyToolCall(evt: ReplyToolCallEvent): Promise<void> {
+    const resolved = resolveRecipient(evt.session_id, evt.in_reply_to);
+    if (!resolved) {
+      ipcServer.sendToSession(evt.session_id, {
+        kind: 'reply_tool_result',
+        request_id: evt.request_id,
+        success: false,
+        error: 'no recipient bound to session',
+      });
+      return;
+    }
+    const reg = adapters.get(resolved.adapter);
+    if (!reg) {
+      ipcServer.sendToSession(evt.session_id, {
+        kind: 'reply_tool_result',
+        request_id: evt.request_id,
+        success: false,
+        error: `adapter '${resolved.adapter}' not registered`,
+      });
+      return;
+    }
+    const messageId = randomUUID();
+    insertOutbound(db, {
+      message_id: messageId,
+      session_id: evt.session_id,
+      adapter: resolved.adapter,
+      recipient: resolved.recipient,
+      content: evt.content,
+      meta: evt.meta,
+      files: evt.files,
+    });
+    const outbound: OutboundMessage = {
+      sessionId: evt.session_id,
+      adapter: resolved.adapter,
+      recipient: resolved.recipient,
+      content: evt.content,
+      meta: evt.meta,
+      files: evt.files,
+      ...(evt.in_reply_to !== undefined ? { inReplyTo: evt.in_reply_to } : {}),
+    };
+    const result = await dispatchOutboundWithRetry(reg, outbound, messageId);
+    if (result.success) {
+      markOutboundSent(db, messageId, result.transportMessageId);
+      ipcServer.sendToSession(evt.session_id, {
+        kind: 'reply_tool_result',
+        request_id: evt.request_id,
+        success: true,
+      });
+    } else {
+      markOutboundFailed(db, messageId, result.error ?? 'unknown error');
+      ipcServer.sendToSession(evt.session_id, {
+        kind: 'reply_tool_result',
+        request_id: evt.request_id,
+        success: false,
+        error: result.error ?? 'send failed',
+      });
+    }
+  }
+
+  // Public API -----------------------------------------------------------------
+
+  return {
+    registerAdapter(name, reg) {
+      adapters.set(name, reg);
+    },
+    unregisterAdapter(name) {
+      adapters.delete(name);
+    },
+    permissions() {
+      return permissions;
+    },
+
+    async ingestInbound(msg: InboundMessage): Promise<void> {
+      const insertArgs: Parameters<typeof insertInbound>[1] = {
+        session_id: msg.sessionId,
+        adapter: msg.adapter,
+        sender_id: msg.senderId,
+        content: msg.content,
+        meta: msg.meta,
+        files: msg.files,
+      };
+      if (msg.correlationId !== undefined) insertArgs.correlation_id = msg.correlationId;
+      if (msg.idempotencyKey !== undefined) insertArgs.idempotency_key = msg.idempotencyKey;
+      const { message_id, inserted } = insertInbound(db, insertArgs);
+      if (!inserted) {
+        logger.debug(
+          { message_id, idempotency_key: msg.idempotencyKey, component: 'core.router' },
+          'duplicate inbound message ignored',
+        );
+        return;
+      }
+      lastInboundBySession.set(msg.sessionId, {
+        adapter: msg.adapter,
+        senderId: msg.senderId,
+        messageId: message_id,
+      });
+      await deliverInbound(msg.sessionId, message_id, msg.content, msg.meta);
+    },
+
+    async ingestPermissionVerdict(verdict: PermissionVerdict): Promise<void> {
+      await permissions.handleVerdict(verdict);
+    },
+
+    async stop(): Promise<void> {
+      await permissions.stop();
+    },
+  };
+}
