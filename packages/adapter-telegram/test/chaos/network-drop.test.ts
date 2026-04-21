@@ -48,6 +48,7 @@ beforeEach(async () => {
     storage: createAdapterStorage(db.raw, 'telegram'),
     router,
     dataDir: dir,
+    sessions: [],
   };
   await adapter.start(ctx);
   router.registerAdapter('telegram', { adapter });

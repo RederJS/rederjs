@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
 import type {
@@ -6,6 +7,8 @@ import type {
   InboundMessage,
   OutboundMessage,
   PermissionVerdict,
+  RouterEventMap,
+  RouterEvents,
   RouterHandle,
 } from './adapter.js';
 import {
@@ -72,6 +75,22 @@ export function createRouter(opts: RouterOptions): Router {
   const adapters = new Map<string, AdapterRegistration>();
   const lastInboundBySession = new Map<string, LastInboundBySession>();
 
+  const emitter = new EventEmitter();
+  emitter.setMaxListeners(64);
+
+  function emit<K extends keyof RouterEventMap>(event: K, payload: RouterEventMap[K]): void {
+    emitter.emit(event, payload);
+  }
+
+  const events: RouterEvents = {
+    on: (event, listener) => {
+      emitter.on(event, listener as (...args: unknown[]) => void);
+    },
+    off: (event, listener) => {
+      emitter.off(event, listener as (...args: unknown[]) => void);
+    },
+  };
+
   const permissions = new PermissionManager({
     db,
     adapters: {
@@ -98,12 +117,20 @@ export function createRouter(opts: RouterOptions): Router {
         behavior,
       });
     },
+    onResolved: (info) => {
+      emit('permission.resolved', info);
+    },
   });
 
   // IPC event wiring -----------------------------------------------------------
 
   ipcServer.on('shim_connected', (sessionId) => {
+    emit('session.state_changed', { sessionId, state: 'connected' });
     void flushPendingForSession(sessionId);
+  });
+
+  ipcServer.on('shim_disconnected', (sessionId) => {
+    emit('session.state_changed', { sessionId, state: 'disconnected' });
   });
 
   ipcServer.on('channel_ack', (evt: ChannelAckEvent) => {
@@ -115,6 +142,17 @@ export function createRouter(opts: RouterOptions): Router {
   });
 
   ipcServer.on('permission_request', (evt: PermissionRequestEvent) => {
+    const expiresAt = new Date(
+      Date.now() + (opts.permissions?.timeoutSeconds ?? 600) * 1000,
+    ).toISOString();
+    emit('permission.requested', {
+      requestId: evt.request_id,
+      sessionId: evt.session_id,
+      toolName: evt.tool_name,
+      description: evt.description,
+      inputPreview: evt.input_preview,
+      expiresAt,
+    });
     void permissions.handleRequest(evt);
   });
 
@@ -221,6 +259,7 @@ export function createRouter(opts: RouterOptions): Router {
       return;
     }
     const messageId = randomUUID();
+    const createdAt = new Date().toISOString();
     insertOutbound(db, {
       message_id: messageId,
       session_id: evt.session_id,
@@ -229,6 +268,16 @@ export function createRouter(opts: RouterOptions): Router {
       content: evt.content,
       meta: evt.meta,
       files: evt.files,
+    });
+    emit('outbound.persisted', {
+      messageId,
+      sessionId: evt.session_id,
+      adapter: resolved.adapter,
+      recipient: resolved.recipient,
+      content: evt.content,
+      meta: evt.meta,
+      files: evt.files,
+      createdAt,
     });
     const outbound: OutboundMessage = {
       sessionId: evt.session_id,
@@ -242,6 +291,20 @@ export function createRouter(opts: RouterOptions): Router {
     const result = await dispatchOutboundWithRetry(reg, outbound, messageId);
     if (result.success) {
       markOutboundSent(db, messageId, result.transportMessageId);
+      emit('outbound.sent', {
+        messageId,
+        sessionId: evt.session_id,
+        adapter: resolved.adapter,
+        recipient: resolved.recipient,
+        content: evt.content,
+        meta: evt.meta,
+        files: evt.files,
+        createdAt,
+        sentAt: new Date().toISOString(),
+        ...(result.transportMessageId !== undefined
+          ? { transportMessageId: result.transportMessageId }
+          : {}),
+      });
       ipcServer.sendToSession(evt.session_id, {
         kind: 'reply_tool_result',
         request_id: evt.request_id,
@@ -362,6 +425,19 @@ export function createRouter(opts: RouterOptions): Router {
         senderId: msg.senderId,
         messageId: message_id,
       });
+      emit('inbound.persisted', {
+        messageId: message_id,
+        sessionId: msg.sessionId,
+        adapter: msg.adapter,
+        senderId: msg.senderId,
+        content: msg.content,
+        meta: msg.meta,
+        files: msg.files,
+        receivedAt: (msg.receivedAt instanceof Date
+          ? msg.receivedAt
+          : new Date()
+        ).toISOString(),
+      });
       await deliverInbound(msg.sessionId, message_id, msg.content, msg.meta);
     },
 
@@ -371,6 +447,10 @@ export function createRouter(opts: RouterOptions): Router {
 
     isPaired(adapter, senderId, sessionId) {
       return isPairedDb(db, adapter, senderId, sessionId);
+    },
+
+    isSessionConnected(sessionId) {
+      return ipcServer.isSessionConnected(sessionId);
     },
 
     listBindingsForSession(adapter, sessionId) {
@@ -401,8 +481,11 @@ export function createRouter(opts: RouterOptions): Router {
       return { code: record.code, expiresAt: record.expiresAt };
     },
 
+    events,
+
     async stop(): Promise<void> {
       await permissions.stop();
+      emitter.removeAllListeners();
     },
   };
 }

@@ -10,8 +10,10 @@ import { createIpcServer, type IpcServer } from '@reder/core/ipc/server';
 import { createRouter, type Router } from '@reder/core/router';
 import { createAuditLog, type AuditLog } from '@reder/core/audit';
 import { startHealthEndpoint, type HealthEndpoint, type HealthSnapshot } from '@reder/core/health';
+import { startSession as startTmuxSession } from '@reder/core/tmux';
 import type { Adapter } from '@reder/core/adapter';
 import { createAdapterHost, type AdapterHost, loadAdapter } from './adapter-host.js';
+export type { AdapterHost };
 
 export interface BootstrapResult {
   config: Config;
@@ -89,6 +91,60 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
     },
   });
 
+  const daemonVersion = opts.daemonVersion ?? '0.1.0';
+
+  // Forward-reference to adapter host — set after we construct it below.
+  let adapterHostRef: AdapterHost | null = null;
+
+  const snapshotFn = async (): Promise<HealthSnapshot> => {
+    const inbound = (
+      db.raw
+        .prepare(
+          `SELECT COUNT(*) AS c FROM inbound_messages WHERE state IN ('received','delivered')`,
+        )
+        .get() as { c: number }
+    ).c;
+    const outbound = (
+      db.raw
+        .prepare(`SELECT COUNT(*) AS c FROM outbound_messages WHERE state = 'pending'`)
+        .get() as { c: number }
+    ).c;
+    const sessions = (
+      db.raw
+        .prepare(`SELECT session_id, state, last_seen_at FROM sessions ORDER BY session_id`)
+        .all() as Array<{
+        session_id: string;
+        state: 'registered' | 'connected' | 'disconnected' | 'revoked';
+        last_seen_at: string | null;
+      }>
+    ).map((r) => ({ session_id: r.session_id, state: r.state, last_seen_at: r.last_seen_at }));
+
+    const adapterSnaps = [];
+    const entries = adapterHostRef?.loaded ?? [];
+    for (const entry of entries) {
+      const h = entry.adapter.healthCheck ? await entry.adapter.healthCheck() : null;
+      adapterSnaps.push({
+        name: entry.name,
+        healthy: h?.healthy ?? true,
+        connected_since: h?.connectedSince?.toISOString() ?? null,
+        last_inbound_at: h?.lastInboundAt?.toISOString() ?? null,
+        last_outbound_at: h?.lastOutboundAt?.toISOString() ?? null,
+        details: h?.details ?? {},
+      });
+    }
+    return {
+      daemon: {
+        uptime_s: Math.round((Date.now() - startedAt.getTime()) / 1000),
+        started_at: startedAt.toISOString(),
+        config_path: configPath,
+        version: daemonVersion,
+      },
+      adapters: adapterSnaps,
+      outbox: { inbound_pending: inbound, outbound_pending: outbound },
+      sessions,
+    };
+  };
+
   const adapterHost = await createAdapterHost({
     db: db.raw,
     config,
@@ -97,64 +153,39 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
     router,
     dataDir,
     resolveModule: opts.overrideResolveModule ?? loadAdapter,
+    healthSnapshot: snapshotFn,
   });
+  adapterHostRef = adapterHost;
 
   await adapterHost.startAll((name, adapter: Adapter) => {
     router.registerAdapter(name, { adapter });
   });
 
-  let health: HealthEndpoint | null = null;
-  if (config.health.enabled) {
-    const daemonVersion = opts.daemonVersion ?? '0.1.0';
-    const snapshotFn = async (): Promise<HealthSnapshot> => {
-      const inbound = (
-        db.raw
-          .prepare(
-            `SELECT COUNT(*) AS c FROM inbound_messages WHERE state IN ('received','delivered')`,
-          )
-          .get() as { c: number }
-      ).c;
-      const outbound = (
-        db.raw
-          .prepare(`SELECT COUNT(*) AS c FROM outbound_messages WHERE state = 'pending'`)
-          .get() as { c: number }
-      ).c;
-      const sessions = (
-        db.raw
-          .prepare(
-            `SELECT session_id, state, last_seen_at FROM sessions ORDER BY session_id`,
-          )
-          .all() as Array<{
-          session_id: string;
-          state: 'registered' | 'connected' | 'disconnected' | 'revoked';
-          last_seen_at: string | null;
-        }>
-      ).map((r) => ({ session_id: r.session_id, state: r.state, last_seen_at: r.last_seen_at }));
+  // Auto-start tmux sessions for entries with auto_start:true + workspace_dir.
+  // Non-fatal; log each start/skip/failure.
+  for (const s of config.sessions) {
+    if (!s.auto_start || !s.workspace_dir) continue;
+    const result = startTmuxSession({
+      session_id: s.session_id,
+      workspace_dir: s.workspace_dir,
+      logger: logger.child({ component: 'core.tmux' }),
+    });
+    logger.info(
+      {
+        session_id: s.session_id,
+        workspace_dir: s.workspace_dir,
+        ...result,
+        component: 'daemon.bootstrap',
+      },
+      result.started ? 'auto-started tmux session' : 'tmux auto-start skipped',
+    );
+  }
 
-      const adapterSnaps = [];
-      for (const entry of adapterHost.loaded) {
-        const h = entry.adapter.healthCheck ? await entry.adapter.healthCheck() : null;
-        adapterSnaps.push({
-          name: entry.name,
-          healthy: h?.healthy ?? true,
-          connected_since: h?.connectedSince?.toISOString() ?? null,
-          last_inbound_at: h?.lastInboundAt?.toISOString() ?? null,
-          last_outbound_at: h?.lastOutboundAt?.toISOString() ?? null,
-          details: h?.details ?? {},
-        });
-      }
-      return {
-        daemon: {
-          uptime_s: Math.round((Date.now() - startedAt.getTime()) / 1000),
-          started_at: startedAt.toISOString(),
-          config_path: configPath,
-          version: daemonVersion,
-        },
-        adapters: adapterSnaps,
-        outbox: { inbound_pending: inbound, outbound_pending: outbound },
-        sessions,
-      };
-    };
+  // Legacy health endpoint: only start if the web adapter isn't enabled.
+  // When enabled, adapter-web serves `/health` on the same port as the dashboard.
+  const webAdapterEnabled = Boolean(config.adapters['web']?.enabled);
+  let health: HealthEndpoint | null = null;
+  if (config.health.enabled && !webAdapterEnabled) {
     health = await startHealthEndpoint({
       bind: config.health.bind,
       port: config.health.port,

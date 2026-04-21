@@ -59,6 +59,8 @@ export const ConfigSchemaV1 = z
         z.object({
           session_id: z.string().regex(sessionIdRe),
           display_name: z.string().min(1),
+          workspace_dir: z.string().min(1).optional(),
+          auto_start: z.boolean().default(false),
         }),
       )
       .default([]),

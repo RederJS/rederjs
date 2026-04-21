@@ -18,6 +18,15 @@ export interface PermissionRequestInput {
   input_preview: string;
 }
 
+export interface PermissionResolvedHook {
+  (info: {
+    requestId: string;
+    sessionId: string;
+    behavior: 'allow' | 'deny';
+    respondent: string;
+  }): void;
+}
+
 export interface PermissionManagerOptions {
   db: Db;
   adapters: PermissionAdapterBridge;
@@ -26,6 +35,7 @@ export interface PermissionManagerOptions {
   timeoutSeconds: number;
   defaultOnTimeout: 'allow' | 'deny';
   dispatchVerdict: (sessionId: string, requestId: string, behavior: 'allow' | 'deny') => void;
+  onResolved?: PermissionResolvedHook;
 }
 
 interface ActiveEntry {
@@ -70,6 +80,12 @@ export class PermissionManager {
         respondent: 'persistent',
       });
       this.opts.dispatchVerdict(req.session_id, req.request_id, 'allow');
+      this.opts.onResolved?.({
+        requestId: req.request_id,
+        sessionId: req.session_id,
+        behavior: 'allow',
+        respondent: 'persistent',
+      });
       return;
     }
 
@@ -153,6 +169,12 @@ export class PermissionManager {
     });
 
     this.opts.dispatchVerdict(entry.session_id, verdict.requestId, verdict.behavior);
+    this.opts.onResolved?.({
+      requestId: verdict.requestId,
+      sessionId: entry.session_id,
+      behavior: verdict.behavior,
+      respondent: verdict.respondent,
+    });
 
     for (const name of this.opts.adapters.allNames()) {
       try {
@@ -185,6 +207,12 @@ export class PermissionManager {
     });
 
     this.opts.dispatchVerdict(entry.session_id, requestId, behavior);
+    this.opts.onResolved?.({
+      requestId,
+      sessionId: entry.session_id,
+      behavior,
+      respondent: 'timeout',
+    });
 
     for (const name of this.opts.adapters.allNames()) {
       try {

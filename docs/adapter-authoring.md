@@ -30,13 +30,18 @@ Reder gives you:
 - `ctx.logger` — a scoped pino logger. Use child loggers; never `console.log`.
 - `ctx.config` — your YAML block, already parsed. Validate it with zod.
 - `ctx.storage` — a KV store scoped to your adapter. Nobody else can read or write it.
-- `ctx.router` — the only way you inject events into the core:
+- `ctx.sessions` — the list of sessions declared in config (`session_id`, `display_name`, `workspace_dir?`, `auto_start`). Read-only.
+- `ctx.router` — the way you interact with the core:
   - `ingestInbound(InboundMessage)` — text + meta + optional file paths.
   - `ingestPermissionVerdict(PermissionVerdict)` — user approved/denied a prompt.
   - `isPaired(adapter, senderId, sessionId)` — allowlist check.
+  - `isSessionConnected(sessionId)` — is a Claude Code shim currently connected?
   - `listBindingsForSession(adapter, sessionId)` — for resolving the recipient of outbound messages.
   - `createPairCode({ adapter, senderId, metadata? })` — 6-char code for first-contact pairing.
+  - `events.on(event, listener)` — subscribe to router events. Useful if your adapter needs to observe cross-adapter activity (e.g. the web dashboard pushes transcript updates from Telegram messages). Events: `inbound.persisted`, `outbound.persisted`, `outbound.sent`, `permission.requested`, `permission.resolved`, `session.state_changed`.
 - `ctx.dataDir` — the daemon's data directory. Use `dataDir/media/<yourname>/...` for cached media.
+- `ctx.db` (optional) — direct SQLite handle. Only in-tree adapters that need complex read queries use this. Third-party adapters should prefer `router.events` and the router methods above.
+- `ctx.healthSnapshot` (optional) — pre-built health JSON function matching the `/health` endpoint. Adapters exposing their own HTTP surface (like `@reder/adapter-web`) use this.
 
 ## Rules the core enforces
 
@@ -74,4 +79,5 @@ Reder warns the operator on startup that a non-`@reder/*` adapter was loaded; en
 ## Reference implementations
 
 - `@reder/adapter-telegram` in this repository — the reference for an inbound-long-poll + rich-media + inline-keyboard permission adapter.
+- `@reder/adapter-web` — the reference for an adapter that owns its own HTTP surface, subscribes to `router.events` for live transcript fan-out, and uses `ctx.db` for transcript queries. Good model for a Slack or Discord adapter that wants to show chat UI beyond a simple message echo.
 - Future: `@reder/adapter-voice` (Phase 2) will be the reference for stateful bidirectional audio transports.

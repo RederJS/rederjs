@@ -22,6 +22,7 @@ export interface AdapterHostDeps {
   router: RouterHandle;
   dataDir: string;
   resolveModule: (spec: string) => Promise<AdapterFactory>;
+  healthSnapshot?: () => Promise<unknown>;
 }
 
 export interface LoadedAdapter {
@@ -88,6 +89,14 @@ export async function createAdapterHost(deps: AdapterHostDeps): Promise<AdapterH
           storage: createAdapterStorage(deps.db, entry.name),
           router: deps.router,
           dataDir: deps.dataDir,
+          sessions: deps.config.sessions.map((s) => ({
+            session_id: s.session_id,
+            display_name: s.display_name,
+            ...(s.workspace_dir !== undefined ? { workspace_dir: s.workspace_dir } : {}),
+            auto_start: s.auto_start,
+          })),
+          db: deps.db,
+          ...(deps.healthSnapshot ? { healthSnapshot: deps.healthSnapshot } : {}),
         };
         try {
           await entry.adapter.start(ctx);

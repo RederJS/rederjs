@@ -7,6 +7,15 @@ import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { runPair, formatPairResult } from './commands/pair.js';
 import { runStart, runStop, runRestart } from './commands/service.js';
 import { runConfigValidate } from './commands/config.js';
+import {
+  runSessionsList,
+  formatSessionsList,
+  runSessionStart,
+  formatSessionStart,
+  runSessionsUp,
+  formatSessionsUp,
+} from './commands/sessions.js';
+import { runDashboardUrl, formatDashboardUrl } from './commands/dashboard.js';
 
 const VERSION = '0.1.0';
 
@@ -169,6 +178,61 @@ config
     else if (r.valid) process.stdout.write(`✓ ${r.path} is valid\n`);
     else process.stdout.write(`✗ ${r.path}:\n${r.error}\n`);
     process.exit(r.valid ? 0 : 1);
+  });
+
+const sessions = program.command('sessions').description('manage tmux-hosted Claude Code sessions');
+sessions
+  .command('list')
+  .description('list configured sessions and their tmux status')
+  .action(() => {
+    try {
+      const r = runSessionsList(buildCfgOpts());
+      if (jsonMode()) process.stdout.write(JSON.stringify(r) + '\n');
+      else process.stdout.write(formatSessionsList(r) + '\n');
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+sessions
+  .command('start <session-id>')
+  .description('start a tmux session (running `claude`) in the configured workspace_dir')
+  .action((sessionId: string) => {
+    try {
+      const r = runSessionStart({ sessionId, ...buildCfgOpts() });
+      if (jsonMode()) process.stdout.write(JSON.stringify(r) + '\n');
+      else process.stdout.write(formatSessionStart(r) + '\n');
+      process.exit(r.started || r.reason === 'already_running' ? 0 : 1);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+sessions
+  .command('up')
+  .description('start every configured session with a workspace_dir (idempotent)')
+  .action(() => {
+    try {
+      const r = runSessionsUp(buildCfgOpts());
+      if (jsonMode()) process.stdout.write(JSON.stringify(r) + '\n');
+      else process.stdout.write(formatSessionsUp(r) + '\n');
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+const dashboard = program.command('dashboard').description('web dashboard helpers');
+dashboard
+  .command('url')
+  .description('print a one-time authenticated URL for the web dashboard')
+  .action(() => {
+    try {
+      const r = runDashboardUrl(buildCfgOpts());
+      if (jsonMode()) process.stdout.write(JSON.stringify(r) + '\n');
+      else process.stdout.write(formatDashboardUrl(r) + '\n');
+    } catch (err) {
+      fail(err);
+    }
   });
 
 program

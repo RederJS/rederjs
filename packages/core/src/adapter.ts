@@ -1,3 +1,4 @@
+import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
 
 export interface AdapterStorage {
@@ -13,16 +14,87 @@ export interface AdapterBinding {
   createdAt: string;
 }
 
+export interface InboundPersistedPayload {
+  readonly messageId: string;
+  readonly sessionId: string;
+  readonly adapter: string;
+  readonly senderId: string;
+  readonly content: string;
+  readonly meta: Record<string, string>;
+  readonly files: readonly string[];
+  readonly receivedAt: string;
+}
+
+export interface OutboundPersistedPayload {
+  readonly messageId: string;
+  readonly sessionId: string;
+  readonly adapter: string;
+  readonly recipient: string;
+  readonly content: string;
+  readonly meta: Record<string, string>;
+  readonly files: readonly string[];
+  readonly createdAt: string;
+}
+
+export interface OutboundSentPayload extends OutboundPersistedPayload {
+  readonly sentAt: string;
+  readonly transportMessageId?: string;
+}
+
+export interface PermissionRequestedPayload {
+  readonly requestId: string;
+  readonly sessionId: string;
+  readonly toolName: string;
+  readonly description: string;
+  readonly inputPreview: string;
+  readonly expiresAt: string;
+}
+
+export interface PermissionResolvedPayload {
+  readonly requestId: string;
+  readonly sessionId: string;
+  readonly behavior: 'allow' | 'deny';
+  readonly respondent: string;
+}
+
+export interface SessionStateChangedPayload {
+  readonly sessionId: string;
+  readonly state: 'registered' | 'connected' | 'disconnected' | 'revoked';
+}
+
+export interface RouterEventMap {
+  'inbound.persisted': InboundPersistedPayload;
+  'outbound.persisted': OutboundPersistedPayload;
+  'outbound.sent': OutboundSentPayload;
+  'permission.requested': PermissionRequestedPayload;
+  'permission.resolved': PermissionResolvedPayload;
+  'session.state_changed': SessionStateChangedPayload;
+}
+
+export interface RouterEvents {
+  on<K extends keyof RouterEventMap>(event: K, listener: (payload: RouterEventMap[K]) => void): void;
+  off<K extends keyof RouterEventMap>(event: K, listener: (payload: RouterEventMap[K]) => void): void;
+}
+
 export interface RouterHandle {
   ingestInbound(msg: InboundMessage): Promise<void>;
   ingestPermissionVerdict(verdict: PermissionVerdict): Promise<void>;
   isPaired(adapter: string, senderId: string, sessionId: string): boolean;
+  isSessionConnected(sessionId: string): boolean;
   listBindingsForSession(adapter: string, sessionId: string): AdapterBinding[];
   createPairCode(input: {
     adapter: string;
     senderId: string;
     metadata?: Record<string, unknown>;
   }): { code: string; expiresAt: string };
+  readonly events: RouterEvents;
+}
+
+export interface SessionDescriptor {
+  readonly session_id: string;
+  readonly display_name: string;
+  readonly workspace_dir?: string;
+  readonly auto_start: boolean;
 }
 
 export interface AdapterContext {
@@ -31,6 +103,19 @@ export interface AdapterContext {
   readonly storage: AdapterStorage;
   readonly router: RouterHandle;
   readonly dataDir: string;
+  readonly sessions: readonly SessionDescriptor[];
+  /**
+   * Direct handle to the shared SQLite database. Available to in-process
+   * adapters that need read access beyond what RouterHandle exposes (e.g. the
+   * web dashboard querying transcript history). Third-party adapters can
+   * ignore it.
+   */
+  readonly db?: Db;
+  /**
+   * Pre-built health snapshot function — returns the same JSON shape as the
+   * daemon's `/health` endpoint. Used by the web adapter to serve `/health`.
+   */
+  readonly healthSnapshot?: () => Promise<unknown>;
 }
 
 export interface InboundMessage {

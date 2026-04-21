@@ -4,11 +4,12 @@
 
 Adversaries Reder defends against:
 
-1. **Network attackers** reaching exposed endpoints. Reder v0.1 exposes no inbound public ports; Telegram is outbound-only long-poll, and the health endpoint binds to loopback.
-2. **Unauthorised Telegram users** who discover a bot. Every message is filtered through a deny-by-default pairing table.
-3. **Malicious third-party adapters** the operator installs from npm. Adapters run in-process (no sandbox in v0.1), so installation is trust; `reder doctor` flags non-`@reder/*` modules loudly.
-4. **Local users on a shared machine** attempting to read secrets or inject IPC events. The IPC socket is mode 0600 in a 0700 directory; `reder.env` and `.mcp.json` are mode 0600.
-5. **A compromised upstream service** (Telegram, OpenAI, …) attempting to pivot into the Reder host. STT-transcribed text is never interpreted as a command; the only privileged IPC path is the per-session argon2id-hashed shim token.
+1. **Network attackers** reaching exposed endpoints. The Telegram adapter is outbound-only long-poll. The web dashboard binds to loopback by default, gates `/api/*` behind a token, and enforces a Host-header allowlist. If you expose it beyond loopback, you do so through a reverse proxy (Caddy/Tailscale) you already trust.
+2. **Other local users or processes** reaching `127.0.0.1:7781`. On a shared machine or laptop, any browser tab, CLI, or postinstall script can reach loopback ports. Token auth, same-origin enforcement on state-changing verbs, and Host allowlist defend against that path.
+3. **Unauthorised Telegram users** who discover a bot. Every message is filtered through a deny-by-default pairing table.
+4. **Malicious third-party adapters** the operator installs from npm. Adapters run in-process (no sandbox in v0.1), so installation is trust; `reder doctor` flags non-`@reder/*` modules loudly.
+5. **Local users on a shared machine** attempting to read secrets or inject IPC events. The IPC socket is mode 0600 in a 0700 directory; `reder.env`, `.mcp.json`, and `dashboard.token` are mode 0600.
+6. **A compromised upstream service** (Telegram, OpenAI, …) attempting to pivot into the Reder host. STT-transcribed text is never interpreted as a command; the only privileged IPC path is the per-session argon2id-hashed shim token.
 
 Out of scope for v0.1:
 
@@ -20,10 +21,13 @@ Out of scope for v0.1:
 
 | # | Control | Where |
 | --- | --- | --- |
-| S1 | No inbound public ports | Telegram adapter uses long-poll; health on 127.0.0.1 only |
+| S1 | No inbound public ports by default | Telegram adapter uses long-poll; web + health bind to 127.0.0.1 |
 | S2 | Sender allowlist deny-by-default | `adapter-telegram/src/index.ts` gates via `bindings` table |
 | S3 | Per-session shim tokens (argon2id-hashed) | `core/src/sessions.ts` |
 | S4 | Permission timeout defaults to deny | `core/src/permissions.ts` |
+| S5 | Web dashboard token auth (32-byte random, 0600 file) | `adapter-web/src/auth.ts` |
+| S6 | Web dashboard Host-header allowlist (defeats DNS rebinding) | `adapter-web/src/auth.ts` |
+| S7 | Web dashboard same-origin enforcement on state-changing verbs | `adapter-web/src/auth.ts` |
 | S8 | Secrets via `${env:}` / `${file:}`; `.env` mode 0600 | `core/src/config.ts` |
 | S9 | Third-party adapter startup warning | `daemon/src/adapter-host.ts` |
 | S10 | Transcribed/inbound text never interpreted as a command | N/A — never parsed as code |
@@ -39,6 +43,15 @@ Out of scope for v0.1:
 3. Before pairing your Telegram account, verify the code on the bot matches what you saw.
 4. Monitor the audit log: `tail -f ~/.local/share/reder/audit-*.log`.
 5. Rotate the shim token if you suspect `.mcp.json` was exfiltrated: rerun `reder install <session>`.
+
+## Operator checklist before exposing the dashboard
+
+1. Don't bind the web adapter to `0.0.0.0` — keep it on `127.0.0.1` and front it with a reverse proxy (Caddy, nginx) on a private network (Tailscale, WireGuard, home LAN).
+2. Add the public hostname you proxy through to `adapters.web.config.host_allowlist` so the Host-header check passes.
+3. Keep `auth: token` on unless your reverse proxy provides equivalent auth (Authelia, mTLS, SSO). `auth: none` trusts everything upstream.
+4. The dashboard token lives at `<data_dir>/dashboard.token` (mode 0600). Rotate it by deleting the file and restarting the daemon; a new token is generated automatically.
+5. If you share the URL with someone, share only the bare `http://host:port/` — not the `?token=…` form. The token is long-lived credential material.
+6. The dashboard accepts the token as a cookie, `Authorization: Bearer`, or one-time `?token=` query. Query-string presentation leaves the token in browser history and reverse-proxy access logs — treat it as a handoff, not a persistent auth mechanism.
 
 ## Reporting security issues
 

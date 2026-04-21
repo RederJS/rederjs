@@ -48,6 +48,7 @@ beforeEach(async () => {
     storage: createAdapterStorage(db.raw, 'telegram'),
     router,
     dataDir: dir,
+    sessions: [],
   };
   await adapter.start(ctx);
   router.registerAdapter('telegram', { adapter });
@@ -186,6 +187,7 @@ describe('TelegramAdapter pairing + allowlist', () => {
       storage: createAdapterStorage(db.raw, 'telegram'),
       router: newRouter,
       dataDir: dir,
+      sessions: [],
     };
     await newAdapter.start(newCtx);
     // Pre-bind so rate limit is exercised (not pairing flow).

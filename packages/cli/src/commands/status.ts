@@ -7,12 +7,36 @@ export interface StatusResult {
   error?: string;
 }
 
+interface WebCfg {
+  bind?: string;
+  port?: number;
+  expose_health?: boolean;
+}
+
 export async function runStatus(opts: { configPath?: string; timeoutMs?: number } = {}): Promise<StatusResult> {
   const ctx = loadConfigContext(opts.configPath);
-  if (!ctx.config.health.enabled) {
+
+  // When the web adapter is enabled, it owns `/health` on its own port — the
+  // legacy health endpoint is skipped. Prefer the adapter-web URL if enabled.
+  const webCfg = ctx.config.adapters['web'];
+  let url: string;
+  if (webCfg?.enabled) {
+    const raw = (webCfg.config ?? {}) as WebCfg;
+    if (raw.expose_health === false) {
+      return {
+        reachable: false,
+        error: "adapter-web exposes_health=false; cannot probe health via HTTP",
+      };
+    }
+    const host = raw.bind ?? '127.0.0.1';
+    const port = raw.port ?? 7781;
+    url = `http://${host}:${port}/health`;
+  } else if (ctx.config.health.enabled) {
+    url = `http://${ctx.config.health.bind}:${ctx.config.health.port}/health`;
+  } else {
     return { reachable: false, error: 'health endpoint disabled in config' };
   }
-  const url = `http://${ctx.config.health.bind}:${ctx.config.health.port}/health`;
+
   try {
     const health = await fetchHealth(url, opts.timeoutMs);
     return { reachable: true, health };
