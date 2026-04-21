@@ -1,5 +1,5 @@
 {
-  "name": "@reder/shim",
+  "name": "@rederjs/shim",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -7,12 +7,15 @@
   "bin": {
     "reder-shim": "./dist/index.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@reder/core": "*",
+    "@rederjs/core": "*",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "zod": "^3.23.0"
   },

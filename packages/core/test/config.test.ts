@@ -44,7 +44,7 @@ sessions:
 version: 1
 adapters:
   telegram:
-    module: '@reder/adapter-telegram'
+    module: '@rederjs/adapter-telegram'
     config:
       token: \${env:TEST_BOT_TOKEN}
 `);
@@ -59,7 +59,7 @@ adapters:
 version: 1
 adapters:
   telegram:
-    module: '@reder/adapter-telegram'
+    module: '@rederjs/adapter-telegram'
     config:
       token: \${file:${secretPath}}
 `);
@@ -80,7 +80,7 @@ unknown_field: oops
 version: 1
 adapters:
   telegram:
-    module: '@reder/adapter-telegram'
+    module: '@rederjs/adapter-telegram'
     config:
       token: \${env:MISSING_VAR_XYZ}
 `);

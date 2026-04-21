@@ -1,4 +1,4 @@
-import { loadConfig, ConfigError } from '@reder/core/config';
+import { loadConfig, ConfigError } from '@rederjs/core/config';
 import { defaultConfigPath } from '../paths.js';
 
 export interface ConfigValidateResult {

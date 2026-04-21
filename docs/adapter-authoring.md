@@ -4,10 +4,10 @@ This guide is for someone writing a new transport for Reder — Slack, Discord, 
 
 ## The `Adapter` interface
 
-Your module's default export (or a `createAdapter` function) must produce an instance of `@reder/core/adapter`'s `Adapter` abstract class:
+Your module's default export (or a `createAdapter` function) must produce an instance of `@rederjs/core/adapter`'s `Adapter` abstract class:
 
 ```ts
-import { Adapter, type AdapterContext } from '@reder/core/adapter';
+import { Adapter, type AdapterContext } from '@rederjs/core/adapter';
 
 export default class MyAdapter extends Adapter {
   readonly name = 'my-adapter';
@@ -41,7 +41,7 @@ Reder gives you:
   - `events.on(event, listener)` — subscribe to router events. Useful if your adapter needs to observe cross-adapter activity (e.g. the web dashboard pushes transcript updates from Telegram messages). Events: `inbound.persisted`, `outbound.persisted`, `outbound.sent`, `permission.requested`, `permission.resolved`, `session.state_changed`.
 - `ctx.dataDir` — the daemon's data directory. Use `dataDir/media/<yourname>/...` for cached media.
 - `ctx.db` (optional) — direct SQLite handle. Only in-tree adapters that need complex read queries use this. Third-party adapters should prefer `router.events` and the router methods above.
-- `ctx.healthSnapshot` (optional) — pre-built health JSON function matching the `/health` endpoint. Adapters exposing their own HTTP surface (like `@reder/adapter-web`) use this.
+- `ctx.healthSnapshot` (optional) — pre-built health JSON function matching the `/health` endpoint. Adapters exposing their own HTTP surface (like `@rederjs/adapter-web`) use this.
 
 ## Rules the core enforces
 
@@ -58,7 +58,7 @@ Reder gives you:
   "name": "@community/reder-adapter-slack",
   "type": "module",
   "main": "./dist/index.js",
-  "peerDependencies": { "@reder/core": "^0.1" }
+  "peerDependencies": { "@rederjs/core": "^0.1" }
 }
 ```
 
@@ -74,10 +74,10 @@ adapters:
         "#booknerds-ops": booknerds
 ```
 
-Reder warns the operator on startup that a non-`@reder/*` adapter was loaded; encourage your users to read `reder doctor` and verify.
+Reder warns the operator on startup that a non-`@rederjs/*` adapter was loaded; encourage your users to read `reder doctor` and verify.
 
 ## Reference implementations
 
-- `@reder/adapter-telegram` in this repository — the reference for an inbound-long-poll + rich-media + inline-keyboard permission adapter.
-- `@reder/adapter-web` — the reference for an adapter that owns its own HTTP surface, subscribes to `router.events` for live transcript fan-out, and uses `ctx.db` for transcript queries. Good model for a Slack or Discord adapter that wants to show chat UI beyond a simple message echo.
-- Future: `@reder/adapter-voice` (Phase 2) will be the reference for stateful bidirectional audio transports.
+- `@rederjs/adapter-telegram` in this repository — the reference for an inbound-long-poll + rich-media + inline-keyboard permission adapter.
+- `@rederjs/adapter-web` — the reference for an adapter that owns its own HTTP surface, subscribes to `router.events` for live transcript fan-out, and uses `ctx.db` for transcript queries. Good model for a Slack or Discord adapter that wants to show chat UI beyond a simple message echo.
+- Future: `@rederjs/adapter-voice` (Phase 2) will be the reference for stateful bidirectional audio transports.

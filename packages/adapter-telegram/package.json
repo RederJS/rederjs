@@ -1,5 +1,5 @@
 {
-  "name": "@reder/adapter-telegram",
+  "name": "@rederjs/adapter-telegram",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -7,12 +7,15 @@
   "exports": {
     ".": "./dist/index.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@reder/core": "*",
+    "@rederjs/core": "*",
     "grammy": "^1.30.0"
   },
   "devDependencies": {

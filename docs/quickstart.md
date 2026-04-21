@@ -50,7 +50,7 @@ Enable the web adapter:
 ```yaml
 adapters:
   web:
-    module: '@reder/adapter-web'
+    module: '@rederjs/adapter-web'
     enabled: true
     config:
       bind: 127.0.0.1

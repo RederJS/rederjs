@@ -5,8 +5,8 @@ import {
   type OutboundMessage,
   type PermissionPrompt,
   type SendResult,
-} from '@reder/core/adapter';
-import { RateLimiter } from '@reder/core/ratelimit';
+} from '@rederjs/core/adapter';
+import { RateLimiter } from '@rederjs/core/ratelimit';
 import { TelegramAdapterConfigSchema, type TelegramAdapterConfig } from './config.js';
 import type { TelegramTransport } from './transport.js';
 import { createGrammyTransport } from './grammy-transport.js';
@@ -443,7 +443,7 @@ export class TelegramAdapter extends Adapter {
 
   private async gateInboundAndIngest(
     runtime: BotRuntime,
-    msg: import('@reder/core/adapter').InboundMessage,
+    msg: import('@rederjs/core/adapter').InboundMessage,
   ): Promise<void> {
     // 1. Sender allowlist (deny by default)
     const paired = this.ctx.router.isPaired('telegram', msg.senderId, msg.sessionId);
@@ -481,7 +481,7 @@ export class TelegramAdapter extends Adapter {
 
   private async initiatePairing(
     runtime: BotRuntime,
-    msg: import('@reder/core/adapter').InboundMessage,
+    msg: import('@rederjs/core/adapter').InboundMessage,
   ): Promise<void> {
     const chatId = Number(msg.meta['chat_id']);
     if (!Number.isFinite(chatId)) return;
@@ -555,7 +555,7 @@ export class TelegramAdapter extends Adapter {
       return;
     }
     // Unknown command → treat as a normal text message (fall through to gate).
-    const inbound: import('@reder/core/adapter').InboundMessage = {
+    const inbound: import('@rederjs/core/adapter').InboundMessage = {
       adapter: 'telegram',
       sessionId: runtime.sessionId,
       senderId: cmd.senderId,
@@ -696,7 +696,7 @@ export class TelegramAdapter extends Adapter {
     chatId: number,
     senderId: string,
     sessionId: string,
-  ): import('@reder/core/adapter').InboundMessage {
+  ): import('@rederjs/core/adapter').InboundMessage {
     return {
       adapter: 'telegram',
       sessionId,

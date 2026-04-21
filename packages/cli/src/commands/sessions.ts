@@ -1,5 +1,5 @@
 import { loadConfigContext } from '../config-loader.js';
-import { isRunning, listRunning, startSession } from '@reder/core/tmux';
+import { isRunning, listRunning, startSession } from '@rederjs/core/tmux';
 
 export interface SessionListEntry {
   session_id: string;

@@ -7,7 +7,7 @@ Adversaries Reder defends against:
 1. **Network attackers** reaching exposed endpoints. The Telegram adapter is outbound-only long-poll. The web dashboard binds to loopback by default, gates `/api/*` behind a token, and enforces a Host-header allowlist. If you expose it beyond loopback, you do so through a reverse proxy (Caddy/Tailscale) you already trust.
 2. **Other local users or processes** reaching `127.0.0.1:7781`. On a shared machine or laptop, any browser tab, CLI, or postinstall script can reach loopback ports. Token auth, same-origin enforcement on state-changing verbs, and Host allowlist defend against that path.
 3. **Unauthorised Telegram users** who discover a bot. Every message is filtered through a deny-by-default pairing table.
-4. **Malicious third-party adapters** the operator installs from npm. Adapters run in-process (no sandbox in v0.1), so installation is trust; `reder doctor` flags non-`@reder/*` modules loudly.
+4. **Malicious third-party adapters** the operator installs from npm. Adapters run in-process (no sandbox in v0.1), so installation is trust; `reder doctor` flags non-`@rederjs/*` modules loudly.
 5. **Local users on a shared machine** attempting to read secrets or inject IPC events. The IPC socket is mode 0600 in a 0700 directory; `reder.env`, `.mcp.json`, and `dashboard.token` are mode 0600.
 6. **A compromised upstream service** (Telegram, OpenAI, …) attempting to pivot into the Reder host. STT-transcribed text is never interpreted as a command; the only privileged IPC path is the per-session argon2id-hashed shim token.
 

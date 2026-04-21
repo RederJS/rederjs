@@ -1,5 +1,5 @@
 {
-  "name": "@reder/core",
+  "name": "@rederjs/core",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -23,6 +23,9 @@
     "./pairing": { "types": "./dist/pairing.d.ts", "default": "./dist/pairing.js" },
     "./ratelimit": { "types": "./dist/ratelimit.d.ts", "default": "./dist/ratelimit.js" },
     "./tmux": { "types": "./dist/tmux.d.ts", "default": "./dist/tmux.js" }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc && node -e \"import('node:fs').then(({cpSync, mkdirSync}) => { mkdirSync('dist/storage/migrations', { recursive: true }); cpSync('src/storage/migrations', 'dist/storage/migrations', { recursive: true }); })\"",

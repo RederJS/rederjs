@@ -4,7 +4,7 @@ import type { Server } from 'node:http';
 import express, { type Express } from 'express';
 import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
-import type { AdapterStorage, RouterHandle } from '@reder/core/adapter';
+import type { AdapterStorage, RouterHandle } from '@rederjs/core/adapter';
 import {
   authMiddleware,
   hostAllowlistMiddleware,
@@ -103,7 +103,7 @@ export function buildApp(opts: BuildAppOptions): Express {
         .send(
           '<!doctype html><meta charset="utf-8"><title>reder</title>' +
             '<body><pre>Reder dashboard\n\n' +
-            'Static UI not built. Run `npm run build:web` in @reder/adapter-web\n' +
+            'Static UI not built. Run `npm run build:web` in @rederjs/adapter-web\n' +
             'or use the JSON API directly at /api/sessions.</pre></body>',
         );
     });

@@ -1,5 +1,5 @@
 import { Router as expressRouter, type Request, type Response } from 'express';
-import type { RouterHandle } from '@reder/core/adapter';
+import type { RouterHandle } from '@rederjs/core/adapter';
 
 export interface PermissionsRouteDeps {
   router: RouterHandle;

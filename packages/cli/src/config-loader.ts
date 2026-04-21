@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { loadConfig, type Config, ConfigError } from '@reder/core/config';
+import { loadConfig, type Config, ConfigError } from '@rederjs/core/config';
 import { defaultConfigPath, expandHome } from './paths.js';
 
 export interface LoadedConfigContext {

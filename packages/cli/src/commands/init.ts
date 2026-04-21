@@ -63,7 +63,7 @@ sessions:
 
 adapters:
   telegram:
-    module: '@reder/adapter-telegram'
+    module: '@rederjs/adapter-telegram'
     enabled: true
     config:
       bots:

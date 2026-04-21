@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { loadConfigContext } from '../config-loader.js';
 import { fetchHealth } from '../admin-client.js';
-import { ConfigError } from '@reder/core/config';
+import { ConfigError } from '@rederjs/core/config';
 
 export interface DoctorCheck {
   name: string;
@@ -71,9 +71,9 @@ export async function runDoctor(opts: { configPath?: string } = {}): Promise<Doc
     if (!cfg.enabled) continue;
     checks.push({
       name: `adapter ${name} provenance`,
-      pass: cfg.module.startsWith('@reder/'),
+      pass: cfg.module.startsWith('@rederjs/'),
       detail: cfg.module,
-      ...(cfg.module.startsWith('@reder/')
+      ...(cfg.module.startsWith('@rederjs/')
         ? {}
         : {
             remediation:

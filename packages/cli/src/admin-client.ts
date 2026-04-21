@@ -1,8 +1,8 @@
 import { createConnection } from 'node:net';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { encode, FrameDecoder } from '@reder/core/ipc/codec';
-import { DaemonToShim } from '@reder/core/ipc/protocol';
+import { encode, FrameDecoder } from '@rederjs/core/ipc/codec';
+import { DaemonToShim } from '@rederjs/core/ipc/protocol';
 
 export interface McpJsonEntry {
   command: string;

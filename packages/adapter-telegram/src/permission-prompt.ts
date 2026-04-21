@@ -1,5 +1,5 @@
 import type { InlineKeyboardMarkup } from './transport.js';
-import type { PermissionPrompt } from '@reder/core/adapter';
+import type { PermissionPrompt } from '@rederjs/core/adapter';
 
 export interface RenderedPromptMessage {
   text: string;

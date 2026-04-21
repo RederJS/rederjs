@@ -5,10 +5,10 @@ import {
   Adapter,
   type AdapterContext,
   type RouterHandle,
-} from '@reder/core/adapter';
-import { createAdapterStorage } from '@reder/core/storage/kv';
-import type { AuditLog } from '@reder/core/audit';
-import type { Config } from '@reder/core/config';
+} from '@rederjs/core/adapter';
+import { createAdapterStorage } from '@rederjs/core/storage/kv';
+import type { AuditLog } from '@rederjs/core/audit';
+import type { Config } from '@rederjs/core/config';
 
 export interface AdapterFactory {
   (cfg: unknown): Promise<Adapter> | Adapter;
@@ -67,7 +67,7 @@ export async function createAdapterHost(deps: AdapterHostDeps): Promise<AdapterH
       const factory = await deps.resolveModule(cfg.module);
       const adapter = await factory(cfg.config);
       loaded.push({ name, module: cfg.module, adapter });
-      if (!cfg.module.startsWith('@reder/')) {
+      if (!cfg.module.startsWith('@rederjs/')) {
         adapterLogger.warn({ module: cfg.module }, 'third-party adapter loaded');
       }
     } catch (err) {

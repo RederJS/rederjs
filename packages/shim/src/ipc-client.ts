@@ -1,11 +1,11 @@
 import { createConnection, type Socket } from 'node:net';
 import { EventEmitter } from 'node:events';
-import { encode, FrameDecoder, FrameTooLargeError } from '@reder/core/ipc/codec';
+import { encode, FrameDecoder, FrameTooLargeError } from '@rederjs/core/ipc/codec';
 import {
   DaemonToShim,
   type DaemonToShimMsg,
   type ShimToDaemonMsg,
-} from '@reder/core/ipc/protocol';
+} from '@rederjs/core/ipc/protocol';
 
 export type IpcClientStatus = 'idle' | 'connecting' | 'connected' | 'disconnected';
 

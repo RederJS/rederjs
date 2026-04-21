@@ -9,7 +9,7 @@ import {
   formatSessionsList,
 } from '../src/commands/sessions.js';
 import { runDashboardUrl } from '../src/commands/dashboard.js';
-import * as tmux from '@reder/core/tmux';
+import * as tmux from '@rederjs/core/tmux';
 
 let dir: string;
 let configPath: string;
@@ -156,7 +156,7 @@ runtime: { runtime_dir: ${dir}/rt, data_dir: ${dataDir} }
 sessions: []
 adapters:
   web:
-    module: '@reder/adapter-web'
+    module: '@rederjs/adapter-web'
     enabled: true
     config: { bind: 127.0.0.1, port: 7781, auth: token }
 `);
@@ -173,7 +173,7 @@ runtime: { runtime_dir: ${dir}/rt, data_dir: ${dataDir} }
 sessions: []
 adapters:
   web:
-    module: '@reder/adapter-web'
+    module: '@rederjs/adapter-web'
     enabled: true
     config: { bind: 127.0.0.1, port: 7781, auth: none }
 `);

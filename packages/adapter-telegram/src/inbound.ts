@@ -1,4 +1,4 @@
-import type { InboundMessage } from '@reder/core/adapter';
+import type { InboundMessage } from '@rederjs/core/adapter';
 import type { TelegramUpdate } from './transport.js';
 
 export interface NormalizeContext {

@@ -125,7 +125,7 @@ sessions:
 
 adapters:
   web:
-    module: '@reder/adapter-web'
+    module: '@rederjs/adapter-web'
     enabled: true
     config:
       bind: 127.0.0.1
@@ -134,7 +134,7 @@ adapters:
       # host_allowlist: []     # extra Host headers to accept beyond loopback
 
   telegram:
-    module: '@reder/adapter-telegram'
+    module: '@rederjs/adapter-telegram'
     enabled: true
     config:
       bots:
@@ -278,7 +278,7 @@ packages/
   adapter-web/       # Dashboard (Express + SSE + React SPA)
 ```
 
-To hack on the dashboard UI with hot reload: `npm run dev:web -w @reder/adapter-web` (proxies `/api` to `127.0.0.1:7781`, so start the daemon first).
+To hack on the dashboard UI with hot reload: `npm run dev:web -w @rederjs/adapter-web` (proxies `/api` to `127.0.0.1:7781`, so start the daemon first).
 
 ---
 

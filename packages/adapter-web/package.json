@@ -1,5 +1,5 @@
 {
-  "name": "@reder/adapter-web",
+  "name": "@rederjs/adapter-web",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -11,6 +11,9 @@
     "dist",
     "web/dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc && npm run build:web",
     "build:web": "vite build --config web/vite.config.ts",
@@ -18,7 +21,7 @@
     "dev:web": "vite --config web/vite.config.ts"
   },
   "dependencies": {
-    "@reder/core": "*",
+    "@rederjs/core": "*",
     "better-sqlite3": "^11.0.0",
     "cookie": "^0.7.0",
     "express": "^4.21.0"

@@ -186,7 +186,7 @@ Voice differs from text in one important way: it is a stateful bidirectional str
 An adapter is a Node module (ESM) that exports a default class implementing the `Adapter` interface:
 
 ```typescript
-// @reder/core/adapter.ts
+// @rederjs/core/adapter.ts
 export interface AdapterContext {
   readonly logger: Logger;
   readonly config: AdapterConfig;        // the section of reder.config.yaml for this adapter
@@ -291,7 +291,7 @@ Adapters are declared in `reder.config.yaml`:
 ```yaml
 adapters:
   telegram:
-    module: '@reder/adapter-telegram'   # built-in
+    module: '@rederjs/adapter-telegram'   # built-in
     enabled: true
     config:
       bots:
@@ -300,7 +300,7 @@ adapters:
         - token_env: TELEGRAM_BOT_MANGO
           session_id: mango
   voice:
-    module: '@reder/adapter-voice'      # built-in, Phase 2
+    module: '@rederjs/adapter-voice'      # built-in, Phase 2
     enabled: false
 
   slack:
@@ -552,7 +552,7 @@ Adversaries we do not try to defend against:
 
 **S8 — Secret management.** No secrets in the main config file; `${env:}` and `${file:}` indirection only. The `reder.env` file is created `0600` and warned about if found otherwise. Secrets are never logged, never echoed in `reder status`, and never included in diagnostic dumps.
 
-**S9 — Third-party adapter warnings.** On `rederd` startup, non-`@reder/*` adapter modules trigger a warning log entry indicating their provenance and version. `reder doctor` flags them in its report.
+**S9 — Third-party adapter warnings.** On `rederd` startup, non-`@rederjs/*` adapter modules trigger a warning log entry indicating their provenance and version. `reder doctor` flags them in its report.
 
 **S10 — Command injection defense in voice.** STT-transcribed text is never interpreted as a command by the daemon or shim. It is always content. The only commands the daemon accepts are the typed commands in the pairing flow and the IPC protocol from shims.
 
@@ -784,7 +784,7 @@ sessions:
 
 adapters:
   telegram:
-    module: '@reder/adapter-telegram'
+    module: '@rederjs/adapter-telegram'
     enabled: true
     config:
       bots:
@@ -802,7 +802,7 @@ adapters:
         api_key_env: OPENAI_API_KEY
 
   voice:
-    module: '@reder/adapter-voice'
+    module: '@rederjs/adapter-voice'
     enabled: false
     config:
       twilio:
@@ -849,7 +849,7 @@ reder/
 │   ├── adapter-authoring.md
 │   └── security.md
 ├── packages/
-│   ├── core/                              # @reder/core
+│   ├── core/                              # @rederjs/core
 │   │   ├── src/
 │   │   │   ├── adapter.ts                 # Adapter interface
 │   │   │   ├── router.ts                  # Core Router
@@ -861,20 +861,20 @@ reder/
 │   │   │   ├── logger.ts
 │   │   │   └── health.ts
 │   │   └── test/
-│   ├── daemon/                            # @reder/daemon — the rederd binary
+│   ├── daemon/                            # @rederjs/daemon — the rederd binary
 │   │   ├── src/
 │   │   │   ├── index.ts
 │   │   │   ├── bootstrap.ts
 │   │   │   ├── lifecycle.ts
 │   │   │   └── systemd.ts
 │   │   └── test/
-│   ├── shim/                              # @reder/shim — the reder-shim binary
+│   ├── shim/                              # @rederjs/shim — the reder-shim binary
 │   │   ├── src/
 │   │   │   ├── index.ts
 │   │   │   ├── mcp-server.ts              # implements Channels protocol
 │   │   │   └── ipc-client.ts
 │   │   └── test/
-│   ├── cli/                               # @reder/cli — the reder binary
+│   ├── cli/                               # @rederjs/cli — the reder binary
 │   │   ├── src/
 │   │   │   ├── index.ts
 │   │   │   ├── commands/
@@ -889,7 +889,7 @@ reder/
 │   │   │   │   └── config.ts
 │   │   │   └── prompts.ts
 │   │   └── test/
-│   ├── adapter-telegram/                  # @reder/adapter-telegram
+│   ├── adapter-telegram/                  # @rederjs/adapter-telegram
 │   │   ├── src/
 │   │   │   ├── index.ts
 │   │   │   ├── long-poll.ts
@@ -897,7 +897,7 @@ reder/
 │   │   │   ├── pairing.ts
 │   │   │   └── permission-prompt.ts
 │   │   └── test/
-│   └── adapter-voice/                     # @reder/adapter-voice  (Phase 2)
+│   └── adapter-voice/                     # @rederjs/adapter-voice  (Phase 2)
 │       ├── src/
 │       │   ├── index.ts
 │       │   ├── twilio-webhook.ts
@@ -913,7 +913,7 @@ reder/
 
 ### 12.1 Release artifacts
 
-- npm: each package published individually under the `@reder/` scope.
+- npm: each package published individually under the `@rederjs/` scope.
 - GitHub Releases: a single meta-package `reder` that, when globally installed, provides the `reder`, `rederd`, and `reder-shim` binaries.
 - Optional: a standalone binary built with `@vercel/pkg` or `bun build --compile` for users who don't want a Node dependency. Stretch goal for v1.
 
@@ -979,7 +979,7 @@ reder/
 - Permission manager: timeout behavior, race between terminal and relay answer, persistent approvals.
 - Adapter telegram: pairing flow, rendering, rate limiting, allowlist.
 
-Target: > 80% line coverage on `@reder/core`, > 70% on adapters.
+Target: > 80% line coverage on `@rederjs/core`, > 70% on adapters.
 
 ### 14.2 Integration tests
 
@@ -1049,7 +1049,7 @@ These are worth resolving before or during implementation.
 
 4. **Voice provider abstraction.** STT and TTS pluggability needs its own sub-interface within the voice adapter. Ship v1 with OpenAI Whisper + ElevenLabs and leave the abstraction as a smaller internal contract; formalize it in v2.
 
-5. **Multi-machine deployments.** Out of scope for v1. All components run on one host. A future `@reder/gateway` could relay between a cloud-hosted ingress and a private daemon, but needs its own threat model.
+5. **Multi-machine deployments.** Out of scope for v1. All components run on one host. A future `@rederjs/gateway` could relay between a cloud-hosted ingress and a private daemon, but needs its own threat model.
 
 ---
 

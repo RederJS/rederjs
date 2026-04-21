@@ -14,7 +14,7 @@ import {
   type PermissionRequestedPayload,
   type PermissionResolvedPayload,
   type SessionStateChangedPayload,
-} from '@reder/core/adapter';
+} from '@rederjs/core/adapter';
 import { WebAdapterConfigSchema, type WebAdapterConfig } from './config.js';
 import { createSseRegistry, type SseRegistry } from './sse.js';
 import { buildApp, listen } from './http.js';
@@ -45,7 +45,7 @@ export interface WebAdapterOptions {
 /**
  * Extended AdapterContext that the daemon populates with direct references
  * the web adapter needs. These fields are non-standard but the adapter host
- * in this project supplies them when loading @reder/adapter-web.
+ * in this project supplies them when loading @rederjs/adapter-web.
  */
 interface WebAdapterContext extends AdapterContext {
   db?: Db;
@@ -80,7 +80,7 @@ export class WebAdapter extends Adapter {
     const db = this.opts.db ?? this.ctx.db;
     if (!db) {
       throw new Error(
-        '@reder/adapter-web requires a database handle (host must supply ctx.db or constructor opts.db)',
+        '@rederjs/adapter-web requires a database handle (host must supply ctx.db or constructor opts.db)',
       );
     }
 

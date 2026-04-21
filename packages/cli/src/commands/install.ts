@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, chmodSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { openDatabase } from '@reder/core/storage/db';
-import { createSession } from '@reder/core/sessions';
+import { openDatabase } from '@rederjs/core/storage/db';
+import { createSession } from '@rederjs/core/sessions';
 import { loadConfigContext } from '../config-loader.js';
 import { socketPathFor } from '../paths.js';
 

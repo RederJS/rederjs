@@ -1,9 +1,9 @@
 import { Router as expressRouter, type Request, type Response } from 'express';
 import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
-import type { RouterHandle, AdapterStorage } from '@reder/core/adapter';
-import { listSessions } from '@reder/core/sessions';
-import { isRunning, startSession } from '@reder/core/tmux';
+import type { RouterHandle, AdapterStorage } from '@rederjs/core/adapter';
+import { listSessions } from '@rederjs/core/sessions';
+import { isRunning, startSession } from '@rederjs/core/tmux';
 import { listTranscript, getSessionActivity } from '../transcript.js';
 import type { SseRegistry } from '../sse.js';
 
