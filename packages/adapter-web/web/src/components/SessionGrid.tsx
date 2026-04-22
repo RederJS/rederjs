@@ -1,0 +1,187 @@
+import { useMemo } from 'react';
+import type { CSSProperties } from 'react';
+import type { SessionSummary } from '../api';
+import { deriveStatus } from '../derive';
+import type { CardVariant, SortKey, Status, StatusVariant } from '../types';
+import { SessionCard } from './SessionCard';
+import { cn } from '../cn';
+
+interface SessionGridProps {
+  sessions: SessionSummary[];
+  previews: Map<string, string>;
+  statusFilter: Status | 'all';
+  onStatusFilterChange: (s: Status | 'all') => void;
+  sort: SortKey;
+  onSortChange: (s: SortKey) => void;
+  cols: number;
+  onColsChange: (n: number) => void;
+  search: string;
+  selectedId: string | null;
+  onSelect: (sessionId: string) => void;
+  cardVariant: CardVariant;
+  statusVariant: StatusVariant;
+}
+
+const STATUS_ORDER: Record<Status, number> = {
+  waiting: 0,
+  idle: 1,
+  busy: 2,
+  offline: 3,
+};
+
+export function SessionGrid(props: SessionGridProps): JSX.Element {
+  const {
+    sessions,
+    previews,
+    statusFilter,
+    onStatusFilterChange,
+    sort,
+    onSortChange,
+    cols,
+    onColsChange,
+    search,
+    selectedId,
+    onSelect,
+    cardVariant,
+    statusVariant,
+  } = props;
+
+  const counts = useMemo(() => {
+    const out: Record<Status, number> = { waiting: 0, busy: 0, idle: 0, offline: 0 };
+    for (const s of sessions) out[deriveStatus(s)]++;
+    return out;
+  }, [sessions]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = sessions.filter((s) => {
+      if (statusFilter !== 'all' && deriveStatus(s) !== statusFilter) return false;
+      if (q) {
+        const preview = (previews.get(s.session_id) ?? '').toLowerCase();
+        const haystack = `${s.display_name} ${s.session_id} ${s.workspace_dir ?? ''} ${preview}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+    list.sort((a, b) => {
+      if (sort === 'priority') {
+        const d = STATUS_ORDER[deriveStatus(a)] - STATUS_ORDER[deriveStatus(b)];
+        if (d !== 0) return d;
+        return a.display_name.localeCompare(b.display_name);
+      }
+      if (sort === 'recent') {
+        const aRaw = a.last_inbound_at || a.last_outbound_at || a.last_seen_at || '';
+        const bRaw = b.last_inbound_at || b.last_outbound_at || b.last_seen_at || '';
+        return Date.parse(bRaw) - Date.parse(aRaw);
+      }
+      return a.display_name.localeCompare(b.display_name);
+    });
+    return list;
+  }, [sessions, previews, statusFilter, search, sort]);
+
+  const gridStyle: CSSProperties = { ['--cols' as any]: cols };
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-col overflow-auto px-5 pb-10 pt-6">
+      <div className="mb-4 flex flex-wrap items-center gap-3.5 font-mono text-xs">
+        <span className="font-semibold text-fg">
+          {filtered.length}
+          <em className="not-italic font-normal text-fg-4"> / {sessions.length}</em>
+        </span>
+        <span className="h-3.5 w-px bg-line" />
+
+        <div className="flex gap-1.5">
+          <Chip active={statusFilter === 'all'} onClick={() => onStatusFilterChange('all')}>
+            all <span className="text-fg-4">{sessions.length}</span>
+          </Chip>
+          {(['waiting', 'busy', 'idle', 'offline'] as const).map((s) => (
+            <Chip key={s} active={statusFilter === s} onClick={() => onStatusFilterChange(s)}>
+              <span className="size-1.5 rounded-full" style={{ background: `var(--st-${s})` }} />
+              {s} <span className="text-fg-4">{counts[s]}</span>
+            </Chip>
+          ))}
+        </div>
+
+        <div className="flex-1" />
+
+        <label className="flex items-center gap-2 rounded-md border border-line bg-bg-1 px-2.5 py-1 text-fg-3">
+          cols
+          <input
+            type="range"
+            min={2}
+            max={8}
+            value={cols}
+            onChange={(e) => onColsChange(Number(e.target.value))}
+            className="cols-slider-range"
+          />
+          <span className="min-w-[10px] text-center text-[11px] text-fg">{cols}</span>
+        </label>
+
+        <div className="flex gap-px rounded-md border border-line p-0.5">
+          {(['priority', 'recent', 'name'] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => onSortChange(k)}
+              className={cn(
+                'rounded-[4px] px-2 py-0.5 text-[11px] text-fg-3',
+                sort === k && 'bg-bg-3 text-fg',
+              )}
+            >
+              {k}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="grid flex-1 place-items-center py-16 text-sm text-fg-4">
+          no sessions match the current filter.
+        </div>
+      ) : (
+        <div
+          data-card={cardVariant}
+          className="grid gap-3.5"
+          style={{ ...gridStyle, gridTemplateColumns: 'repeat(var(--cols, 3), minmax(0, 1fr))' }}
+        >
+          {filtered.map((s) => (
+            <SessionCard
+              key={s.session_id}
+              session={s}
+              preview={previews.get(s.session_id) ?? null}
+              selected={s.session_id === selectedId}
+              onClick={() => onSelect(s.session_id)}
+              variant={cardVariant}
+              statusVariant={statusVariant}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors',
+        active
+          ? 'border-accent bg-[color-mix(in_oklab,var(--accent)_10%,transparent)] text-fg'
+          : 'border-line bg-bg-1 text-fg-3 hover:border-line-2 hover:text-fg',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
