@@ -10,6 +10,11 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "watch": "tsc -b packages/core packages/cli packages/daemon packages/shim packages/adapter-telegram packages/adapter-web --watch",
+    "dev": "npm run watch",
+    "dev:web": "npm run dev:web -w @rederjs/adapter-web",
+    "link": "npm link -w rederjs && npm link -w @rederjs/daemon && npm link -w @rederjs/shim",
+    "unlink": "npm unlink -g rederjs @rederjs/daemon @rederjs/shim",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",

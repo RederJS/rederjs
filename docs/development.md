@@ -46,12 +46,10 @@ The three binaries — `reder`, `rederd`, `reder-shim` — all live in `packages
 ### 1. Link the workspace bins (one-time)
 
 ```sh
-npm link -w rederjs
-npm link -w @rederjs/daemon
-npm link -w @rederjs/shim
+npm run link
 ```
 
-Confirm:
+That's shorthand for linking `rederjs`, `@rederjs/daemon`, and `@rederjs/shim` into your global npm prefix. Confirm:
 
 ```sh
 which reder rederd reder-shim
@@ -63,11 +61,10 @@ Linking `@rederjs/shim` isn't optional, even if you're only hacking on the daemo
 ### 2. Keep TypeScript watching
 
 ```sh
-npx tsc -b packages/core packages/cli packages/daemon packages/shim \
-        packages/adapter-telegram packages/adapter-web --watch
+npm run watch
 ```
 
-Leave that running in a terminal. On each save it re-emits only the affected packages.
+(`npm run dev` is an alias.) This runs `tsc -b` across every package in watch mode. Leave it running in a terminal — on each save it re-emits only the affected packages.
 
 ### 3. Iterate
 
@@ -93,8 +90,10 @@ The React SPA has its own Vite dev server that proxies `/api` to the real daemon
 reder start
 
 # terminal 2
-npm run dev:web -w @rederjs/adapter-web
+npm run dev:web
 ```
+
+(That's an alias for `npm run dev:web -w @rederjs/adapter-web`.)
 
 Open the URL Vite prints. API calls hit `127.0.0.1:7781` (your dev daemon); SPA code reloads on save.
 
@@ -141,7 +140,7 @@ Run these before opening a PR.
 ## Cleanup
 
 ```sh
-npm unlink -g rederjs @rederjs/daemon @rederjs/shim
+npm run unlink
 ```
 
 After that, `which reder` should report "not found" again (or point at a previously-installed published version).
