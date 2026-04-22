@@ -122,6 +122,38 @@ export function createBinding(
   return existing;
 }
 
+/**
+ * Insert a binding if missing; otherwise refresh its metadata. Used when an
+ * adapter wants to pre-approve a sender without a pair-code exchange (e.g.
+ * global allowlist mode) and needs the binding row in place so outbound
+ * routing and permission-prompt delivery can find the chat.
+ */
+export function upsertBinding(
+  db: Db,
+  params: { sessionId: string; adapter: string; senderId: string; metadata?: Record<string, unknown> },
+): Binding {
+  const existing = getBinding(db, params.adapter, params.senderId, params.sessionId);
+  if (existing) {
+    if (params.metadata !== undefined) {
+      db.prepare(
+        `UPDATE bindings SET metadata = ?
+           WHERE adapter = ? AND sender_id = ? AND session_id = ?`,
+      ).run(
+        JSON.stringify(params.metadata),
+        params.adapter,
+        params.senderId,
+        params.sessionId,
+      );
+      return {
+        ...existing,
+        metadata: params.metadata,
+      };
+    }
+    return existing;
+  }
+  return createBinding(db, params);
+}
+
 export function getBinding(
   db: Db,
   adapter: string,

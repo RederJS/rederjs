@@ -22,13 +22,13 @@ Out of scope for v0.1:
 | # | Control | Where |
 | --- | --- | --- |
 | S1 | No inbound public ports by default | Telegram adapter uses long-poll; web + health bind to 127.0.0.1 |
-| S2 | Sender allowlist deny-by-default | `adapter-telegram/src/index.ts` gates via `bindings` table |
+| S2 | Sender allowlist deny-by-default (pairing mode) or explicit global allowlist (allowlist mode) | `adapter-telegram/src/index.ts` gates via `bindings` table or `config.allowlist` |
 | S3 | Per-session shim tokens (argon2id-hashed) | `core/src/sessions.ts` |
 | S4 | Permission timeout defaults to deny | `core/src/permissions.ts` |
 | S5 | Web dashboard token auth (32-byte random, 0600 file) | `adapter-web/src/auth.ts` |
 | S6 | Web dashboard Host-header allowlist (defeats DNS rebinding) | `adapter-web/src/auth.ts` |
 | S7 | Web dashboard same-origin enforcement on state-changing verbs | `adapter-web/src/auth.ts` |
-| S8 | Secrets via `${env:}` / `${file:}`; `.env` mode 0600 | `core/src/config.ts` |
+| S8 | Config and env files mode 0600; secrets may be inline in `reder.config.yaml` or referenced via `${env:}` / `${file:}` | `core/src/config.ts` |
 | S9 | Third-party adapter startup warning | `daemon/src/adapter-host.ts` |
 | S10 | Transcribed/inbound text never interpreted as a command | N/A — never parsed as code |
 | S11 | Per-sender rate limiting (60/min default) | `adapter-telegram/src/index.ts` |
@@ -36,13 +36,14 @@ Out of scope for v0.1:
 | S13 | `npm audit --omit=dev --audit-level=high` in CI | `.github/workflows/ci.yml` |
 | S14 | No `eval` / dynamic codegen (enforced by lint) | `eslint.config.js` |
 
-## Operator checklist before exposing a bot
+## Operator checklist before exposing a Telegram bot
 
-1. Store the bot token in `reder.env` only; never in the config YAML.
-2. Run `reder doctor`; confirm all checks pass and no third-party adapters are flagged unexpectedly.
-3. Before pairing your Telegram account, verify the code on the bot matches what you saw.
-4. Monitor the audit log: `tail -f ~/.local/share/reder/audit-*.log`.
-5. Rotate the shim token if you suspect `.mcp.json` was exfiltrated: rerun `reder sessions add <session>` inside the project directory.
+1. Attach the bot via `reder telegram bot add <session-id>` — the token lands inline in `~/.config/reder/reder.config.yaml` (mode 0600). If you prefer an externally-managed secret, use `--token-env MY_VAR` and set `MY_VAR` via a systemd drop-in or secret manager; `reder.env` is also read at daemon start.
+2. Decide on access mode: `reder telegram mode allowlist` + `reder telegram allow add <user-id>` for a locked-down setup, or the default `pairing` for deny-by-default with per-account pair codes. `reder telegram mode` and `reder telegram allow list` show current state.
+3. Run `reder doctor`; confirm all checks pass and no third-party adapters are flagged unexpectedly.
+4. In pairing mode, before running `reder pair <code>` locally, verify the code matches what the bot DM showed — the code is the binding proof.
+5. Monitor the audit log: `tail -f ~/.local/share/reder/audit-*.log`.
+6. Rotate the shim token if you suspect `.mcp.json` was exfiltrated: rerun `reder sessions add <session>` inside the project directory.
 
 ## Operator checklist before exposing the dashboard
 

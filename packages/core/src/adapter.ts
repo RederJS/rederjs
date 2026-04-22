@@ -87,6 +87,17 @@ export interface RouterHandle {
     senderId: string;
     metadata?: Record<string, unknown>;
   }): { code: string; expiresAt: string };
+  /**
+   * Create the (adapter, senderId, sessionId) binding if it doesn't exist yet,
+   * or refresh its metadata if it does. Intended for pre-approved flows like
+   * a global allowlist where no pair-code exchange happens.
+   */
+  upsertBinding(input: {
+    adapter: string;
+    senderId: string;
+    sessionId: string;
+    metadata?: Record<string, unknown>;
+  }): void;
   readonly events: RouterEvents;
 }
 

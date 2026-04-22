@@ -17,6 +17,22 @@ import {
   formatSessionsUp,
 } from './commands/sessions.js';
 import { runDashboardUrl, formatDashboardUrl } from './commands/dashboard.js';
+import {
+  runTelegramBotAdd,
+  formatTelegramBotAdd,
+  runTelegramBotRemove,
+  formatTelegramBotRemove,
+  runTelegramBotList,
+  formatTelegramBotList,
+  runTelegramAllowAdd,
+  formatTelegramAllowAdd,
+  runTelegramAllowRemove,
+  formatTelegramAllowRemove,
+  runTelegramAllowList,
+  formatTelegramAllowList,
+  runTelegramMode,
+  formatTelegramMode,
+} from './commands/telegram.js';
 
 const VERSION = '0.1.0';
 
@@ -47,14 +63,12 @@ program
   .description('configure rederd for this machine (web bind, port); re-runnable')
   .option('--bind <addr>', 'web dashboard bind address (skip prompt)')
   .option('--port <number>', 'web dashboard port (skip prompt)', (v) => parseInt(v, 10))
-  .option('--bot-token <token>', 'placeholder Telegram bot token for reder.env (advanced)')
   .action(async (opts: Record<string, unknown>) => {
     try {
       const result = await interactiveInit({
         configPath: configArg(),
         ...(opts['bind'] !== undefined ? { bindOverride: opts['bind'] as string } : {}),
         ...(opts['port'] !== undefined ? { portOverride: opts['port'] as number } : {}),
-        ...(opts['botToken'] !== undefined ? { botToken: opts['botToken'] as string } : {}),
         nonInteractive: jsonMode(),
       });
       if (jsonMode()) {
@@ -262,6 +276,121 @@ sessions
         for (const w of result.warnings) lines.push(`  warning: ${w}`);
         process.stdout.write(lines.join('\n') + '\n');
       }
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+const telegram = program.command('telegram').description('manage Telegram bots and access control');
+
+const telegramBot = telegram.command('bot').description('per-session bot tokens');
+telegramBot
+  .command('add <session-id>')
+  .description('attach a Telegram bot token to a session (writes token inline into config)')
+  .option('--token <value>', 'bot token (prompts if omitted)')
+  .option('--token-env <name>', 'reference an externally-set env var instead of storing the token inline')
+  .action(async (sessionId: string, opts: Record<string, unknown>) => {
+    try {
+      const result = await runTelegramBotAdd({
+        sessionId,
+        configPath: configArg(),
+        ...(opts['token'] !== undefined ? { token: opts['token'] as string } : {}),
+        ...(opts['tokenEnv'] !== undefined ? { tokenEnv: opts['tokenEnv'] as string } : {}),
+        nonInteractive: jsonMode(),
+      });
+      if (jsonMode()) process.stdout.write(JSON.stringify(result) + '\n');
+      else process.stdout.write(formatTelegramBotAdd(result) + '\n');
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+telegramBot
+  .command('remove <session-id>')
+  .description('remove a session\'s Telegram bot entry')
+  .action((sessionId: string) => {
+    try {
+      const result = runTelegramBotRemove({ sessionId, configPath: configArg() });
+      if (jsonMode()) process.stdout.write(JSON.stringify(result) + '\n');
+      else process.stdout.write(formatTelegramBotRemove(result) + '\n');
+      process.exit(result.removed ? 0 : 1);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+telegramBot
+  .command('list')
+  .description('list configured Telegram bots')
+  .action(() => {
+    try {
+      const result = runTelegramBotList({ configPath: configArg() });
+      if (jsonMode()) process.stdout.write(JSON.stringify(result) + '\n');
+      else process.stdout.write(formatTelegramBotList(result) + '\n');
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+const telegramAllow = telegram.command('allow').description('global allowlist of Telegram user ids');
+telegramAllow
+  .command('add <user-id>')
+  .description('add a numeric Telegram user_id to the global allowlist')
+  .action((userId: string) => {
+    try {
+      const result = runTelegramAllowAdd({ userId, configPath: configArg() });
+      if (jsonMode()) process.stdout.write(JSON.stringify(result) + '\n');
+      else process.stdout.write(formatTelegramAllowAdd(result) + '\n');
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+telegramAllow
+  .command('remove <user-id>')
+  .description('remove a Telegram user_id from the global allowlist')
+  .action((userId: string) => {
+    try {
+      const result = runTelegramAllowRemove({ userId, configPath: configArg() });
+      if (jsonMode()) process.stdout.write(JSON.stringify(result) + '\n');
+      else process.stdout.write(formatTelegramAllowRemove(result) + '\n');
+      process.exit(result.removed ? 0 : 1);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+telegramAllow
+  .command('list')
+  .description('list Telegram user_ids on the global allowlist')
+  .action(() => {
+    try {
+      const result = runTelegramAllowList({ configPath: configArg() });
+      if (jsonMode()) process.stdout.write(JSON.stringify(result) + '\n');
+      else process.stdout.write(formatTelegramAllowList(result) + '\n');
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+telegram
+  .command('mode [value]')
+  .description('show or set access mode: pairing | allowlist')
+  .action((value?: string) => {
+    try {
+      let set: 'pairing' | 'allowlist' | undefined;
+      if (value !== undefined) {
+        if (value !== 'pairing' && value !== 'allowlist') {
+          throw new Error(`mode must be 'pairing' or 'allowlist' (got '${value}')`);
+        }
+        set = value;
+      }
+      const result = runTelegramMode({
+        configPath: configArg(),
+        ...(set !== undefined ? { set } : {}),
+      });
+      if (jsonMode()) process.stdout.write(JSON.stringify(result) + '\n');
+      else process.stdout.write(formatTelegramMode(result) + '\n');
     } catch (err) {
       fail(err);
     }

@@ -36,6 +36,7 @@ import {
   createBinding,
   createPairCode as createPairCodeRecord,
   isPaired as isPairedDb,
+  upsertBinding as upsertBindingDb,
 } from './pairing.js';
 import type { Config } from './config.js';
 
@@ -479,6 +480,15 @@ export function createRouter(opts: RouterOptions): Router {
         ...(input.metadata ? { senderMetadata: input.metadata } : {}),
       });
       return { code: record.code, expiresAt: record.expiresAt };
+    },
+
+    upsertBinding(input) {
+      upsertBindingDb(db, {
+        adapter: input.adapter,
+        senderId: input.senderId,
+        sessionId: input.sessionId,
+        ...(input.metadata ? { metadata: input.metadata } : {}),
+      });
     },
 
     events,

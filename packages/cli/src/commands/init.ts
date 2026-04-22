@@ -8,7 +8,6 @@ export interface InitOptions {
   envPath?: string | undefined;
   webBind: string;
   webPort: number;
-  botToken?: string | undefined;
 }
 
 export interface InitResult {
@@ -28,7 +27,6 @@ export function runInit(opts: InitOptions): InitResult {
     envPath,
     webBind: opts.webBind,
     webPort: opts.webPort,
-    botToken: opts.botToken,
   });
 
   let updated = false;
@@ -55,7 +53,6 @@ export interface InteractiveInitOptions {
   envPath?: string | undefined;
   bindOverride?: string | undefined;
   portOverride?: number | undefined;
-  botToken?: string | undefined;
   nonInteractive?: boolean | undefined;
 }
 
@@ -68,7 +65,7 @@ export async function interactiveInit(opts: InteractiveInitOptions): Promise<Ini
   const bind = opts.bindOverride ?? (await promptForBind(existing?.bind, tailscaleIp, opts.nonInteractive));
   const port = opts.portOverride ?? (await promptForPort(existing?.port, opts.nonInteractive));
 
-  return runInit({ configPath, envPath, webBind: bind, webPort: port, botToken: opts.botToken });
+  return runInit({ configPath, envPath, webBind: bind, webPort: port });
 }
 
 async function promptForBind(

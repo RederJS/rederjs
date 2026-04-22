@@ -9,6 +9,14 @@ import {
   peekSession,
   upsertSession,
   removeSession,
+  upsertTelegramBot,
+  removeTelegramBot,
+  listTelegramBots,
+  getTelegramMode,
+  setTelegramMode,
+  listTelegramAllowlistUsers,
+  addTelegramAllowlistUser,
+  removeTelegramAllowlistUser,
 } from '../src/commands/config-writer.js';
 
 let dir: string;
@@ -288,3 +296,119 @@ describe('envPath behavior', () => {
     expect(existsSync(envPath)).toBe(true);
   });
 });
+
+describe('upsertTelegramBot', () => {
+  beforeEach(() => {
+    scaffoldConfig({ configPath, envPath, webBind: '127.0.0.1', webPort: 7781 });
+  });
+
+  it('creates the adapters.telegram block and adds the first bot (inline token)', () => {
+    const r = upsertTelegramBot({
+      configPath,
+      sessionId: 'reder',
+      token: 'abc:123',
+    });
+    expect(r.created).toBe(true);
+    const text = readFileSync(configPath, 'utf8');
+    expect(text).toMatch(/module: ['"]@rederjs\/adapter-telegram['"]/);
+    expect(text).toContain('session_id: reder');
+    expect(text).toContain('token: abc:123');
+    expect(text).not.toContain('token_env:');
+  });
+
+  it('supports token_env for externally-set env vars', () => {
+    upsertTelegramBot({ configPath, sessionId: 'reder', tokenEnv: 'MY_EXTERNAL_VAR' });
+    const bots = listTelegramBots({ configPath });
+    expect(bots).toEqual([{ session_id: 'reder', token_env: 'MY_EXTERNAL_VAR' }]);
+  });
+
+  it('is idempotent on repeated upsert with same fields', () => {
+    upsertTelegramBot({ configPath, sessionId: 'reder', token: 'abc:123' });
+    const r = upsertTelegramBot({
+      configPath,
+      sessionId: 'reder',
+      token: 'abc:123',
+    });
+    expect(r.created).toBe(false);
+    const bots = listTelegramBots({ configPath });
+    expect(bots).toEqual([{ session_id: 'reder', token: 'abc:123' }]);
+  });
+
+  it('switches token_env → token cleanly (no stale token_env field)', () => {
+    upsertTelegramBot({ configPath, sessionId: 'reder', tokenEnv: 'MY_VAR' });
+    upsertTelegramBot({ configPath, sessionId: 'reder', token: 'inline-token-xyz' });
+    const bots = listTelegramBots({ configPath });
+    expect(bots).toEqual([{ session_id: 'reder', token: 'inline-token-xyz' }]);
+  });
+
+  it('rejects an upsert that has neither token nor tokenEnv', () => {
+    expect(() =>
+      upsertTelegramBot({ configPath, sessionId: 'reder' } as unknown as {
+        configPath: string;
+        sessionId: string;
+      }),
+    ).toThrow(/either tokenEnv or token/);
+  });
+});
+
+describe('removeTelegramBot', () => {
+  beforeEach(() => {
+    scaffoldConfig({ configPath, envPath, webBind: '127.0.0.1', webPort: 7781 });
+  });
+
+  it('removes a configured bot and reports removed:true', () => {
+    upsertTelegramBot({ configPath, sessionId: 'reder', token: 'a:1' });
+    upsertTelegramBot({ configPath, sessionId: 'stays', token: 'b:2' });
+    const r = removeTelegramBot({ configPath, sessionId: 'reder' });
+    expect(r.removed).toBe(true);
+    const bots = listTelegramBots({ configPath });
+    expect(bots).toEqual([{ session_id: 'stays', token: 'b:2' }]);
+  });
+
+  it('reports removed:false when the session has no bot', () => {
+    expect(removeTelegramBot({ configPath, sessionId: 'ghost' })).toEqual({ removed: false });
+  });
+});
+
+describe('telegram mode get/set', () => {
+  beforeEach(() => {
+    scaffoldConfig({ configPath, envPath, webBind: '127.0.0.1', webPort: 7781 });
+  });
+
+  it('defaults to pairing when no mode is set', () => {
+    expect(getTelegramMode({ configPath })).toBe('pairing');
+  });
+
+  it('round-trips via set', () => {
+    setTelegramMode({ configPath, mode: 'allowlist' });
+    expect(getTelegramMode({ configPath })).toBe('allowlist');
+    setTelegramMode({ configPath, mode: 'pairing' });
+    expect(getTelegramMode({ configPath })).toBe('pairing');
+  });
+});
+
+describe('telegram allowlist', () => {
+  beforeEach(() => {
+    scaffoldConfig({ configPath, envPath, webBind: '127.0.0.1', webPort: 7781 });
+  });
+
+  it('add + list + remove', () => {
+    expect(listTelegramAllowlistUsers({ configPath })).toEqual([]);
+    expect(addTelegramAllowlistUser({ configPath, userId: '123' })).toEqual({ added: true });
+    expect(addTelegramAllowlistUser({ configPath, userId: '456' })).toEqual({ added: true });
+    expect(listTelegramAllowlistUsers({ configPath })).toEqual(['123', '456']);
+    expect(addTelegramAllowlistUser({ configPath, userId: '123' })).toEqual({ added: false });
+    expect(removeTelegramAllowlistUser({ configPath, userId: '123' })).toEqual({ removed: true });
+    expect(removeTelegramAllowlistUser({ configPath, userId: 'absent' })).toEqual({
+      removed: false,
+    });
+    expect(listTelegramAllowlistUsers({ configPath })).toEqual(['456']);
+  });
+
+  it('rejects non-numeric user ids', () => {
+    expect(() =>
+      addTelegramAllowlistUser({ configPath, userId: '@alice' }),
+    ).toThrow(/numeric Telegram user_id/);
+  });
+});
+

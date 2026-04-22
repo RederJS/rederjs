@@ -1,8 +1,8 @@
 # Reder Quickstart
 
-From zero to first live session in under 10 minutes. Two paths — pick one or do both:
+From zero to first live session in under 10 minutes. Reder talks to you through **adapters** — swappable modules for each surface (web dashboard, Telegram, …). The web adapter is enabled at install; others are opt-in via `reder <adapter> …` commands. Pick one or do both:
 
-- **A. Web dashboard only** — see sessions, send instructions, approve prompts from any browser.
+- **A. Web dashboard** — see sessions, send instructions, approve prompts from any browser.
 - **B. Telegram** — DM Claude from your phone.
 
 ## Prerequisites
@@ -72,7 +72,7 @@ reder status
 - Any session with `auto_start: true` and a valid `workspace_dir` now has a tmux session running `claude` in it.
 - The web dashboard is up on `127.0.0.1:7781`.
 
-## 6A. Open the dashboard
+## 6A. Web adapter — open the dashboard
 
 ```sh
 reder dashboard url
@@ -93,21 +93,43 @@ Paste that URL into a browser. The `?token=` query sets a cookie; subsequent vis
 
 A session without `auto_start` shows a **Start** button — clicking it spawns the tmux session on demand (same as `reder sessions start <id>`).
 
-## 6B. Pair Telegram
+## 6B. Telegram adapter — attach a bot per session
 
-(Skip if you only want the dashboard.) Put the bot token into `~/.config/reder/reder.env`:
-
-```
-TELEGRAM_BOT_TOKEN=<your-bot-token>
-```
-
-Add the bot to `adapters.telegram.config.bots[]` in the config and `reder restart`. DM your bot from Telegram; it replies with a 6-character pair code. In the same project directory where you ran `reder sessions add`:
+(Skip if you only want the dashboard.) Each session gets its **own** bot, so DMs to a given bot route to one Claude Code session. Create one bot per session via [@BotFather](https://t.me/BotFather), then attach it:
 
 ```sh
-reder pair <code>
+reder telegram bot add <session-id>       # prompts for the token (masked)
+# or non-interactive:
+reder telegram bot add <session-id> --token 123456:ABC-DEF…
 ```
 
-The bot confirms pairing and you can now chat with Claude Code from Telegram.
+This writes the bot inline into `~/.config/reder/reder.config.yaml` (mode 0600). Then `reder restart`.
+
+### Access control: pairing vs. allowlist
+
+Two modes, globally configured:
+
+- **`pairing` (default)** — first DM from an unknown Telegram account triggers a 6-character pair code. In the project directory: `reder pair <code>`. The bot confirms and future DMs route through.
+- **`allowlist`** — only Telegram numeric user_ids on the global list can DM any bot; unknown senders are silently dropped, no pair code. Use for a locked-down setup.
+
+```sh
+reder telegram mode                       # show current mode
+reder telegram mode allowlist             # switch
+reder telegram allow add 123456789        # numeric Telegram user_id
+reder telegram allow list
+```
+
+(Find your user_id by DMing [@userinfobot](https://t.me/userinfobot), or by reading the pair-code DM — it names the sender.)
+
+### Other Telegram commands
+
+```sh
+reder telegram bot list                   # which sessions have bots
+reder telegram bot remove <session-id>    # drop a session's bot
+reder telegram allow remove <user-id>
+```
+
+To use an externally-managed secret (systemd drop-in, secret manager) instead of inline: `reder telegram bot add <session> --token-env MY_VAR`. Reder will resolve `${env:MY_VAR}` at daemon start.
 
 ## What to expect
 
@@ -122,7 +144,10 @@ The bot confirms pairing and you can now chat with Claude Code from Telegram.
 reder sessions list           # configured sessions + tmux status
 reder sessions start <id>     # start a tmux session on demand
 reder sessions up             # start everything with a workspace_dir (idempotent)
-reder dashboard url           # print authenticated dashboard URL
+reder dashboard url           # (web adapter) print authenticated dashboard URL
+reder telegram bot list       # (telegram adapter) configured bots
+reder telegram allow list     # (telegram adapter) global allowlist
+reder telegram mode           # (telegram adapter) current access mode
 reder status                  # daemon health snapshot
 reder doctor                  # diagnostic checks with remediation
 ```

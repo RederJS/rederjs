@@ -445,12 +445,23 @@ export class TelegramAdapter extends Adapter {
     runtime: BotRuntime,
     msg: import('@rederjs/core/adapter').InboundMessage,
   ): Promise<void> {
-    // 1. Sender allowlist (deny by default)
-    const paired = this.ctx.router.isPaired('telegram', msg.senderId, msg.sessionId);
-    if (!paired) {
-      // First contact from an unpaired sender → initiate pairing.
-      await this.initiatePairing(runtime, msg);
-      return;
+    // 1. Access control: allowlist mode short-circuits pair-code flow.
+    if (this.config.mode === 'allowlist') {
+      if (!this.config.allowlist.includes(msg.senderId)) {
+        this.logger.debug(
+          { sender_id: msg.senderId, session_id: msg.sessionId, component: 'adapter.telegram' },
+          'allowlist: dropped unapproved sender',
+        );
+        return;
+      }
+      this.ensureAllowlistBinding(msg);
+    } else {
+      const paired = this.ctx.router.isPaired('telegram', msg.senderId, msg.sessionId);
+      if (!paired) {
+        // First contact from an unpaired sender → initiate pairing.
+        await this.initiatePairing(runtime, msg);
+        return;
+      }
     }
 
     // 2. Rate limit.
@@ -576,11 +587,7 @@ export class TelegramAdapter extends Adapter {
     runtime: BotRuntime,
     info: { chatId: number; senderId: string; fileId: string; caption: string | undefined },
   ): Promise<void> {
-    const paired = this.ctx.router.isPaired('telegram', info.senderId, runtime.sessionId);
-    if (!paired) {
-      await this.initiatePairing(runtime, this.stubInboundForChat(info.chatId, info.senderId, runtime.sessionId));
-      return;
-    }
+    if (!(await this.passesAccessGate(runtime, info.senderId, info.chatId))) return;
     try {
       const cached = await downloadAndCache({
         transport: runtime.transport,
@@ -634,11 +641,7 @@ export class TelegramAdapter extends Adapter {
       caption: string | undefined;
     },
   ): Promise<void> {
-    const paired = this.ctx.router.isPaired('telegram', info.senderId, runtime.sessionId);
-    if (!paired) {
-      await this.initiatePairing(runtime, this.stubInboundForChat(info.chatId, info.senderId, runtime.sessionId));
-      return;
-    }
+    if (!(await this.passesAccessGate(runtime, info.senderId, info.chatId))) return;
     if (info.size !== undefined && info.size > 20 * 1024 * 1024) {
       try {
         await runtime.transport.sendMessage(
@@ -690,6 +693,63 @@ export class TelegramAdapter extends Adapter {
       }
       this.logger.warn({ err }, 'document download failed');
     }
+  }
+
+  /**
+   * Shared access check for binary-content paths (photos, documents) that
+   * don't construct a full InboundMessage before gating. In pairing mode:
+   * unpaired senders get a pair-code DM; in allowlist mode: unapproved
+   * senders are silently dropped.
+   */
+  private async passesAccessGate(
+    runtime: BotRuntime,
+    senderId: string,
+    chatId: number,
+  ): Promise<boolean> {
+    if (this.config.mode === 'allowlist') {
+      if (!this.config.allowlist.includes(senderId)) {
+        this.logger.debug(
+          { sender_id: senderId, session_id: runtime.sessionId, component: 'adapter.telegram' },
+          'allowlist: dropped unapproved sender',
+        );
+        return false;
+      }
+      this.ctx.router.upsertBinding({
+        adapter: 'telegram',
+        senderId,
+        sessionId: runtime.sessionId,
+        metadata: { chat_id: String(chatId) },
+      });
+      return true;
+    }
+    const paired = this.ctx.router.isPaired('telegram', senderId, runtime.sessionId);
+    if (paired) return true;
+    await this.initiatePairing(
+      runtime,
+      this.stubInboundForChat(chatId, senderId, runtime.sessionId),
+    );
+    return false;
+  }
+
+  /**
+   * In allowlist mode, create the binding row on first contact so outbound
+   * routing and permission prompts can find the chat. Metadata mirrors the
+   * shape used by the pairing flow.
+   */
+  private ensureAllowlistBinding(
+    msg: import('@rederjs/core/adapter').InboundMessage,
+  ): void {
+    const chatId = msg.meta['chat_id'];
+    const username = msg.meta['username'];
+    const metadata: Record<string, unknown> = {};
+    if (chatId !== undefined) metadata['chat_id'] = chatId;
+    if (username !== undefined) metadata['username'] = username;
+    this.ctx.router.upsertBinding({
+      adapter: 'telegram',
+      senderId: msg.senderId,
+      sessionId: msg.sessionId,
+      metadata,
+    });
   }
 
   private stubInboundForChat(

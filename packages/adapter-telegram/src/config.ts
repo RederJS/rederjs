@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 export const TelegramAdapterConfigSchema = z.object({
+  mode: z.enum(['pairing', 'allowlist']).default('pairing'),
+  allowlist: z.array(z.string().regex(/^\d+$/)).default([]),
   bots: z
     .array(
       z.object({

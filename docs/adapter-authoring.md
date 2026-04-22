@@ -76,6 +76,10 @@ adapters:
 
 Reder warns the operator on startup that a non-`@rederjs/*` adapter was loaded; encourage your users to read `reder doctor` and verify.
 
+### CLI namespace convention
+
+Built-in adapters expose operator commands under `reder <adapter-name> …` (e.g. `reder telegram bot add`, `reder telegram allow add`, `reder dashboard url` for the web adapter). Third-party adapters don't plug into the `reder` CLI directly — instead, ship your own binary (e.g. `reder-slack`) or lean on `reder config` + direct YAML edits. The built-in-adapter CLI surface will open up in a future release once the contract stabilises; until then, document your configuration knobs and a `${env:VAR}` indirection pattern, and let operators edit `reder.config.yaml` themselves.
+
 ## Reference implementations
 
 - `@rederjs/adapter-telegram` in this repository — the reference for an inbound-long-poll + rich-media + inline-keyboard permission adapter.
