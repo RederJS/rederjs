@@ -101,7 +101,7 @@ describe('tmux.startSession', () => {
     expect(calls).toHaveLength(1);
   });
 
-  it('starts with plain claude command by default', () => {
+  it('starts claude with the channels flag enabled by default', () => {
     const { runner, calls } = makeRunner([
       { status: 1 }, // has-session → not running
       { status: 0 }, // new-session
@@ -116,18 +116,20 @@ describe('tmux.startSession', () => {
       '-c',
       workspace,
       'claude',
+      '--dangerously-load-development-channels',
+      'server:reder',
     ]);
   });
 
-  it('uses custom command when provided', () => {
+  it('uses custom command argv when provided', () => {
     const { runner, calls } = makeRunner([{ status: 1 }, { status: 0 }]);
     startSession({
       session_id: 'reder',
       workspace_dir: workspace,
-      command: 'claude --dangerously-skip-permissions',
+      command: ['claude', '--dangerously-skip-permissions'],
       runner,
     });
-    expect(calls[1]?.args).toContain('claude --dangerously-skip-permissions');
+    expect(calls[1]?.args.slice(-2)).toEqual(['claude', '--dangerously-skip-permissions']);
   });
 
   it('returns tmux_error when new-session fails', () => {

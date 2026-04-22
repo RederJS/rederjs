@@ -62,10 +62,16 @@ export type StartReason = 'already_running' | 'missing_dir' | 'tmux_error' | 'in
 export interface StartSessionOptions extends TmuxRunnerOption {
   session_id: string;
   workspace_dir: string;
-  command?: string;
+  command?: readonly string[];
   env?: Record<string, string>;
   logger?: Logger;
 }
+
+export const DEFAULT_CLAUDE_COMMAND: readonly string[] = [
+  'claude',
+  '--dangerously-load-development-channels',
+  'server:reder',
+];
 
 export interface StartSessionResult {
   started: boolean;
@@ -75,7 +81,7 @@ export interface StartSessionResult {
 
 export function startSession(opts: StartSessionOptions): StartSessionResult {
   const { session_id, workspace_dir } = opts;
-  const command = opts.command ?? 'claude';
+  const command = opts.command ?? DEFAULT_CLAUDE_COMMAND;
 
   try {
     assertValidName(session_id);
@@ -108,7 +114,7 @@ export function startSession(opts: StartSessionOptions): StartSessionResult {
       args.push('-e', `${k}=${v}`);
     }
   }
-  args.push(command);
+  args.push(...command);
 
   const result = run(args);
   if (result.status !== 0) {
@@ -121,7 +127,7 @@ export function startSession(opts: StartSessionOptions): StartSessionResult {
   }
 
   opts.logger?.info(
-    { session_id, dir, command, component: 'core.tmux' },
+    { session_id, dir, command: command.join(' '), component: 'core.tmux' },
     'started tmux session',
   );
   return { started: true };
