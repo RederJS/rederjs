@@ -63,23 +63,43 @@ program
   .description('configure rederd for this machine (web bind, port); re-runnable')
   .option('--bind <addr>', 'web dashboard bind address (skip prompt)')
   .option('--port <number>', 'web dashboard port (skip prompt)', (v) => parseInt(v, 10))
+  .option('--install-service', 'install and enable the systemd user service without prompting')
   .action(async (opts: Record<string, unknown>) => {
     try {
+      const installService = opts['installService'] === true ? true : undefined;
       const result = await interactiveInit({
         configPath: configArg(),
         ...(opts['bind'] !== undefined ? { bindOverride: opts['bind'] as string } : {}),
         ...(opts['port'] !== undefined ? { portOverride: opts['port'] as number } : {}),
         nonInteractive: jsonMode(),
+        ...(installService !== undefined ? { installService } : {}),
       });
       if (jsonMode()) {
         process.stdout.write(JSON.stringify(result) + '\n');
       } else {
         const verb = result.created ? 'Wrote' : result.updated ? 'Updated' : 'Verified';
-        process.stdout.write(
-          `${verb} ${result.configPath}\n` +
-            `Web dashboard: ${result.webBind}:${result.webPort}\n` +
-            `Next: cd into a project and run 'reder sessions add' to register a session.\n`,
-        );
+        const lines = [`${verb} ${result.configPath}`, `Web dashboard: ${result.webBind}:${result.webPort}`];
+        if (result.service) {
+          const s = result.service;
+          if (s.skipped) {
+            lines.push(`Service: skipped (${s.reason ?? 'n/a'})`);
+          } else {
+            const wrote = s.unitWritten ? 'wrote' : 'unchanged';
+            lines.push(`Service: ${wrote} ${s.unitPath}`);
+            if (s.enabled === true) {
+              lines.push(`Service: enabled + started`);
+              if (s.lingerEnabled === false) {
+                lines.push(
+                  `  Tip: run 'loginctl enable-linger $USER' if you want the daemon to start at boot before you log in.`,
+                );
+              }
+            } else if (s.enabled === false) {
+              lines.push(`Service: ${s.enableDetail ?? 'enable failed'}`);
+            }
+          }
+        }
+        lines.push(`Next: cd into a project and run 'reder sessions add' to register a session.`);
+        process.stdout.write(lines.join('\n') + '\n');
       }
     } catch (err) {
       fail(err);
