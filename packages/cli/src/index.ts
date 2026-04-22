@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { runInit } from './commands/init.js';
-import { runInstall } from './commands/install.js';
+import { interactiveInit } from './commands/init.js';
+import { interactiveSessionAdd } from './commands/sessions-add.js';
+import { interactiveSessionRemove } from './commands/sessions-remove.js';
 import { runStatus, formatStatus } from './commands/status.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { runPair, formatPairResult } from './commands/pair.js';
@@ -43,60 +44,27 @@ function buildCfgOpts(): { configPath?: string } {
 
 program
   .command('init')
-  .description('generate a minimal reder.config.yaml + reder.env')
-  .option('--force', 'overwrite existing config')
-  .option('--session-id <id>', 'primary session id', 'default')
-  .option('--display-name <name>', 'display name for the session')
-  .option('--bot-token <token>', 'Telegram bot token (stored in reder.env)')
-  .option('--token-env <VAR>', 'env variable name for the token')
+  .description('configure rederd for this machine (web bind, port); re-runnable')
+  .option('--bind <addr>', 'web dashboard bind address (skip prompt)')
+  .option('--port <number>', 'web dashboard port (skip prompt)', (v) => parseInt(v, 10))
+  .option('--bot-token <token>', 'placeholder Telegram bot token for reder.env (advanced)')
   .action(async (opts: Record<string, unknown>) => {
     try {
-      const result = runInit({
-        force: opts['force'] as boolean,
-        sessionId: opts['sessionId'] as string,
-        displayName: opts['displayName'] as string | undefined,
-        botToken: opts['botToken'] as string | undefined,
-        telegramTokenEnv: opts['tokenEnv'] as string | undefined,
-      });
-      if (jsonMode()) {
-        process.stdout.write(JSON.stringify(result) + '\n');
-      } else {
-        process.stdout.write(
-          `Wrote ${result.configPath}\nWrote ${result.envPath}\nNext: set ${result.tokenEnvVar} in reder.env and run 'reder install ${result.sessionId}' in your project.\n`,
-        );
-      }
-    } catch (err) {
-      fail(err);
-    }
-  });
-
-program
-  .command('install <session-id>')
-  .description('register a session with rederd and write a .mcp.json shim entry in the current project')
-  .option('--display-name <name>', 'display name for this session')
-  .option('--project-dir <path>', 'project directory to write .mcp.json into', process.cwd())
-  .option(
-    '--shim-command <cmd>',
-    'command to invoke reder-shim (default: "reder-shim")',
-    'reder-shim',
-  )
-  .action(async (sessionId: string, opts: Record<string, unknown>) => {
-    try {
-      const result = await runInstall({
-        sessionId,
-        displayName: opts['displayName'] as string | undefined,
-        projectDir: opts['projectDir'] as string | undefined,
+      const result = await interactiveInit({
         configPath: configArg(),
-        shimCommand: [opts['shimCommand'] as string],
+        ...(opts['bind'] !== undefined ? { bindOverride: opts['bind'] as string } : {}),
+        ...(opts['port'] !== undefined ? { portOverride: opts['port'] as number } : {}),
+        ...(opts['botToken'] !== undefined ? { botToken: opts['botToken'] as string } : {}),
+        nonInteractive: jsonMode(),
       });
       if (jsonMode()) {
         process.stdout.write(JSON.stringify(result) + '\n');
       } else {
+        const verb = result.created ? 'Wrote' : result.updated ? 'Updated' : 'Verified';
         process.stdout.write(
-          `Installed session '${result.sessionId}'${result.tokenRotated ? ' (token rotated)' : ''}\n` +
-            `.mcp.json: ${result.mcpJsonPath}\n` +
-            `Socket: ${result.socketPath}\n` +
-            `Start Claude Code with:\n  claude --dangerously-load-development-channels server:reder\n`,
+          `${verb} ${result.configPath}\n` +
+            `Web dashboard: ${result.webBind}:${result.webPort}\n` +
+            `Next: cd into a project and run 'reder sessions add' to register a session.\n`,
         );
       }
     } catch (err) {
@@ -216,6 +184,84 @@ sessions
       const r = runSessionsUp(buildCfgOpts());
       if (jsonMode()) process.stdout.write(JSON.stringify(r) + '\n');
       else process.stdout.write(formatSessionsUp(r) + '\n');
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+sessions
+  .command('add [session-id]')
+  .description('register a session in this project (writes .mcp.json, adds to config)')
+  .option('--display-name <name>', 'display name for this session')
+  .option('--project-dir <path>', 'project directory to write .mcp.json into', process.cwd())
+  .option('--shim-command <cmd>', 'command to invoke reder-shim', 'reder-shim')
+  .option('--auto-start', 'mark session auto_start=true and start the daemon now', false)
+  .option('--force-rebind', 'rebind an existing session without prompting', false)
+  .option('-y, --yes', 'accept all defaults (non-interactive)', false)
+  .action(async (sessionIdArg: string | undefined, opts: Record<string, unknown>) => {
+    try {
+      const result = await interactiveSessionAdd({
+        ...(sessionIdArg !== undefined ? { sessionIdArg } : {}),
+        ...(opts['displayName'] !== undefined
+          ? { displayName: opts['displayName'] as string }
+          : {}),
+        projectDir: opts['projectDir'] as string,
+        configPath: configArg(),
+        shimCommand: [opts['shimCommand'] as string],
+        autoStart: Boolean(opts['autoStart']),
+        forceRebind: Boolean(opts['forceRebind']),
+        yes: Boolean(opts['yes']),
+        nonInteractive: jsonMode() || Boolean(opts['yes']),
+      });
+      if (jsonMode()) {
+        process.stdout.write(JSON.stringify(result) + '\n');
+      } else {
+        const lines: string[] = [];
+        if (result.yamlCreated) lines.push(`Added session '${result.sessionId}' to config`);
+        else if (result.yamlUpdated) lines.push(`Updated session '${result.sessionId}' in config`);
+        lines.push(
+          `Wrote ${result.mcpJsonPath}${result.tokenRotated ? ' (token rotated)' : ''}`,
+        );
+        if (result.daemonStart) {
+          lines.push(`Daemon: ${result.daemonStart.ok ? '✓' : '•'} ${result.daemonStart.detail}`);
+        }
+        process.stdout.write(lines.join('\n') + '\n');
+      }
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+sessions
+  .command('remove <session-id>')
+  .description('remove a session (YAML entry, DB row, project .mcp.json)')
+  .option('-y, --yes', 'skip confirmation prompt', false)
+  .option('--keep-mcp', 'do not modify .mcp.json in the session workspace', false)
+  .action(async (sessionId: string, opts: Record<string, unknown>) => {
+    try {
+      const result = await interactiveSessionRemove({
+        sessionId,
+        configPath: configArg(),
+        keepMcp: Boolean(opts['keepMcp']),
+        yes: Boolean(opts['yes']),
+      });
+      if ('cancelled' in result) {
+        if (jsonMode()) process.stdout.write(JSON.stringify({ cancelled: true }) + '\n');
+        else process.stdout.write('cancelled\n');
+        return;
+      }
+      if (jsonMode()) {
+        process.stdout.write(JSON.stringify(result) + '\n');
+      } else {
+        const lines = [
+          `Removed session '${result.sessionId}'`,
+          `  YAML entry: ${result.yamlRemoved ? '✓' : '—'}`,
+          `  DB row: ${result.dbRemoved ? '✓' : '—'}${result.bindingsRemoved > 0 ? ` (${result.bindingsRemoved} bindings)` : ''}`,
+          `  .mcp.json: ${result.mcpEntryRemoved ? '✓' : '—'}${result.mcpJsonPath ? ` (${result.mcpJsonPath})` : ''}`,
+        ];
+        for (const w of result.warnings) lines.push(`  warning: ${w}`);
+        process.stdout.write(lines.join('\n') + '\n');
+      }
     } catch (err) {
       fail(err);
     }

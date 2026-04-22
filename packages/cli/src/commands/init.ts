@@ -1,83 +1,133 @@
-import { existsSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { defaultConfigPath, defaultEnvPath, defaultRuntimeDir, defaultDataDir } from '../paths.js';
+import prompts from 'prompts';
+import { scaffoldConfig, readWebAdapterConfig, updateWebAdapterConfig } from './config-writer.js';
+import { defaultConfigPath, defaultEnvPath } from '../paths.js';
+import { detectTailscaleIPv4 } from '../tailscale.js';
 
 export interface InitOptions {
-  force?: boolean | undefined;
-  botToken?: string | undefined;
-  sessionId?: string | undefined;
-  displayName?: string | undefined;
   configPath?: string | undefined;
   envPath?: string | undefined;
-  telegramTokenEnv?: string | undefined;
+  webBind: string;
+  webPort: number;
+  botToken?: string | undefined;
 }
 
 export interface InitResult {
   configPath: string;
   envPath: string;
-  sessionId: string;
-  tokenEnvVar: string;
+  created: boolean;
+  updated: boolean;
+  webBind: string;
+  webPort: number;
 }
 
-/**
- * Non-interactive init. Interactive prompting is delegated to callers that
- * provide inputs; we keep init logic pure for testing.
- */
 export function runInit(opts: InitOptions): InitResult {
   const configPath = opts.configPath ?? defaultConfigPath();
   const envPath = opts.envPath ?? defaultEnvPath();
-  const sessionId = opts.sessionId ?? 'default';
-  const displayName = opts.displayName ?? 'Default';
-  const tokenEnvVar = opts.telegramTokenEnv ?? `TELEGRAM_BOT_${sessionId.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+  const scaffold = scaffoldConfig({
+    configPath,
+    envPath,
+    webBind: opts.webBind,
+    webPort: opts.webPort,
+    botToken: opts.botToken,
+  });
 
-  if (!opts.force) {
-    if (existsSync(configPath)) {
-      throw new Error(
-        `Config already exists at ${configPath}. Use --force to overwrite.`,
-      );
+  let updated = false;
+  if (!scaffold.created) {
+    const existing = readWebAdapterConfig(configPath);
+    if (!existing || existing.bind !== opts.webBind || existing.port !== opts.webPort) {
+      updateWebAdapterConfig({ configPath, bind: opts.webBind, port: opts.webPort });
+      updated = true;
     }
   }
 
-  mkdirSync(dirname(configPath), { recursive: true });
-  mkdirSync(dirname(envPath), { recursive: true });
-  mkdirSync(defaultRuntimeDir(), { recursive: true, mode: 0o700 });
-  mkdirSync(defaultDataDir(), { recursive: true, mode: 0o700 });
+  return {
+    configPath,
+    envPath,
+    created: scaffold.created,
+    updated,
+    webBind: opts.webBind,
+    webPort: opts.webPort,
+  };
+}
 
-  const yaml = `version: 1
+export interface InteractiveInitOptions {
+  configPath?: string | undefined;
+  envPath?: string | undefined;
+  bindOverride?: string | undefined;
+  portOverride?: number | undefined;
+  botToken?: string | undefined;
+  nonInteractive?: boolean | undefined;
+}
 
-runtime:
-  runtime_dir: ${defaultRuntimeDir()}
-  data_dir: ${defaultDataDir()}
+export async function interactiveInit(opts: InteractiveInitOptions): Promise<InitResult> {
+  const configPath = opts.configPath ?? defaultConfigPath();
+  const envPath = opts.envPath ?? defaultEnvPath();
+  const existing = readWebAdapterConfig(configPath);
+  const tailscaleIp = detectTailscaleIPv4();
 
-logging:
-  level: info
+  const bind = opts.bindOverride ?? (await promptForBind(existing?.bind, tailscaleIp, opts.nonInteractive));
+  const port = opts.portOverride ?? (await promptForPort(existing?.port, opts.nonInteractive));
 
-health:
-  enabled: true
-  bind: 127.0.0.1
-  port: 7781
+  return runInit({ configPath, envPath, webBind: bind, webPort: port, botToken: opts.botToken });
+}
 
-sessions:
-  - session_id: ${sessionId}
-    display_name: ${displayName}
+async function promptForBind(
+  existing: string | undefined,
+  tailscaleIp: string | undefined,
+  nonInteractive: boolean | undefined,
+): Promise<string> {
+  const defaultBind = existing ?? '127.0.0.1';
+  if (nonInteractive || !process.stdin.isTTY) return defaultBind;
 
-adapters:
-  telegram:
-    module: '@rederjs/adapter-telegram'
-    enabled: true
-    config:
-      bots:
-        - token_env: ${tokenEnvVar}
-          session_id: ${sessionId}
-`;
+  const choices: Array<{ title: string; value: string }> = [
+    { title: `127.0.0.1 (local only)`, value: '127.0.0.1' },
+  ];
+  if (tailscaleIp) {
+    choices.push({ title: `${tailscaleIp} (Tailscale)`, value: tailscaleIp });
+  }
+  choices.push({ title: 'Enter a custom address', value: '__custom__' });
 
-  writeFileSync(configPath, yaml, { mode: 0o600 });
-  chmodSync(configPath, 0o600);
+  const initialIdx = Math.max(
+    0,
+    choices.findIndex((c) => c.value === defaultBind),
+  );
 
-  const envLine = opts.botToken ? `${tokenEnvVar}=${opts.botToken}\n` : `# ${tokenEnvVar}=<paste your Telegram bot token here>\n`;
-  const envExisting = existsSync(envPath) ? `\n${envLine}` : envLine;
-  writeFileSync(envPath, envExisting, { mode: 0o600, flag: existsSync(envPath) ? 'a' : 'w' });
-  chmodSync(envPath, 0o600);
+  const { bind } = (await prompts({
+    type: 'select',
+    name: 'bind',
+    message: 'Bind address for the web dashboard',
+    choices,
+    initial: initialIdx,
+  })) as { bind?: string };
 
-  return { configPath, envPath, sessionId, tokenEnvVar };
+  if (bind === undefined) throw new Error('cancelled');
+  if (bind !== '__custom__') return bind;
+
+  const { custom } = (await prompts({
+    type: 'text',
+    name: 'custom',
+    message: 'Custom bind address',
+    initial: defaultBind,
+    validate: (v: string) => (v.trim().length > 0 ? true : 'required'),
+  })) as { custom?: string };
+  if (custom === undefined) throw new Error('cancelled');
+  return custom.trim();
+}
+
+async function promptForPort(
+  existing: number | undefined,
+  nonInteractive: boolean | undefined,
+): Promise<number> {
+  const defaultPort = existing ?? 7781;
+  if (nonInteractive || !process.stdin.isTTY) return defaultPort;
+  const { port } = (await prompts({
+    type: 'number',
+    name: 'port',
+    message: 'Port for the web dashboard',
+    initial: defaultPort,
+    min: 1,
+    max: 65535,
+  })) as { port?: number };
+  if (port === undefined) throw new Error('cancelled');
+  return port;
 }

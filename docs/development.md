@@ -58,7 +58,7 @@ which reder rederd reder-shim
 # all three should resolve under your npm global prefix
 ```
 
-Linking `@rederjs/shim` isn't optional, even if you're only hacking on the daemon or the web adapter. `reder install <session-id>` writes a `.mcp.json` that references `reder-shim` by bare name, so Claude Code spawns it via `$PATH` — without the link, local Claude sessions can't reach your dev daemon.
+Linking `@rederjs/shim` isn't optional, even if you're only hacking on the daemon or the web adapter. `reder sessions add` writes a `.mcp.json` that references `reder-shim` by bare name, so Claude Code spawns it via `$PATH` — without the link, local Claude sessions can't reach your dev daemon.
 
 ### 2. Keep TypeScript watching
 
@@ -74,7 +74,7 @@ Leave that running in a terminal. On each save it re-emits only the affected pac
 - Edit anything under `packages/*/src/` → wait for tsc to re-emit → re-run the command.
 - CLI change: just run `reder …` again.
 - Daemon or adapter change: `reder restart`, then exercise.
-- Shim change: start a fresh `claude` session in a workspace where you've run `reder install` (the shim process lives for the life of the Claude Code process).
+- Shim change: start a fresh `claude` session in a workspace where you've run `reder sessions add` (the shim process lives for the life of the Claude Code process).
 
 **Migration caveat.** `tsc --watch` does *not* copy SQL. If you edit anything under `packages/core/src/storage/migrations/`, re-run:
 
@@ -111,7 +111,7 @@ reder restart
 Pair it the same way a user would:
 
 1. DM the dev bot — it replies with a pair code.
-2. In a workspace where you've run `reder install`, run `reder pair <code>`.
+2. In a workspace where you've run `reder sessions add`, run `reder pair <code>`.
 
 Never commit `reder.env` or a real bot token. `~/.config/reder/reder.env` lives outside the repo by design.
 
@@ -124,7 +124,7 @@ node packages/cli/dist/index.js status
 node packages/daemon/dist/index.js
 ```
 
-The limitation: `reder install` still writes `.mcp.json` entries that reference `reder-shim` by bare name, so Claude Code can't find the shim without help. You'll either need to `npm link -w @rederjs/shim` anyway, or hand-edit each generated `.mcp.json` to use an absolute path to `packages/shim/dist/index.js`. For most contributors, the `npm link` path above is less friction.
+The limitation: `reder sessions add` still writes `.mcp.json` entries that reference `reder-shim` by bare name, so Claude Code can't find the shim without help. You'll either need to `npm link -w @rederjs/shim` anyway, or hand-edit each generated `.mcp.json` to use an absolute path to `packages/shim/dist/index.js`. For most contributors, the `npm link` path above is less friction.
 
 ## Tests, typecheck, lint
 

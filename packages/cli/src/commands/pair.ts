@@ -9,7 +9,7 @@ export async function runPair(opts: PairOptions): Promise<AdminPairResult> {
   const discovered = discoverSessionFromProject(opts.projectDir ?? process.cwd());
   if (!discovered) {
     throw new Error(
-      'No .mcp.json with a reder-shim entry found in this project or any parent. Run `reder install <session-id>` first.',
+      'No .mcp.json with a reder-shim entry found in this project or any parent. Run `reder sessions add` first.',
     );
   }
   return sendAdminPair(discovered, opts.code);

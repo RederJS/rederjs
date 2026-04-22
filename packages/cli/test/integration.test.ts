@@ -6,8 +6,11 @@ import { bootstrap, type BootstrapResult } from '../../daemon/src/bootstrap.js';
 import { FakeAdapter } from '../../core/test/fixtures/fake-adapter.js';
 import { runDoctor } from '../src/commands/doctor.js';
 import { runStatus } from '../src/commands/status.js';
-import { runInstall } from '../src/commands/install.js';
+import { runSessionAdd } from '../src/commands/sessions-add.js';
+import { runSessionRemove } from '../src/commands/sessions-remove.js';
+import { ConfigNotFoundError } from '../src/commands/sessions-add.js';
 import { runPair } from '../src/commands/pair.js';
+import { existsSync, readFileSync } from 'node:fs';
 import { createPairCode } from '../../core/src/pairing.js';
 import { isPaired } from '../../core/src/pairing.js';
 
@@ -81,13 +84,12 @@ describe('cli integration', () => {
     expect(daemonCheck?.pass).toBe(false);
   });
 
-  it('runInstall + runPair end-to-end: CLI pairs a sender via admin IPC', async () => {
+  it('runSessionAdd + runPair end-to-end: CLI pairs a sender via admin IPC', async () => {
     daemon = await bootstrap({
       configPath,
       overrideResolveModule: async () => async () => new FakeAdapter('fake'),
     });
-    // Install session and write .mcp.json so runPair can discover it.
-    const inst = await runInstall({
+    const inst = await runSessionAdd({
       sessionId: 'booknerds',
       projectDir,
       configPath,
@@ -95,7 +97,6 @@ describe('cli integration', () => {
     });
     expect(inst.sessionId).toBe('booknerds');
 
-    // Seed a pair code for a fake telegram sender directly in DB.
     const rec = createPairCode(daemon.db.raw, {
       adapter: 'fake-adapter',
       senderId: 'user-1',
@@ -107,5 +108,35 @@ describe('cli integration', () => {
     expect(result.adapter).toBe('fake-adapter');
     expect(result.senderId).toBe('user-1');
     expect(isPaired(daemon.db.raw, 'fake-adapter', 'user-1', 'booknerds')).toBe(true);
+  });
+
+  it('runSessionAdd fails with ConfigNotFoundError when config missing', async () => {
+    const missingConfig = join(dir, 'does-not-exist.yaml');
+    await expect(
+      runSessionAdd({ sessionId: 'booknerds', projectDir, configPath: missingConfig }),
+    ).rejects.toBeInstanceOf(ConfigNotFoundError);
+  });
+
+  it('runSessionAdd then runSessionRemove cleans up YAML + DB + .mcp.json', async () => {
+    daemon = await bootstrap({
+      configPath,
+      overrideResolveModule: async () => async () => new FakeAdapter('fake'),
+    });
+    const inst = await runSessionAdd({
+      sessionId: 'booknerds',
+      projectDir,
+      configPath,
+    });
+    expect(existsSync(inst.mcpJsonPath)).toBe(true);
+
+    const r = runSessionRemove({ sessionId: 'booknerds', configPath });
+    expect(r.yamlRemoved).toBe(true);
+    expect(r.dbRemoved).toBe(true);
+    expect(r.mcpEntryRemoved).toBe(true);
+
+    const mcp = JSON.parse(readFileSync(inst.mcpJsonPath, 'utf8')) as {
+      mcpServers: Record<string, unknown>;
+    };
+    expect(mcp.mcpServers['reder']).toBeUndefined();
   });
 });

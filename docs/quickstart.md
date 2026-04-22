@@ -20,57 +20,45 @@ npm install -g reder
 
 This provides three binaries: `reder` (CLI), `rederd` (daemon), `reder-shim` (MCP server).
 
-## 2. Initialise
+## 2. Initialise the daemon
 
 ```sh
-reder init --session-id mysession --display-name "My Session"
+reder init
 ```
 
-This creates `~/.config/reder/reder.config.yaml` (mode 0600) and `~/.config/reder/reder.env` (mode 0600).
+An interactive wizard prompts for:
 
-## 3. Add your workspaces
+- **Bind address** for the web dashboard (defaults to `127.0.0.1`; auto-detects your Tailscale IPv4 if `tailscale` is on `$PATH` and offers it as an option).
+- **Port** for the web dashboard (defaults to `7781`).
 
-Edit `~/.config/reder/reder.config.yaml`. Add a `workspace_dir` to each session and optionally `auto_start: true` so the daemon spawns a tmux session at boot:
+This creates `~/.config/reder/reder.config.yaml` (mode 0600) and `~/.config/reder/reder.env` (mode 0600) with the web adapter enabled. Re-run `reder init` any time to change bind/port — it preserves your sessions and other settings.
 
-```yaml
-sessions:
-  - session_id: mysession
-    display_name: My Session
-    workspace_dir: ~/code/myproject
-    auto_start: true
+For scripted setups: `reder init --bind 127.0.0.1 --port 7781` skips the prompts.
 
-  - session_id: notes
-    display_name: Notes
-    workspace_dir: ~/code/notes
-    auto_start: false     # you'll start this from the dashboard or CLI
-```
+## 3. Register each project as a session
 
-Enable the web adapter:
-
-```yaml
-adapters:
-  web:
-    module: '@rederjs/adapter-web'
-    enabled: true
-    config:
-      bind: 127.0.0.1
-      port: 7781
-      auth: token
-```
-
-## 4. Register each workspace with Claude Code
-
-Inside **every** project directory you listed above:
+Inside **every** project directory you want reder to manage:
 
 ```sh
 cd ~/code/myproject
-reder install mysession
-
-cd ~/code/notes
-reder install notes
+reder sessions add
 ```
 
-Each `reder install` writes a mode-0600 `.mcp.json` containing a per-session shim token. Once that file is in place, running `claude` in the directory will auto-start the shim and auto-connect to the daemon.
+An interactive wizard prompts for:
+
+- **Session id** (defaults to the sanitized folder name)
+- **Display name** (defaults to a prettified version of the session id)
+- **Auto-start** — set to yes and the daemon will launch a tmux `claude` session here on boot
+
+Non-interactive form: `reder sessions add mysession --display-name "My Session" --auto-start`.
+
+`reder sessions add` writes three things:
+
+1. A `.mcp.json` in the project directory (mode 0600) with a fresh per-session shim token.
+2. An entry in `~/.config/reder/reder.config.yaml`'s `sessions:` list with `workspace_dir` set to the current directory.
+3. A row in the SQLite session database.
+
+To remove a session later, run `reder sessions remove <session-id>` — it cleans up all three surfaces.
 
 ## 5. Start the daemon
 
@@ -113,7 +101,7 @@ A session without `auto_start` shows a **Start** button — clicking it spawns t
 TELEGRAM_BOT_TOKEN=<your-bot-token>
 ```
 
-Add the bot to `adapters.telegram.config.bots[]` in the config and `reder restart`. DM your bot from Telegram; it replies with a 6-character pair code. In the same project directory where you ran `reder install`:
+Add the bot to `adapters.telegram.config.bots[]` in the config and `reder restart`. DM your bot from Telegram; it replies with a 6-character pair code. In the same project directory where you ran `reder sessions add`:
 
 ```sh
 reder pair <code>

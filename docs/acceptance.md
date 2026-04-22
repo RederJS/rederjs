@@ -33,13 +33,16 @@ reder status
 # expect: 12 sessions listed, all in state registered
 ```
 
-### 3. Install shim in each project
+### 3. Register a session in each project
 
 ```sh
 for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  (cd ~/reder-sess-$i && reder install sess$i)
+  (cd ~/reder-sess-$i && reder sessions add sess$i --display-name "Sess $i" --auto-start)
 done
 ```
+
+(Telegram bot tokens still need to be appended to `~/.config/reder/reder.env` manually —
+`reder init` no longer scaffolds a per-session Telegram block.)
 
 ### 4. Launch Claude Code in each project; pair each Telegram account
 

@@ -42,7 +42,7 @@ Out of scope for v0.1:
 2. Run `reder doctor`; confirm all checks pass and no third-party adapters are flagged unexpectedly.
 3. Before pairing your Telegram account, verify the code on the bot matches what you saw.
 4. Monitor the audit log: `tail -f ~/.local/share/reder/audit-*.log`.
-5. Rotate the shim token if you suspect `.mcp.json` was exfiltrated: rerun `reder install <session>`.
+5. Rotate the shim token if you suspect `.mcp.json` was exfiltrated: rerun `reder sessions add <session>` inside the project directory.
 
 ## Operator checklist before exposing the dashboard
 

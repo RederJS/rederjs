@@ -66,7 +66,7 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
       const { token } = await createSession(db.raw, s.session_id, s.display_name);
       logger.warn(
         { session_id: s.session_id, component: 'daemon.bootstrap' },
-        'session not previously registered; generated fresh token (run `reder install` to retrieve it)',
+        'session not previously registered; generated fresh token (run `reder sessions add` to retrieve it)',
       );
       // Token is logged only at trace to avoid persistent leakage
       logger.trace({ token, session_id: s.session_id }, 'generated session token');

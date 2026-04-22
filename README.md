@@ -40,35 +40,33 @@ npm install -g reder
 
 Provides three binaries:
 
-| Binary       | Role                                                     |
-| ------------ | -------------------------------------------------------- |
-| `reder`      | CLI — init, install, start/stop, status, dashboard, etc. |
-| `rederd`     | Long-running daemon                                      |
-| `reder-shim` | MCP server Claude Code loads in each project             |
+| Binary       | Role                                                                |
+| ------------ | ------------------------------------------------------------------- |
+| `reder`      | CLI — init, sessions add/remove, start/stop, status, dashboard, etc. |
+| `rederd`     | Long-running daemon                                                 |
+| `reder-shim` | MCP server Claude Code loads in each project                        |
 
 ---
 
 ## Quickstart (web dashboard only)
 
 ```sh
-# 1. Generate ~/.config/reder/reder.config.yaml with one session
-reder init --session-id myproject --display-name "My Project"
+# 1. Configure the daemon (prompts for bind + port; auto-detects Tailscale)
+reder init
 
-# 2. Edit the config to point at your workspaces and enable the web adapter
-$EDITOR ~/.config/reder/reder.config.yaml
-# see "Configuration" below
+# 2. Register each project as a session
+cd ~/code/myproject
+reder sessions add --auto-start
+# (prompts for session id, display name, auto-start — defaults from folder name)
 
-# 3. Start the daemon
-reder start
-
-# 4. Open the dashboard
+# 3. Open the dashboard
 reder dashboard url
 # → http://127.0.0.1:7781/?token=rdr_web_…
 ```
 
 Paste that URL into a browser. The `?token=` sets a cookie; subsequent visits just need `http://127.0.0.1:7781/`.
 
-For each workspace you want reder to know about, run `reder install <session-id>` inside that project directory — this writes a `.mcp.json` so Claude Code loads the shim and auto-connects to the daemon when you run `claude` there.
+Run `reder sessions add` inside each project directory you want reder to know about. It writes a `.mcp.json` so Claude Code loads the shim and auto-connects to the daemon when you run `claude` there, and it adds the session to `reder.config.yaml` with `workspace_dir` set to that directory.
 
 ---
 
@@ -88,7 +86,7 @@ Then DM your bot from Telegram. It'll reply with a pair code. Run:
 reder pair <code>
 ```
 
-…inside any project where you've run `reder install`. Done.
+…inside any project where you've run `reder sessions add`. Done.
 
 See [docs/quickstart.md](docs/quickstart.md) for the full walkthrough.
 
@@ -157,7 +155,7 @@ When `auto_start: true`, on daemon start reder runs the equivalent of:
 tmux new-session -d -s <session_id> -c <workspace_dir> 'claude'
 ```
 
-(if no tmux session by that name exists). Each workspace needs `.mcp.json` in place — put it there once with `reder install <session_id>`.
+(if no tmux session by that name exists). Each workspace needs `.mcp.json` in place — put it there once with `reder sessions add` run from inside the project directory.
 
 ### Web adapter security
 
@@ -176,14 +174,15 @@ Full threat model in [docs/security.md](docs/security.md).
 ## The CLI
 
 ```sh
-reder init                        # generate initial config + env files
-reder install <session-id>        # register a session and write .mcp.json in cwd
+reder init                        # configure daemon (bind, port); re-runnable
 reder start / stop / restart      # manage the daemon
 reder status                      # query the daemon over HTTP
 reder doctor                      # run diagnostic checks
 reder pair <code>                 # redeem a 6-char Telegram pair code
 reder config validate             # lint config YAML
 
+reder sessions add [id]           # register a session (writes .mcp.json, adds to config)
+reder sessions remove <id>        # remove a session (YAML, DB, .mcp.json)
 reder sessions list               # configured sessions + tmux status
 reder sessions start <id>         # start a tmux session now
 reder sessions up                 # start every session with a workspace_dir
