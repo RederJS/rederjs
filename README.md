@@ -249,6 +249,7 @@ Write your own: [docs/adapter-authoring.md](docs/adapter-authoring.md).
 ## Docs
 
 - [Quickstart](docs/quickstart.md) — from zero to first message
+- [Development](docs/development.md) — local dev setup and iteration loop
 - [Security model](docs/security.md) — threat model, controls, operator checklist
 - [Adapter authoring](docs/adapter-authoring.md) — build your own adapter
 - [Acceptance criteria](docs/acceptance.md) — what v0.1 does and doesn't promise
@@ -278,7 +279,7 @@ packages/
   adapter-web/       # Dashboard (Express + SSE + React SPA)
 ```
 
-To hack on the dashboard UI with hot reload: `npm run dev:web -w @rederjs/adapter-web` (proxies `/api` to `127.0.0.1:7781`, so start the daemon first).
+For the full local dev loop — linking the workspace bins onto your `PATH`, TS watch mode, dashboard HMR, running the Telegram adapter against a dev bot — see [docs/development.md](docs/development.md).
 
 ---
 
