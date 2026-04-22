@@ -236,7 +236,7 @@ sessions
   .option('--auto-start', 'mark session auto_start=true and start the daemon now', false)
   .option(
     '--permission-mode <mode>',
-    'Claude permission mode: default | plan | acceptEdits | bypassPermissions',
+    'Claude permission mode: default | plan | acceptEdits | auto | dontAsk | bypassPermissions',
   )
   .option('--force-rebind', 'rebind an existing session without prompting', false)
   .option('-y, --yes', 'accept all defaults (non-interactive)', false)

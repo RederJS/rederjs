@@ -141,6 +141,19 @@ describe('tmux.startSession', () => {
     ]);
   });
 
+  it('injects --permission-mode auto (classifier mode)', () => {
+    const { runner, calls } = makeRunner([{ status: 1 }, { status: 0 }]);
+    startSession({
+      session_id: 'reder',
+      workspace_dir: workspace,
+      permission_mode: 'auto',
+      runner,
+    });
+    const args = calls[1]?.args ?? [];
+    expect(args).toContain('--permission-mode');
+    expect(args[args.indexOf('--permission-mode') + 1]).toBe('auto');
+  });
+
   it('omits --permission-mode when mode is default', () => {
     const { runner, calls } = makeRunner([{ status: 1 }, { status: 0 }]);
     startSession({

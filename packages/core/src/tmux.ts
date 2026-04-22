@@ -57,7 +57,14 @@ export function listRunning(opts: TmuxRunnerOption = {}): string[] {
 
 export type StartReason = 'already_running' | 'missing_dir' | 'tmux_error' | 'invalid_name';
 
-export const PERMISSION_MODES = ['default', 'plan', 'acceptEdits', 'bypassPermissions'] as const;
+export const PERMISSION_MODES = [
+  'default',
+  'plan',
+  'acceptEdits',
+  'auto',
+  'dontAsk',
+  'bypassPermissions',
+] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
 export interface StartSessionOptions extends TmuxRunnerOption {

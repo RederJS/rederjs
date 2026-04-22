@@ -11,10 +11,12 @@ import { runStart, type ServiceResult } from './service.js';
 import { sanitizeSessionId, validateSessionId, prettifyDisplayName } from '../session-id.js';
 
 const PERMISSION_MODE_CHOICES: ReadonlyArray<{ title: string; value: PermissionMode }> = [
-  { title: 'ask (default) — prompt before each tool use', value: 'default' },
+  { title: 'default — ask before each tool use', value: 'default' },
   { title: 'plan — read-only planning, no edits', value: 'plan' },
-  { title: 'accept edits — auto-approve file edits', value: 'acceptEdits' },
-  { title: 'auto — bypass all permission prompts', value: 'bypassPermissions' },
+  { title: 'acceptEdits — auto-approve file edits', value: 'acceptEdits' },
+  { title: 'auto — classifier-driven auto-permission (see `claude auto-mode`)', value: 'auto' },
+  { title: 'dontAsk — skip permission prompts', value: 'dontAsk' },
+  { title: 'bypassPermissions — bypass all permission checks', value: 'bypassPermissions' },
 ];
 
 export class ConfigNotFoundError extends Error {

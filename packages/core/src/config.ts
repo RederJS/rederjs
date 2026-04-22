@@ -62,7 +62,7 @@ export const ConfigSchemaV1 = z
           workspace_dir: z.string().min(1).optional(),
           auto_start: z.boolean().default(false),
           permission_mode: z
-            .enum(['default', 'plan', 'acceptEdits', 'bypassPermissions'])
+            .enum(['default', 'plan', 'acceptEdits', 'auto', 'dontAsk', 'bypassPermissions'])
             .default('default'),
         }),
       )
