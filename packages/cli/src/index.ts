@@ -17,6 +17,7 @@ import {
   formatSessionsUp,
 } from './commands/sessions.js';
 import { runDashboardUrl, formatDashboardUrl } from './commands/dashboard.js';
+import { PERMISSION_MODES, type PermissionMode } from '@rederjs/core/tmux';
 import {
   runTelegramBotAdd,
   formatTelegramBotAdd,
@@ -78,7 +79,10 @@ program
         process.stdout.write(JSON.stringify(result) + '\n');
       } else {
         const verb = result.created ? 'Wrote' : result.updated ? 'Updated' : 'Verified';
-        const lines = [`${verb} ${result.configPath}`, `Web dashboard: ${result.webBind}:${result.webPort}`];
+        const lines = [
+          `${verb} ${result.configPath}`,
+          `Web dashboard: ${result.webBind}:${result.webPort}`,
+        ];
         if (result.service) {
           const s = result.service;
           if (s.skipped) {
@@ -230,10 +234,18 @@ sessions
   .option('--project-dir <path>', 'project directory to write .mcp.json into', process.cwd())
   .option('--shim-command <cmd>', 'command to invoke reder-shim', 'reder-shim')
   .option('--auto-start', 'mark session auto_start=true and start the daemon now', false)
+  .option(
+    '--permission-mode <mode>',
+    'Claude permission mode: default | plan | acceptEdits | bypassPermissions',
+  )
   .option('--force-rebind', 'rebind an existing session without prompting', false)
   .option('-y, --yes', 'accept all defaults (non-interactive)', false)
   .action(async (sessionIdArg: string | undefined, opts: Record<string, unknown>) => {
     try {
+      const permissionMode =
+        opts['permissionMode'] !== undefined
+          ? validatePermissionMode(opts['permissionMode'] as string)
+          : undefined;
       const result = await interactiveSessionAdd({
         ...(sessionIdArg !== undefined ? { sessionIdArg } : {}),
         ...(opts['displayName'] !== undefined
@@ -243,6 +255,7 @@ sessions
         configPath: configArg(),
         shimCommand: [opts['shimCommand'] as string],
         autoStart: Boolean(opts['autoStart']),
+        ...(permissionMode !== undefined ? { permissionMode } : {}),
         forceRebind: Boolean(opts['forceRebind']),
         yes: Boolean(opts['yes']),
         nonInteractive: jsonMode() || Boolean(opts['yes']),
@@ -253,9 +266,8 @@ sessions
         const lines: string[] = [];
         if (result.yamlCreated) lines.push(`Added session '${result.sessionId}' to config`);
         else if (result.yamlUpdated) lines.push(`Updated session '${result.sessionId}' in config`);
-        lines.push(
-          `Wrote ${result.mcpJsonPath}${result.tokenRotated ? ' (token rotated)' : ''}`,
-        );
+        lines.push(`Permission mode: ${result.permissionMode}`);
+        lines.push(`Wrote ${result.mcpJsonPath}${result.tokenRotated ? ' (token rotated)' : ''}`);
         if (result.daemonStart) {
           lines.push(`Daemon: ${result.daemonStart.ok ? '✓' : '•'} ${result.daemonStart.detail}`);
         }
@@ -308,7 +320,10 @@ telegramBot
   .command('add <session-id>')
   .description('attach a Telegram bot token to a session (writes token inline into config)')
   .option('--token <value>', 'bot token (prompts if omitted)')
-  .option('--token-env <name>', 'reference an externally-set env var instead of storing the token inline')
+  .option(
+    '--token-env <name>',
+    'reference an externally-set env var instead of storing the token inline',
+  )
   .action(async (sessionId: string, opts: Record<string, unknown>) => {
     try {
       const result = await runTelegramBotAdd({
@@ -327,7 +342,7 @@ telegramBot
 
 telegramBot
   .command('remove <session-id>')
-  .description('remove a session\'s Telegram bot entry')
+  .description("remove a session's Telegram bot entry")
   .action((sessionId: string) => {
     try {
       const result = runTelegramBotRemove({ sessionId, configPath: configArg() });
@@ -352,7 +367,9 @@ telegramBot
     }
   });
 
-const telegramAllow = telegram.command('allow').description('global allowlist of Telegram user ids');
+const telegramAllow = telegram
+  .command('allow')
+  .description('global allowlist of Telegram user ids');
 telegramAllow
   .command('add <user-id>')
   .description('add a numeric Telegram user_id to the global allowlist')
@@ -439,6 +456,15 @@ program
     );
     process.exit(0);
   });
+
+function validatePermissionMode(value: string): PermissionMode {
+  if ((PERMISSION_MODES as readonly string[]).includes(value)) {
+    return value as PermissionMode;
+  }
+  throw new Error(
+    `--permission-mode must be one of ${PERMISSION_MODES.join(', ')} (got '${value}')`,
+  );
+}
 
 function fail(err: unknown): never {
   const msg = err instanceof Error ? err.message : String(err);

@@ -1,7 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { parseDocument, Document, YAMLMap, YAMLSeq, isScalar } from 'yaml';
+import { PERMISSION_MODES, type PermissionMode } from '@rederjs/core/tmux';
 import { defaultRuntimeDir, defaultDataDir } from '../paths.js';
+
+function coercePermissionMode(raw: unknown): PermissionMode {
+  return typeof raw === 'string' && (PERMISSION_MODES as readonly string[]).includes(raw)
+    ? (raw as PermissionMode)
+    : 'default';
+}
 
 export interface ScaffoldOptions {
   configPath: string;
@@ -119,6 +126,7 @@ export interface PeekedSession {
   display_name: string;
   workspace_dir: string | undefined;
   auto_start: boolean;
+  permission_mode: PermissionMode;
 }
 
 export function peekSession(opts: {
@@ -138,6 +146,7 @@ export function peekSession(opts: {
       display_name: String(node.get('display_name') ?? opts.sessionId),
       workspace_dir: typeof workspaceDir === 'string' ? workspaceDir : undefined,
       auto_start: Boolean(node.get('auto_start') ?? false),
+      permission_mode: coercePermissionMode(node.get('permission_mode')),
     };
   }
   return undefined;
@@ -149,6 +158,7 @@ export type UpsertOutcome =
   | { kind: 'updated_workspace_dir'; previous: string | undefined }
   | { kind: 'updated_display_name'; previous: string }
   | { kind: 'updated_auto_start'; previous: boolean }
+  | { kind: 'updated_permission_mode'; previous: PermissionMode }
   | { kind: 'updated_multiple' };
 
 export interface UpsertSessionOptions {
@@ -157,10 +167,11 @@ export interface UpsertSessionOptions {
   displayName: string;
   workspaceDir: string;
   autoStart: boolean;
+  permissionMode: PermissionMode;
 }
 
 export function upsertSession(opts: UpsertSessionOptions): UpsertOutcome {
-  const { configPath, sessionId, displayName, workspaceDir, autoStart } = opts;
+  const { configPath, sessionId, displayName, workspaceDir, autoStart, permissionMode } = opts;
   const doc = parseDocument(readFileSync(configPath, 'utf8'));
   let seq = doc.get('sessions');
   if (!(seq instanceof YAMLSeq)) {
@@ -182,6 +193,7 @@ export function upsertSession(opts: UpsertSessionOptions): UpsertOutcome {
       display_name: displayName,
       workspace_dir: workspaceDir,
       auto_start: autoStart,
+      permission_mode: permissionMode,
     });
     atomicWrite(configPath, doc.toString());
     return { kind: 'created' };
@@ -191,31 +203,39 @@ export function upsertSession(opts: UpsertSessionOptions): UpsertOutcome {
   const prevWorkspaceRaw = entry.get('workspace_dir');
   const prevWorkspace = typeof prevWorkspaceRaw === 'string' ? prevWorkspaceRaw : undefined;
   const prevAutoStart = Boolean(entry.get('auto_start') ?? false);
+  const prevPermissionMode = coercePermissionMode(entry.get('permission_mode'));
 
   const displayChanged = prevDisplay !== displayName;
   const workspaceChanged = prevWorkspace !== workspaceDir;
   const autoStartChanged = prevAutoStart !== autoStart;
+  const permissionModeChanged = prevPermissionMode !== permissionMode;
 
-  if (!displayChanged && !workspaceChanged && !autoStartChanged) {
+  if (!displayChanged && !workspaceChanged && !autoStartChanged && !permissionModeChanged) {
     return { kind: 'updated_same' };
   }
 
   entry.set('display_name', displayName);
   entry.set('workspace_dir', workspaceDir);
   entry.set('auto_start', autoStart);
+  entry.set('permission_mode', permissionMode);
   atomicWrite(configPath, doc.toString());
 
-  const changes = [displayChanged, workspaceChanged, autoStartChanged].filter(Boolean).length;
+  const changes = [
+    displayChanged,
+    workspaceChanged,
+    autoStartChanged,
+    permissionModeChanged,
+  ].filter(Boolean).length;
   if (changes > 1) return { kind: 'updated_multiple' };
   if (workspaceChanged) return { kind: 'updated_workspace_dir', previous: prevWorkspace };
   if (displayChanged) return { kind: 'updated_display_name', previous: prevDisplay };
-  return { kind: 'updated_auto_start', previous: prevAutoStart };
+  if (autoStartChanged) return { kind: 'updated_auto_start', previous: prevAutoStart };
+  return { kind: 'updated_permission_mode', previous: prevPermissionMode };
 }
 
-export function removeSession(opts: {
-  configPath: string;
-  sessionId: string;
-}): { removed: boolean } {
+export function removeSession(opts: { configPath: string; sessionId: string }): {
+  removed: boolean;
+} {
   const doc = parseDocument(readFileSync(opts.configPath, 'utf8'));
   const seq = doc.get('sessions');
   if (!(seq instanceof YAMLSeq)) return { removed: false };
@@ -321,10 +341,9 @@ export function upsertTelegramBot(opts: UpsertTelegramBotOptions): { created: bo
   return { created: true };
 }
 
-export function removeTelegramBot(opts: {
-  configPath: string;
-  sessionId: string;
-}): { removed: boolean } {
+export function removeTelegramBot(opts: { configPath: string; sessionId: string }): {
+  removed: boolean;
+} {
   const doc = parseDocument(readFileSync(opts.configPath, 'utf8'));
   const adapters = doc.get('adapters');
   if (!(adapters instanceof YAMLMap)) return { removed: false };
@@ -395,10 +414,9 @@ export function listTelegramAllowlistUsers(opts: { configPath: string }): string
   return out;
 }
 
-export function addTelegramAllowlistUser(opts: {
-  configPath: string;
-  userId: string;
-}): { added: boolean } {
+export function addTelegramAllowlistUser(opts: { configPath: string; userId: string }): {
+  added: boolean;
+} {
   if (!/^\d+$/.test(opts.userId)) {
     throw new Error(`userId must be numeric Telegram user_id (got '${opts.userId}')`);
   }
@@ -420,10 +438,9 @@ export function addTelegramAllowlistUser(opts: {
   return { added: true };
 }
 
-export function removeTelegramAllowlistUser(opts: {
-  configPath: string;
-  userId: string;
-}): { removed: boolean } {
+export function removeTelegramAllowlistUser(opts: { configPath: string; userId: string }): {
+  removed: boolean;
+} {
   const doc = parseDocument(readFileSync(opts.configPath, 'utf8'));
   const list = doc.getIn(['adapters', 'telegram', 'config', 'allowlist']);
   if (!(list instanceof YAMLSeq)) return { removed: false };
@@ -437,4 +454,3 @@ export function removeTelegramAllowlistUser(opts: {
   atomicWrite(opts.configPath, doc.toString());
   return { removed: true };
 }
-

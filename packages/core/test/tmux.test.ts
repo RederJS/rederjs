@@ -16,9 +16,10 @@ interface Call {
   input?: string;
 }
 
-function makeRunner(
-  responses: Array<{ status: number; stdout?: string; stderr?: string }>,
-): { runner: TmuxRunner; calls: Call[] } {
+function makeRunner(responses: Array<{ status: number; stdout?: string; stderr?: string }>): {
+  runner: TmuxRunner;
+  calls: Call[];
+} {
   const calls: Call[] = [];
   let i = 0;
   const runner: TmuxRunner = (args, input) => {
@@ -119,6 +120,51 @@ describe('tmux.startSession', () => {
       '--dangerously-load-development-channels',
       'server:reder',
     ]);
+  });
+
+  it('injects --permission-mode when permission_mode is set', () => {
+    const { runner, calls } = makeRunner([{ status: 1 }, { status: 0 }]);
+    startSession({
+      session_id: 'reder',
+      workspace_dir: workspace,
+      permission_mode: 'plan',
+      runner,
+    });
+    const args = calls[1]?.args ?? [];
+    const claudeIdx = args.indexOf('claude');
+    expect(args.slice(claudeIdx)).toEqual([
+      'claude',
+      '--permission-mode',
+      'plan',
+      '--dangerously-load-development-channels',
+      'server:reder',
+    ]);
+  });
+
+  it('omits --permission-mode when mode is default', () => {
+    const { runner, calls } = makeRunner([{ status: 1 }, { status: 0 }]);
+    startSession({
+      session_id: 'reder',
+      workspace_dir: workspace,
+      permission_mode: 'default',
+      runner,
+    });
+    const args = calls[1]?.args ?? [];
+    expect(args).not.toContain('--permission-mode');
+  });
+
+  it('leaves caller-supplied command untouched even when permission_mode is set', () => {
+    const { runner, calls } = makeRunner([{ status: 1 }, { status: 0 }]);
+    startSession({
+      session_id: 'reder',
+      workspace_dir: workspace,
+      command: ['claude', '--custom'],
+      permission_mode: 'plan',
+      runner,
+    });
+    const args = calls[1]?.args ?? [];
+    expect(args.slice(-2)).toEqual(['claude', '--custom']);
+    expect(args).not.toContain('--permission-mode');
   });
 
   it('uses custom command argv when provided', () => {

@@ -1,11 +1,12 @@
 import { loadConfigContext } from '../config-loader.js';
-import { isRunning, listRunning, startSession } from '@rederjs/core/tmux';
+import { isRunning, listRunning, startSession, type PermissionMode } from '@rederjs/core/tmux';
 
 export interface SessionListEntry {
   session_id: string;
   display_name: string;
   workspace_dir: string | null;
   auto_start: boolean;
+  permission_mode: PermissionMode;
   tmux_running: boolean;
 }
 
@@ -23,6 +24,7 @@ export function runSessionsList(opts: { configPath?: string } = {}): SessionsLis
     display_name: s.display_name,
     workspace_dir: s.workspace_dir ?? null,
     auto_start: s.auto_start,
+    permission_mode: s.permission_mode,
     tmux_running: running.has(s.session_id),
   }));
   const orphan_tmux = [...running].filter((n) => !knownIds.has(n));
@@ -31,19 +33,18 @@ export function runSessionsList(opts: { configPath?: string } = {}): SessionsLis
 
 export function formatSessionsList(r: SessionsListResult): string {
   if (r.sessions.length === 0) return 'No sessions configured.';
-  const rows = [['ID', 'Name', 'Workspace', 'Auto', 'Tmux']];
+  const rows = [['ID', 'Name', 'Workspace', 'Auto', 'Mode', 'Tmux']];
   for (const s of r.sessions) {
     rows.push([
       s.session_id,
       s.display_name,
       s.workspace_dir ?? '-',
       s.auto_start ? 'yes' : 'no',
+      s.permission_mode,
       s.tmux_running ? '✓' : ' ',
     ]);
   }
-  const widths = rows[0]!.map((_, col) =>
-    Math.max(...rows.map((row) => (row[col] ?? '').length)),
-  );
+  const widths = rows[0]!.map((_, col) => Math.max(...rows.map((row) => (row[col] ?? '').length)));
   const lines = rows.map((row) => row.map((c, i) => c.padEnd(widths[i]!)).join('  '));
   if (r.orphan_tmux.length > 0) {
     lines.push('', `Orphan tmux sessions (not in config): ${r.orphan_tmux.join(', ')}`);
@@ -83,6 +84,7 @@ export function runSessionStart(opts: {
   const result = startSession({
     session_id: s.session_id,
     workspace_dir: s.workspace_dir,
+    permission_mode: s.permission_mode,
   });
   return {
     session_id: s.session_id,
@@ -114,6 +116,7 @@ export function runSessionsUp(opts: { configPath?: string } = {}): SessionsUpRes
     const result = startSession({
       session_id: s.session_id,
       workspace_dir: s.workspace_dir,
+      permission_mode: s.permission_mode,
     });
     results.push({
       session_id: s.session_id,

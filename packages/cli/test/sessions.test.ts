@@ -113,8 +113,28 @@ sessions:
     const r = runSessionStart({ sessionId: 'reder', configPath });
     expect(r.started).toBe(true);
     expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({ session_id: 'reder', workspace_dir: ws }),
+      expect.objectContaining({
+        session_id: 'reder',
+        workspace_dir: ws,
+        permission_mode: 'default',
+      }),
     );
+  });
+
+  it('passes the configured permission_mode through to tmux.startSession', () => {
+    const ws = join(dir, 'ws');
+    mkdirSync(ws);
+    const spy = vi.spyOn(tmux, 'startSession').mockReturnValue({ started: true });
+    writeConfig(`version: 1
+runtime: { runtime_dir: ${dir}/rt, data_dir: ${dir}/data }
+sessions:
+  - session_id: reder
+    display_name: Reder
+    workspace_dir: ${ws}
+    permission_mode: plan
+`);
+    runSessionStart({ sessionId: 'reder', configPath });
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ permission_mode: 'plan' }));
   });
 });
 

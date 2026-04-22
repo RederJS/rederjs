@@ -23,9 +23,7 @@ export class InvalidTmuxName extends Error {
 
 function assertValidName(name: string): void {
   if (!TMUX_TARGET_RE.test(name)) {
-    throw new InvalidTmuxName(
-      `invalid tmux session name '${name}' (must match ${TMUX_TARGET_RE})`,
-    );
+    throw new InvalidTmuxName(`invalid tmux session name '${name}' (must match ${TMUX_TARGET_RE})`);
   }
 }
 
@@ -59,10 +57,14 @@ export function listRunning(opts: TmuxRunnerOption = {}): string[] {
 
 export type StartReason = 'already_running' | 'missing_dir' | 'tmux_error' | 'invalid_name';
 
+export const PERMISSION_MODES = ['default', 'plan', 'acceptEdits', 'bypassPermissions'] as const;
+export type PermissionMode = (typeof PERMISSION_MODES)[number];
+
 export interface StartSessionOptions extends TmuxRunnerOption {
   session_id: string;
   workspace_dir: string;
   command?: readonly string[];
+  permission_mode?: PermissionMode;
   env?: Record<string, string>;
   logger?: Logger;
 }
@@ -73,6 +75,12 @@ export const DEFAULT_CLAUDE_COMMAND: readonly string[] = [
   'server:reder',
 ];
 
+function buildDefaultCommand(mode: PermissionMode | undefined): readonly string[] {
+  if (mode === undefined || mode === 'default') return DEFAULT_CLAUDE_COMMAND;
+  const [head, ...rest] = DEFAULT_CLAUDE_COMMAND;
+  return [head!, '--permission-mode', mode, ...rest];
+}
+
 export interface StartSessionResult {
   started: boolean;
   reason?: StartReason;
@@ -81,7 +89,7 @@ export interface StartSessionResult {
 
 export function startSession(opts: StartSessionOptions): StartSessionResult {
   const { session_id, workspace_dir } = opts;
-  const command = opts.command ?? DEFAULT_CLAUDE_COMMAND;
+  const command = opts.command ?? buildDefaultCommand(opts.permission_mode);
 
   try {
     assertValidName(session_id);
