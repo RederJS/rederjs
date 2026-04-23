@@ -10,6 +10,8 @@ type HookName = (typeof HOOK_NAMES)[number];
 const STDIN_TIMEOUT_MS = 250;
 // Covers Unix-socket connect + single-frame round-trip well below Claude's per-hook budget.
 const SOCKET_TIMEOUT_MS = 1500;
+// Cap stdin payload size to keep hook invocation memory bounded.
+const MAX_STDIN_BYTES = 64 * 1024;
 
 function debug(msg: string): void {
   if (process.env.REDER_HOOK_DEBUG) {
@@ -30,14 +32,25 @@ async function readStdinJson(timeoutMs: number): Promise<Record<string, unknown>
   return new Promise((resolve) => {
     if (process.stdin.isTTY) return resolve({});
     const chunks: Buffer[] = [];
+    let total = 0;
+    let capped = false;
     const timer = setTimeout(() => {
       try { process.stdin.pause(); } catch { /* ignore */ }
-      resolve(safeParse(Buffer.concat(chunks).toString('utf8')));
+      resolve(capped ? {} : safeParse(Buffer.concat(chunks).toString('utf8')));
     }, timeoutMs);
-    process.stdin.on('data', (c: Buffer) => chunks.push(c));
+    process.stdin.on('data', (c: Buffer) => {
+      if (capped) return;
+      total += c.length;
+      if (total > MAX_STDIN_BYTES) {
+        capped = true;
+        try { process.stdin.pause(); } catch { /* ignore */ }
+        return;
+      }
+      chunks.push(c);
+    });
     process.stdin.on('end', () => {
       clearTimeout(timer);
-      resolve(safeParse(Buffer.concat(chunks).toString('utf8')));
+      resolve(capped ? {} : safeParse(Buffer.concat(chunks).toString('utf8')));
     });
   });
 }

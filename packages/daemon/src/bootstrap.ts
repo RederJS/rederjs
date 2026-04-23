@@ -14,6 +14,7 @@ import { startSession as startTmuxSession } from '@rederjs/core/tmux';
 import type { Adapter } from '@rederjs/core/adapter';
 import { createAdapterHost, type AdapterHost, loadAdapter } from './adapter-host.js';
 import { runSessionRepair } from 'rederjs/commands/sessions-repair';
+import { hasClaudeHooks } from 'rederjs/commands/claude-hooks';
 export type { AdapterHost };
 
 export interface BootstrapResult {
@@ -183,6 +184,22 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
       },
       result.started ? 'auto-started tmux session' : 'tmux auto-start skipped',
     );
+  }
+
+  // Warn about sessions that are auto-started but missing their Claude hook config.
+  for (const s of config.sessions) {
+    if (!s.auto_start || !s.workspace_dir) continue;
+    const present = hasClaudeHooks({ projectDir: s.workspace_dir, sessionId: s.session_id });
+    if (!present) {
+      logger.warn(
+        {
+          session_id: s.session_id,
+          workspace_dir: s.workspace_dir,
+          component: 'daemon.bootstrap',
+        },
+        "claude hook config missing — dashboard activity status will show 'unknown'. Run `reder sessions repair " + s.session_id + "`",
+      );
+    }
   }
 
   // Legacy health endpoint: only start if the web adapter isn't enabled.

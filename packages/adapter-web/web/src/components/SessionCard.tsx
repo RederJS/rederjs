@@ -74,7 +74,6 @@ export function SessionCard({
           <div className="truncate font-mono text-[11px] text-fg-4">{shortId(session.session_id)}</div>
         </div>
         {statusVariant !== 'pill' ? null : <StatusPill status={status} />}
-        <StatusPill status={status} />
         {repairButton}
       </div>
     );

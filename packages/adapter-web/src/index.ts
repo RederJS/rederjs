@@ -21,7 +21,6 @@ import { createSseRegistry, type SseRegistry } from './sse.js';
 import { buildApp, listen } from './http.js';
 import { loadOrCreateToken, buildLoginUrl } from './auth.js';
 import { incrementUnread } from './routes/sessions.js';
-import { getSessionActivity } from './transcript.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 /** Shipped SPA dist — <package>/dist/../web/dist */
@@ -302,9 +301,6 @@ export class WebAdapter extends Adapter {
       () => events.off('session.state_changed', onState),
       () => events.off('session.activity_changed', onActivity),
     );
-
-    // Suppress unused-variable warnings.
-    void getSessionActivity;
   }
 }
 

@@ -145,7 +145,7 @@
     pointer-events: none;
   }
 
-  /* scan bar under busy cards */
+  /* scan bar under working cards */
   .scanbar {
     height: 2px;
     background: var(--line);
@@ -227,7 +227,7 @@
     color: var(--fg-4);
   }
 
-  /* waveform indicator (waiting) */
+  /* waveform indicator (awaiting-user) */
   .waveform {
     display: inline-flex;
     align-items: flex-end;
