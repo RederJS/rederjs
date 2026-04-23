@@ -23,6 +23,7 @@ export interface AdapterHostDeps {
   dataDir: string;
   resolveModule: (spec: string) => Promise<AdapterFactory>;
   healthSnapshot?: () => Promise<unknown>;
+  repairSession?: (sessionId: string) => Promise<void>;
 }
 
 export interface LoadedAdapter {
@@ -97,6 +98,7 @@ export async function createAdapterHost(deps: AdapterHostDeps): Promise<AdapterH
           })),
           db: deps.db,
           ...(deps.healthSnapshot ? { healthSnapshot: deps.healthSnapshot } : {}),
+          ...(deps.repairSession ? { repairSession: deps.repairSession } : {}),
         };
         try {
           await entry.adapter.start(ctx);

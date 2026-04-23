@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "@rederjs/core": "*",
-    "@rederjs/adapter-telegram": "*"
+    "@rederjs/adapter-telegram": "*",
+    "rederjs": "*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0"

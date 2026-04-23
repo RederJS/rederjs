@@ -7,6 +7,13 @@
   "bin": {
     "reder": "./dist/index.js"
   },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./commands/sessions-repair": {
+      "types": "./dist/commands/sessions-repair.d.ts",
+      "default": "./dist/commands/sessions-repair.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"

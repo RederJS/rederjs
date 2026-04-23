@@ -202,4 +202,23 @@ describe('adapter-web http surface', () => {
     expect(body.started).toBe(false);
     expect(['missing_dir', 'tmux_error', 'already_running']).toContain(body.reason);
   });
+
+  it('POST /api/sessions/:id/repair returns 501 when no callback is wired', async () => {
+    const res = await fetch(`${baseUrl}/api/sessions/demo/repair`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    // Test fixture doesn't inject a repairSession, so expect 501.
+    expect(res.status).toBe(501);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe('repair not available');
+  });
+
+  it('POST /api/sessions/:id/repair returns 404 for unknown session', async () => {
+    const res = await fetch(`${baseUrl}/api/sessions/nope/repair`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(404);
+  });
 });

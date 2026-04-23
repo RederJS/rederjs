@@ -26,6 +26,7 @@ export interface BuildAppOptions {
   adapterName: string;
   senderId: string;
   healthSnapshot: () => Promise<unknown>;
+  repairSession?: (sessionId: string) => Promise<void>;
   /** Directory containing the built SPA (index.html + assets/). */
   staticDir?: string;
   exposeHealth: boolean;
@@ -70,6 +71,7 @@ export function buildApp(opts: BuildAppOptions): Express {
       adapterName: opts.adapterName,
       senderId: opts.senderId,
       isSessionConnected: (sid) => opts.router.isSessionConnected(sid),
+      ...(opts.repairSession ? { repairSession: opts.repairSession } : {}),
     }),
   );
   api.use(

@@ -13,6 +13,7 @@ import { startHealthEndpoint, type HealthEndpoint, type HealthSnapshot } from '@
 import { startSession as startTmuxSession } from '@rederjs/core/tmux';
 import type { Adapter } from '@rederjs/core/adapter';
 import { createAdapterHost, type AdapterHost, loadAdapter } from './adapter-host.js';
+import { runSessionRepair } from 'rederjs/commands/sessions-repair';
 export type { AdapterHost };
 
 export interface BootstrapResult {
@@ -154,6 +155,9 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
     dataDir,
     resolveModule: opts.overrideResolveModule ?? loadAdapter,
     healthSnapshot: snapshotFn,
+    repairSession: async (sessionId: string) => {
+      await runSessionRepair({ sessionId, configPath });
+    },
   });
   adapterHostRef = adapterHost;
 
