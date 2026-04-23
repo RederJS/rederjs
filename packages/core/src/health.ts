@@ -82,7 +82,10 @@ export async function startHealthEndpoint(opts: HealthEndpointOptions): Promise<
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : opts.port;
 
-  opts.logger.info({ bind: opts.bind, port, component: 'core.health' }, 'health endpoint listening');
+  opts.logger.info(
+    { bind: opts.bind, port, component: 'core.health' },
+    'health endpoint listening',
+  );
 
   return {
     port,

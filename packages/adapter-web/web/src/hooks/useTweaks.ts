@@ -39,12 +39,9 @@ export function useTweaks(): UseTweaks {
     }
   }, [tweaks]);
 
-  const setTweak = useCallback(
-    <K extends keyof Tweaks>(key: K, value: Tweaks[K]) => {
-      setTweaks((prev) => ({ ...prev, [key]: value }));
-    },
-    [],
-  );
+  const setTweak = useCallback(<K extends keyof Tweaks>(key: K, value: Tweaks[K]) => {
+    setTweaks((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   const resetTweaks = useCallback(() => setTweaks(DEFAULT_TWEAKS), []);
 

@@ -18,10 +18,17 @@ export function PanelHeader({ session, statusVariant, onClose }: PanelHeaderProp
       style={{ background: 'color-mix(in oklab, var(--bg) 50%, var(--bg-1))' }}
     >
       <div className="scale-[0.92]">
-        <Avatar sessionId={session.session_id} name={session.display_name} status={status} variant={statusVariant} />
+        <Avatar
+          sessionId={session.session_id}
+          name={session.display_name}
+          status={status}
+          variant={statusVariant}
+        />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold tracking-[-0.01em]">{session.display_name}</div>
+        <div className="truncate text-sm font-semibold tracking-[-0.01em]">
+          {session.display_name}
+        </div>
         <div className="mt-0.5 flex gap-2.5 font-mono text-[11px] text-fg-3">
           <span>
             id <b className="font-medium text-fg-2">{shortId(session.session_id)}</b>

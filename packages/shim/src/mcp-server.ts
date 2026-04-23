@@ -1,9 +1,6 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 type ChannelEventListener = (msg: {
   kind: 'channel_event';
@@ -41,7 +38,11 @@ export interface ShimIpcClient {
 export interface ShimDeps {
   ipc: ShimIpcClient;
   shimVersion: string;
-  logger?: { debug: (msg: string) => void; info: (msg: string) => void; error: (msg: string) => void };
+  logger?: {
+    debug: (msg: string) => void;
+    info: (msg: string) => void;
+    error: (msg: string) => void;
+  };
 }
 
 export interface McpChannelServer {

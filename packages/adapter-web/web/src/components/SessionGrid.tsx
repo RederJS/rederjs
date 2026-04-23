@@ -65,7 +65,8 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
       if (statusFilter !== 'all' && sessionStatus(s) !== statusFilter) return false;
       if (q) {
         const preview = (previews.get(s.session_id) ?? '').toLowerCase();
-        const haystack = `${s.display_name} ${s.session_id} ${s.workspace_dir ?? ''} ${preview}`.toLowerCase();
+        const haystack =
+          `${s.display_name} ${s.session_id} ${s.workspace_dir ?? ''} ${preview}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
@@ -104,7 +105,8 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
           {(['awaiting-user', 'idle', 'unknown', 'working', 'offline'] as const).map((s) => (
             <Chip key={s} active={statusFilter === s} onClick={() => onStatusFilterChange(s)}>
               <span className="size-1.5 rounded-full" style={{ background: `var(--st-${s})` }} />
-              {s === 'awaiting-user' ? 'needs you' : s} <span className="text-fg-4">{counts[s]}</span>
+              {s === 'awaiting-user' ? 'needs you' : s}{' '}
+              <span className="text-fg-4">{counts[s]}</span>
             </Chip>
           ))}
         </div>

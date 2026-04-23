@@ -40,9 +40,7 @@ export async function runDoctor(opts: { configPath?: string } = {}): Promise<Doc
     name: 'runtime_dir exists',
     pass: existsSync(ctx.runtimeDir),
     detail: ctx.runtimeDir,
-    ...(!existsSync(ctx.runtimeDir)
-      ? { remediation: `mkdir -p ${ctx.runtimeDir}` }
-      : {}),
+    ...(!existsSync(ctx.runtimeDir) ? { remediation: `mkdir -p ${ctx.runtimeDir}` } : {}),
   });
   checks.push({
     name: 'data_dir exists',

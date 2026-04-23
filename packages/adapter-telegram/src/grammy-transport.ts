@@ -1,9 +1,5 @@
 import { Bot } from 'grammy';
-import type {
-  SendMessageOptions,
-  TelegramTransport,
-  TelegramUpdate,
-} from './transport.js';
+import type { SendMessageOptions, TelegramTransport, TelegramUpdate } from './transport.js';
 
 export interface GrammyTransportOptions {
   token: string;
@@ -23,8 +19,7 @@ export function createGrammyTransport(opts: GrammyTransportOptions): TelegramTra
       const updates = await (bot.api as any).getUpdates({
         offset: params.offset,
         timeout: params.timeout,
-        allowed_updates:
-          params.allowed_updates ?? ['message', 'callback_query', 'edited_message'],
+        allowed_updates: params.allowed_updates ?? ['message', 'callback_query', 'edited_message'],
       });
       return updates as TelegramUpdate[];
     },

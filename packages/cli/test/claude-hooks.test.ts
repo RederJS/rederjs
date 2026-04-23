@@ -84,10 +84,7 @@ describe('installClaudeHooks', () => {
     installClaudeHooks(params({ token: 'rdr_sess_old' }));
     installClaudeHooks(params({ token: 'rdr_sess_new' }));
     const doc = JSON.parse(readFileSync(settingsPath(), 'utf8')) as {
-      hooks: Record<
-        string,
-        Array<{ hooks: Array<{ command: string }> }>
-      >;
+      hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
     };
     expect(doc.hooks.UserPromptSubmit[0]!.hooks[0]!.command).toContain('rdr_sess_new');
     expect(doc.hooks.UserPromptSubmit[0]!.hooks[0]!.command).not.toContain('rdr_sess_old');

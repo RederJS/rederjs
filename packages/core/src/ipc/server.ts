@@ -124,10 +124,7 @@ export async function createIpcServer(opts: CreateIpcServerOptions): Promise<Ipc
       const buf = encode(msg);
       return ctx.socket.write(buf);
     } catch (err) {
-      logger.error(
-        { err, component: 'ipc.server' },
-        'failed to encode/write frame',
-      );
+      logger.error({ err, component: 'ipc.server' }, 'failed to encode/write frame');
       return false;
     }
   }

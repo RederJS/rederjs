@@ -46,7 +46,7 @@ describe('doctor hook checks', () => {
     const checks = await runDoctor({ configPath });
     const hookCheck = checks.find((c) => c.name === "claude hooks for 'barebones'");
     expect(hookCheck?.pass).toBe(false);
-    expect(hookCheck?.remediation).toContain("sessions repair barebones");
+    expect(hookCheck?.remediation).toContain('sessions repair barebones');
   });
 
   it('does not emit a check for sessions without a workspace_dir', async () => {

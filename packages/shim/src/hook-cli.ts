@@ -15,7 +15,11 @@ const MAX_STDIN_BYTES = 64 * 1024;
 
 function debug(msg: string): void {
   if (process.env.REDER_HOOK_DEBUG) {
-    try { process.stderr.write(`reder-hook: ${msg}\n`); } catch { /* ignore */ }
+    try {
+      process.stderr.write(`reder-hook: ${msg}\n`);
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -35,7 +39,11 @@ async function readStdinJson(timeoutMs: number): Promise<Record<string, unknown>
     let total = 0;
     let capped = false;
     const timer = setTimeout(() => {
-      try { process.stdin.pause(); } catch { /* ignore */ }
+      try {
+        process.stdin.pause();
+      } catch {
+        /* ignore */
+      }
       resolve(capped ? {} : safeParse(Buffer.concat(chunks).toString('utf8')));
     }, timeoutMs);
     process.stdin.on('data', (c: Buffer) => {
@@ -43,7 +51,11 @@ async function readStdinJson(timeoutMs: number): Promise<Record<string, unknown>
       total += c.length;
       if (total > MAX_STDIN_BYTES) {
         capped = true;
-        try { process.stdin.pause(); } catch { /* ignore */ }
+        try {
+          process.stdin.pause();
+        } catch {
+          /* ignore */
+        }
         return;
       }
       chunks.push(c);
@@ -98,13 +110,21 @@ async function main(): Promise<void> {
   await new Promise<void>((resolve) => {
     const socket = createConnection({ path: values.socket as string });
     const finish = (): void => {
-      try { socket.destroy(); } catch { /* ignore */ }
+      try {
+        socket.destroy();
+      } catch {
+        /* ignore */
+      }
       resolve();
     };
     const timer = setTimeout(finish, SOCKET_TIMEOUT_MS);
     socket.once('connect', () => {
       socket.write(frame, () => {
-        try { socket.end(); } catch { /* ignore */ }
+        try {
+          socket.end();
+        } catch {
+          /* ignore */
+        }
       });
     });
     socket.once('close', () => {

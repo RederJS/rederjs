@@ -6,7 +6,11 @@ interface SegmentedProps<T extends string> {
   options: readonly { value: T; label: string }[];
 }
 
-export function Segmented<T extends string>({ value, onChange, options }: SegmentedProps<T>): JSX.Element {
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+}: SegmentedProps<T>): JSX.Element {
   return (
     <div className="grid grid-flow-col auto-cols-fr gap-0 rounded-md border border-line bg-bg-2 p-0.5">
       {options.map((opt) => (

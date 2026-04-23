@@ -69,7 +69,10 @@ export const Icons: Record<string, IconComponent> = {
   chevD: (p) => <I {...p} d="M6 9l6 6 6-6" />,
   send: (p) => <I {...p} d="M22 2L11 13M22 2l-7 20-4-9-9-4z" />,
   paperclip: (p) => (
-    <I {...p} d="M21.4 11L12.2 20.2a5.6 5.6 0 01-7.9-7.9L13.6 3a3.7 3.7 0 015.3 5.2l-9.2 9.3a1.9 1.9 0 01-2.7-2.7l8.5-8.5" />
+    <I
+      {...p}
+      d="M21.4 11L12.2 20.2a5.6 5.6 0 01-7.9-7.9L13.6 3a3.7 3.7 0 015.3 5.2l-9.2 9.3a1.9 1.9 0 01-2.7-2.7l8.5-8.5"
+    />
   ),
   mic: (p) => (
     <I {...p}>
@@ -120,7 +123,9 @@ export const Icons: Record<string, IconComponent> = {
       <path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" />
     </I>
   ),
-  folder: (p) => <I {...p} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />,
+  folder: (p) => (
+    <I {...p} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+  ),
 };
 
 export type IconName = keyof typeof Icons;

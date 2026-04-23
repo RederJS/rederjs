@@ -68,10 +68,20 @@ export function SessionCard({
           selected && 'border-accent bg-bg-1 shadow-card-selected',
         )}
       >
-        <Avatar sessionId={session.session_id} name={session.display_name} status={status} variant={statusVariant} size="sm" />
+        <Avatar
+          sessionId={session.session_id}
+          name={session.display_name}
+          status={status}
+          variant={statusVariant}
+          size="sm"
+        />
         <div className="flex-1 min-w-0">
-          <div className="truncate text-sm font-semibold tracking-[-0.01em]">{session.display_name}</div>
-          <div className="truncate font-mono text-[11px] text-fg-4">{shortId(session.session_id)}</div>
+          <div className="truncate text-sm font-semibold tracking-[-0.01em]">
+            {session.display_name}
+          </div>
+          <div className="truncate font-mono text-[11px] text-fg-4">
+            {shortId(session.session_id)}
+          </div>
         </div>
         {statusVariant !== 'pill' ? null : <StatusPill status={status} />}
         {repairButton}
@@ -94,9 +104,16 @@ export function SessionCard({
         )}
       >
         <div className="flex flex-wrap items-center gap-2.5 border-b border-line bg-bg px-3.5 py-3">
-          <Avatar sessionId={session.session_id} name={session.display_name} status={status} variant={statusVariant} />
+          <Avatar
+            sessionId={session.session_id}
+            name={session.display_name}
+            status={status}
+            variant={statusVariant}
+          />
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="truncate text-sm font-semibold tracking-[-0.01em]">{session.display_name}</span>
+            <span className="truncate text-sm font-semibold tracking-[-0.01em]">
+              {session.display_name}
+            </span>
             <span className="font-mono text-[11px] text-fg-4">{shortId(session.session_id)}</span>
           </div>
           {statusVariant !== 'ringed' && <StatusPill status={status} />}
@@ -105,7 +122,10 @@ export function SessionCard({
           <span className="mr-1.5 font-mono text-[11px] text-fg-4">›</span>
           {preview ?? (session.workspace_dir || 'No activity yet')}
         </div>
-        <div className="grid grid-cols-4 gap-1 border-t border-line px-3.5 py-2.5 font-mono text-[10.5px] text-fg-3" style={{ background: 'color-mix(in oklab, var(--bg) 70%, #000)' }}>
+        <div
+          className="grid grid-cols-4 gap-1 border-t border-line px-3.5 py-2.5 font-mono text-[10.5px] text-fg-3"
+          style={{ background: 'color-mix(in oklab, var(--bg) 70%, #000)' }}
+        >
           <MetaCell label="Up" value={formatUptime(null)} />
           <MetaCell label="Last" value={formatLast(lastIso)} />
           <MetaCell label="Tok" value={formatTokens(null)} />
@@ -130,7 +150,12 @@ export function SessionCard({
       )}
     >
       <div className="flex flex-wrap items-center gap-2.5 @max-[210px]/card:gap-2">
-        <Avatar sessionId={session.session_id} name={session.display_name} status={status} variant={statusVariant} />
+        <Avatar
+          sessionId={session.session_id}
+          name={session.display_name}
+          status={status}
+          variant={statusVariant}
+        />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-sm font-semibold tracking-[-0.01em] @max-[210px]/card:text-[13px]">
             {session.display_name}

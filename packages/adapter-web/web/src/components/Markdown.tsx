@@ -208,15 +208,35 @@ export function Markdown({ src }: { src: string }): JSX.Element {
         const key = String(idx);
         switch (b.kind) {
           case 'h1':
-            return <h1 key={key}><Inline text={b.text!} /></h1>;
+            return (
+              <h1 key={key}>
+                <Inline text={b.text!} />
+              </h1>
+            );
           case 'h2':
-            return <h2 key={key}><Inline text={b.text!} /></h2>;
+            return (
+              <h2 key={key}>
+                <Inline text={b.text!} />
+              </h2>
+            );
           case 'h3':
-            return <h3 key={key}><Inline text={b.text!} /></h3>;
+            return (
+              <h3 key={key}>
+                <Inline text={b.text!} />
+              </h3>
+            );
           case 'p':
-            return <p key={key}><Inline text={b.text!} /></p>;
+            return (
+              <p key={key}>
+                <Inline text={b.text!} />
+              </p>
+            );
           case 'blockquote':
-            return <blockquote key={key}><Inline text={b.text!} /></blockquote>;
+            return (
+              <blockquote key={key}>
+                <Inline text={b.text!} />
+              </blockquote>
+            );
           case 'pre':
             return (
               <pre key={key}>
@@ -227,7 +247,9 @@ export function Markdown({ src }: { src: string }): JSX.Element {
             return (
               <ul key={key}>
                 {b.items!.map((it, j) => (
-                  <li key={j}><Inline text={it} /></li>
+                  <li key={j}>
+                    <Inline text={it} />
+                  </li>
                 ))}
               </ul>
             );
@@ -235,7 +257,9 @@ export function Markdown({ src }: { src: string }): JSX.Element {
             return (
               <ol key={key}>
                 {b.items!.map((it, j) => (
-                  <li key={j}><Inline text={it} /></li>
+                  <li key={j}>
+                    <Inline text={it} />
+                  </li>
                 ))}
               </ol>
             );

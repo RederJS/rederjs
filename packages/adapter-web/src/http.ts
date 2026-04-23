@@ -5,11 +5,7 @@ import express, { type Express } from 'express';
 import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
 import type { AdapterStorage, RouterHandle } from '@rederjs/core/adapter';
-import {
-  authMiddleware,
-  hostAllowlistMiddleware,
-  type AuthOptions,
-} from './auth.js';
+import { authMiddleware, hostAllowlistMiddleware, type AuthOptions } from './auth.js';
 import { createSessionsRouter, type SessionConfigEntry } from './routes/sessions.js';
 import { createPermissionsRouter } from './routes/permissions.js';
 import { createStreamRouter } from './routes/stream.js';

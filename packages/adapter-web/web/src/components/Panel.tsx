@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { listMessages, resolvePermission, sendMessage, type SessionSummary, type TranscriptMessage } from '../api';
+import {
+  listMessages,
+  resolvePermission,
+  sendMessage,
+  type SessionSummary,
+  type TranscriptMessage,
+} from '../api';
 import { sessionStatus } from '../derive';
 import { useEventStream } from '../sse';
 import type { BubbleVariant, ComposerVariant, PendingPermission, StatusVariant } from '../types';
@@ -16,7 +22,13 @@ interface PanelProps {
   onClose: () => void;
 }
 
-export function Panel({ session, statusVariant, bubbleVariant, composerVariant, onClose }: PanelProps): JSX.Element {
+export function Panel({
+  session,
+  statusVariant,
+  bubbleVariant,
+  composerVariant,
+  onClose,
+}: PanelProps): JSX.Element {
   const sessionId = session.session_id;
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
   const [permissions, setPermissions] = useState<PendingPermission[]>([]);
@@ -49,7 +61,9 @@ export function Panel({ session, statusVariant, bubbleVariant, composerVariant, 
     }
     if (name === 'permission.requested') {
       const p = data as PendingPermission;
-      setPermissions((prev) => (prev.some((x) => x.requestId === p.requestId) ? prev : [...prev, p]));
+      setPermissions((prev) =>
+        prev.some((x) => x.requestId === p.requestId) ? prev : [...prev, p],
+      );
       return;
     }
     if (name === 'permission.resolved' || name === 'permission.cancelled') {

@@ -13,7 +13,9 @@ interface WebCfg {
   expose_health?: boolean;
 }
 
-export async function runStatus(opts: { configPath?: string; timeoutMs?: number } = {}): Promise<StatusResult> {
+export async function runStatus(
+  opts: { configPath?: string; timeoutMs?: number } = {},
+): Promise<StatusResult> {
   const ctx = loadConfigContext(opts.configPath);
 
   // When the web adapter is enabled, it owns `/health` on its own port — the
@@ -25,7 +27,7 @@ export async function runStatus(opts: { configPath?: string; timeoutMs?: number 
     if (raw.expose_health === false) {
       return {
         reachable: false,
-        error: "adapter-web exposes_health=false; cannot probe health via HTTP",
+        error: 'adapter-web exposes_health=false; cannot probe health via HTTP',
       };
     }
     const host = raw.bind ?? '127.0.0.1';

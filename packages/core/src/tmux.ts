@@ -56,7 +56,10 @@ export function getPaneCommand(name: string, opts: TmuxRunnerOption = {}): strin
   const result = run(['list-panes', '-F', '#{pane_current_command}', '-t', name]);
   if (result.status !== 0) return null;
   const out = result.stdout?.toString('utf8') ?? '';
-  const first = out.split('\n').map((s) => s.trim()).find((s) => s.length > 0);
+  const first = out
+    .split('\n')
+    .map((s) => s.trim())
+    .find((s) => s.length > 0);
   return first ?? null;
 }
 

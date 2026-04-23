@@ -110,7 +110,12 @@ describe('router inbound', () => {
     };
     expect(evt.content).toBe('hello');
     // After ack, row should be acknowledged.
-    conn.socket.write(encode({ kind: 'channel_ack', message_id: (evt as unknown as { message_id: string }).message_id }));
+    conn.socket.write(
+      encode({
+        kind: 'channel_ack',
+        message_id: (evt as unknown as { message_id: string }).message_id,
+      }),
+    );
     await new Promise((r) => setTimeout(r, 50));
     const row = db.raw.prepare('SELECT state FROM inbound_messages LIMIT 1').get() as {
       state: string;

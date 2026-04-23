@@ -52,10 +52,14 @@ describe('reder-hook', () => {
 
     const { code } = await runHook(
       [
-        '--session-id', 'sess',
-        '--socket', socketPath,
-        '--token', token,
-        '--hook', 'UserPromptSubmit',
+        '--session-id',
+        'sess',
+        '--socket',
+        socketPath,
+        '--token',
+        token,
+        '--hook',
+        'UserPromptSubmit',
       ],
       JSON.stringify({ cwd: '/tmp', transcript_path: '/tmp/t.jsonl' }),
     );
@@ -68,10 +72,14 @@ describe('reder-hook', () => {
     await ipcServer.close();
     const { code } = await runHook(
       [
-        '--session-id', 'sess',
-        '--socket', join(dir, 'nope.sock'),
-        '--token', token,
-        '--hook', 'Stop',
+        '--session-id',
+        'sess',
+        '--socket',
+        join(dir, 'nope.sock'),
+        '--token',
+        token,
+        '--hook',
+        'Stop',
       ],
       '{}',
     );

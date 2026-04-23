@@ -68,7 +68,9 @@ export async function sendMessage(sessionId: string, content: string): Promise<v
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 }
 
-export async function startSession(sessionId: string): Promise<{ started: boolean; reason?: string; error?: string }> {
+export async function startSession(
+  sessionId: string,
+): Promise<{ started: boolean; reason?: string; error?: string }> {
   const res = await fetch(`/api/sessions/${sessionId}/start`, { method: 'POST' });
   return (await jsonOrThrow(res)) as { started: boolean; reason?: string; error?: string };
 }

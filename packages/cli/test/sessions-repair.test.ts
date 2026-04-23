@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+  existsSync,
+  writeFileSync,
+  unlinkSync,
+  readFileSync,
+  mkdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runSessionAdd } from '../src/commands/sessions-add.js';
@@ -70,9 +78,7 @@ describe('runSessionRepair', () => {
   });
 
   it('throws when the session is not registered', async () => {
-    await expect(
-      runSessionRepair({ sessionId: 'nope', configPath }),
-    ).rejects.toThrow(/not found/i);
+    await expect(runSessionRepair({ sessionId: 'nope', configPath })).rejects.toThrow(/not found/i);
   });
 
   it('throws when the session has no workspace_dir', async () => {
@@ -81,8 +87,8 @@ describe('runSessionRepair', () => {
       `version: 1\nruntime:\n  runtime_dir: ${dir}/runtime\n  data_dir: ${dir}/data\n` +
         `sessions:\n  - session_id: ad_hoc\n    display_name: Adhoc\n    auto_start: false\nadapters: {}\n`,
     );
-    await expect(
-      runSessionRepair({ sessionId: 'ad_hoc', configPath }),
-    ).rejects.toThrow(/workspace_dir/i);
+    await expect(runSessionRepair({ sessionId: 'ad_hoc', configPath })).rejects.toThrow(
+      /workspace_dir/i,
+    );
   });
 });

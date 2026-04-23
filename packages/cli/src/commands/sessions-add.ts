@@ -7,7 +7,7 @@ import { createSession } from '@rederjs/core/sessions';
 import type { PermissionMode } from '@rederjs/core/tmux';
 import { loadConfigContext } from '../config-loader.js';
 import { defaultConfigPath, socketPathFor } from '../paths.js';
-import { peekSession, upsertSession, type PeekedSession } from './config-writer.js';
+import { peekSession, upsertSession } from './config-writer.js';
 import { runStart, type ServiceResult } from './service.js';
 import { sanitizeSessionId, validateSessionId, prettifyDisplayName } from '../session-id.js';
 import { installClaudeHooks } from './claude-hooks.js';

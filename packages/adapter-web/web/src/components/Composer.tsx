@@ -50,7 +50,9 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
     }
   };
 
-  const placeholderText = speaking ? 'listening — speak your message…' : placeholder ?? 'Message the session…';
+  const placeholderText = speaking
+    ? 'listening — speak your message…'
+    : (placeholder ?? 'Message the session…');
   const isMinimal = variant === 'minimal';
   const isSegmented = variant === 'segmented';
 
@@ -61,9 +63,7 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
   if (isSegmented) {
     return (
       <div
-        className={cn(
-          'flex flex-col gap-2 border-t border-line p-3',
-        )}
+        className={cn('flex flex-col gap-2 border-t border-line p-3')}
         style={{ background: 'color-mix(in oklab, var(--bg) 60%, var(--bg-1))' }}
       >
         <div
@@ -88,11 +88,7 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
               <Icons.paperclip size={14} />
               attach
             </ToolButton>
-            <ToolButton
-              title="Speak"
-              active={speaking}
-              onClick={() => setSpeaking((v) => !v)}
-            >
+            <ToolButton title="Speak" active={speaking} onClick={() => setSpeaking((v) => !v)}>
               <Icons.mic size={14} />
               {speaking ? 'listening…' : 'speak'}
             </ToolButton>
@@ -106,11 +102,7 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
 
   if (isMinimal) {
     return (
-      <div
-        className={cn(
-          'flex items-end gap-2 border-t border-line px-3 py-2',
-        )}
-      >
+      <div className={cn('flex items-end gap-2 border-t border-line px-3 py-2')}>
         <span className="pb-1.5 font-mono text-[13px] text-fg-4">$</span>
         <textarea
           ref={taRef}
@@ -144,7 +136,11 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
           <IBtn title="Attach file" disabled>
             <Icons.paperclip size={14} />
           </IBtn>
-          <IBtn title="Speak (Esc to stop)" active={speaking} onClick={() => setSpeaking((v) => !v)}>
+          <IBtn
+            title="Speak (Esc to stop)"
+            active={speaking}
+            onClick={() => setSpeaking((v) => !v)}
+          >
             <Icons.mic size={14} />
           </IBtn>
         </div>

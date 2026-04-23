@@ -237,7 +237,13 @@ describe('tmux.getPaneCommand', () => {
   it('returns the first pane command when tmux exits 0', () => {
     const { runner, calls } = makeRunner([{ status: 0, stdout: 'claude\n' }]);
     expect(getPaneCommand('sommelai', { runner })).toBe('claude');
-    expect(calls[0]?.args).toEqual(['list-panes', '-F', '#{pane_current_command}', '-t', 'sommelai']);
+    expect(calls[0]?.args).toEqual([
+      'list-panes',
+      '-F',
+      '#{pane_current_command}',
+      '-t',
+      'sommelai',
+    ]);
   });
 
   it('returns null when tmux exits nonzero (session missing)', () => {

@@ -13,9 +13,10 @@ function esc(s: string): string {
 }
 
 export function renderPermissionPrompt(prompt: PermissionPrompt): RenderedPromptMessage {
-  const preview = prompt.inputPreview.length > 400
-    ? prompt.inputPreview.slice(0, 400) + '…'
-    : prompt.inputPreview;
+  const preview =
+    prompt.inputPreview.length > 400
+      ? prompt.inputPreview.slice(0, 400) + '…'
+      : prompt.inputPreview;
 
   const text =
     `🔒 *Permission requested*\n\n` +

@@ -12,7 +12,11 @@ export class FakeAdapter extends Adapter {
   public prompts: PermissionPrompt[] = [];
   public canceled: Array<{ requestId: string; finalVerdict?: string }> = [];
   public sendResults: SendResult[] = [];
-  public defaultSendResult: SendResult = { success: true, retriable: false, transportMessageId: 'tmsg' };
+  public defaultSendResult: SendResult = {
+    success: true,
+    retriable: false,
+    transportMessageId: 'tmsg',
+  };
   public nextSendBehavior: 'ok' | 'retriable' | 'terminal' = 'ok';
   public retriableAttemptsLeft = 0;
 

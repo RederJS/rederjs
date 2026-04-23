@@ -23,9 +23,9 @@ export function App(): JSX.Element {
 
   const hash = useHashRoute();
   const route = parseRoute(hash);
-  const selectedId = route.page === 'detail' ? route.sessionId ?? null : null;
+  const selectedId = route.page === 'detail' ? (route.sessionId ?? null) : null;
   const selectedSession = useMemo(
-    () => (selectedId ? sessions.find((s) => s.session_id === selectedId) ?? null : null),
+    () => (selectedId ? (sessions.find((s) => s.session_id === selectedId) ?? null) : null),
     [sessions, selectedId],
   );
 
@@ -78,10 +78,7 @@ export function App(): JSX.Element {
   };
 
   return (
-    <div
-      className="app-bg relative grid h-screen"
-      style={{ gridTemplateColumns: '56px 1fr' }}
-    >
+    <div className="app-bg relative grid h-screen" style={{ gridTemplateColumns: '56px 1fr' }}>
       <Rail
         theme={tweaks.theme}
         onToggleTheme={() => setTweak('theme', tweaks.theme === 'dark' ? 'light' : 'dark')}
@@ -108,9 +105,7 @@ export function App(): JSX.Element {
           {loading && sessions.length === 0 ? (
             <div className="grid place-items-center text-sm text-fg-4">Loading sessions…</div>
           ) : error && sessions.length === 0 ? (
-            <div className="grid place-items-center p-8 text-sm text-[#ff8a8a]">
-              {error}
-            </div>
+            <div className="grid place-items-center p-8 text-sm text-[#ff8a8a]">{error}</div>
           ) : (
             <SessionGrid
               sessions={sessions}

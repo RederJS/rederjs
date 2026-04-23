@@ -83,8 +83,14 @@ export interface RouterEventMap {
 }
 
 export interface RouterEvents {
-  on<K extends keyof RouterEventMap>(event: K, listener: (payload: RouterEventMap[K]) => void): void;
-  off<K extends keyof RouterEventMap>(event: K, listener: (payload: RouterEventMap[K]) => void): void;
+  on<K extends keyof RouterEventMap>(
+    event: K,
+    listener: (payload: RouterEventMap[K]) => void,
+  ): void;
+  off<K extends keyof RouterEventMap>(
+    event: K,
+    listener: (payload: RouterEventMap[K]) => void,
+  ): void;
 }
 
 export interface RouterHandle {

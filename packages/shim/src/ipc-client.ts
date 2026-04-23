@@ -211,10 +211,7 @@ export class IpcClient {
     if (max !== undefined && this.retryAttempt >= max) return;
     const delay = this.currentDelayMs;
     this.retryAttempt += 1;
-    this.currentDelayMs = Math.min(
-      this.currentDelayMs * 2,
-      this.opts.maxRetryDelayMs ?? 30_000,
-    );
+    this.currentDelayMs = Math.min(this.currentDelayMs * 2, this.opts.maxRetryDelayMs ?? 30_000);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       void this.attemptOnce();

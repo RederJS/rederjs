@@ -16,7 +16,7 @@ import {
   SessionWorkspaceMismatchError,
   InvalidSessionIdError,
 } from '../src/commands/sessions-add.js';
-import { scaffoldConfig, peekSession } from '../src/commands/config-writer.js';
+import { peekSession } from '../src/commands/config-writer.js';
 import * as service from '../src/commands/service.js';
 
 let dir: string;

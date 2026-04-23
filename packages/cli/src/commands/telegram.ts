@@ -112,8 +112,7 @@ export async function runTelegramBotAdd(
 
 export function formatTelegramBotAdd(r: TelegramBotAddResult): string {
   const verb = r.yamlCreated ? 'Added' : 'Updated';
-  const src =
-    r.tokenSource === 'env' ? ` (token from env:${r.tokenEnv})` : ' (token inline)';
+  const src = r.tokenSource === 'env' ? ` (token from env:${r.tokenEnv})` : ' (token inline)';
   return (
     `${verb} telegram bot for session '${r.sessionId}'${src} → ${r.configPath}\n` +
     `Restart the daemon: reder restart`
@@ -131,9 +130,7 @@ export interface TelegramBotRemoveResult {
   removed: boolean;
 }
 
-export function runTelegramBotRemove(
-  opts: TelegramBotRemoveOptions,
-): TelegramBotRemoveResult {
+export function runTelegramBotRemove(opts: TelegramBotRemoveOptions): TelegramBotRemoveResult {
   const configPath = resolveConfigPath(opts.configPath);
   const { removed } = removeTelegramBot({ configPath, sessionId: opts.sessionId });
   return { sessionId: opts.sessionId, configPath, removed };
@@ -159,11 +156,7 @@ export function runTelegramBotList(opts: {
 export function formatTelegramBotList(r: TelegramBotListResult): string {
   if (r.bots.length === 0) return 'No telegram bots configured.';
   const rows = r.bots.map((b) => {
-    const src = b.token_env
-      ? `env:${b.token_env}`
-      : b.token
-        ? 'token:***inline***'
-        : '(no token)';
+    const src = b.token_env ? `env:${b.token_env}` : b.token ? 'token:***inline***' : '(no token)';
     return `  ${b.session_id.padEnd(24)} ${src}`;
   });
   return [`${r.bots.length} telegram bot(s):`, ...rows].join('\n');

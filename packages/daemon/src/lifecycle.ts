@@ -4,7 +4,10 @@ import type { Logger } from 'pino';
 
 export class AlreadyRunningError extends Error {
   override readonly name = 'AlreadyRunningError';
-  constructor(public readonly existingPid: number, public readonly pidPath: string) {
+  constructor(
+    public readonly existingPid: number,
+    public readonly pidPath: string,
+  ) {
     super(`rederd already running (pid ${existingPid}) per ${pidPath}`);
   }
 }

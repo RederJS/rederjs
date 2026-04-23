@@ -57,7 +57,13 @@ describe('ipc/codec', () => {
   it('round-trips an array of mixed frames', () => {
     const frames: unknown[] = [
       { kind: 'ping' },
-      { kind: 'hello', session_id: 'a', shim_token: 't', shim_version: '0.1.0', claude_code_version: '2.1.81' },
+      {
+        kind: 'hello',
+        session_id: 'a',
+        shim_token: 't',
+        shim_version: '0.1.0',
+        claude_code_version: '2.1.81',
+      },
       { kind: 'channel_ack', message_id: 'abc' },
       { kind: 'reply_tool_call', request_id: 'r1', content: 'hello 🌍', meta: {}, files: [] },
     ];

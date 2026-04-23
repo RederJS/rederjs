@@ -73,9 +73,10 @@ export async function verifyToken(db: Db, sessionId: string, token: string): Pro
 }
 
 export function markConnected(db: Db, sessionId: string): void {
-  db.prepare(
-    `UPDATE sessions SET state = 'connected', last_seen_at = ? WHERE session_id = ?`,
-  ).run(new Date().toISOString(), sessionId);
+  db.prepare(`UPDATE sessions SET state = 'connected', last_seen_at = ? WHERE session_id = ?`).run(
+    new Date().toISOString(),
+    sessionId,
+  );
 }
 
 export function markDisconnected(db: Db, sessionId: string): void {
@@ -101,12 +102,8 @@ export interface DeleteSessionResult {
  */
 export function deleteSession(db: Db, sessionId: string): DeleteSessionResult {
   const tx = db.transaction(() => {
-    const bindings = db
-      .prepare('DELETE FROM bindings WHERE session_id = ?')
-      .run(sessionId);
-    const session = db
-      .prepare('DELETE FROM sessions WHERE session_id = ?')
-      .run(sessionId);
+    const bindings = db.prepare('DELETE FROM bindings WHERE session_id = ?').run(sessionId);
+    const session = db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId);
     return { deleted: session.changes > 0, bindings_removed: bindings.changes };
   });
   return tx();

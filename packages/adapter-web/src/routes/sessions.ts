@@ -1,7 +1,11 @@
 import { Router as expressRouter, type Request, type Response } from 'express';
 import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
-import type { RouterHandle, AdapterStorage, SessionActivityChangedPayload } from '@rederjs/core/adapter';
+import type {
+  RouterHandle,
+  AdapterStorage,
+  SessionActivityChangedPayload,
+} from '@rederjs/core/adapter';
 import { listSessions } from '@rederjs/core/sessions';
 import { isRunning, startSession } from '@rederjs/core/tmux';
 import { listTranscript, getSessionActivity } from '../transcript.js';
@@ -40,10 +44,7 @@ async function writeUnread(storage: AdapterStorage, sessionId: string, n: number
   await storage.set(UNREAD_KEY(sessionId), String(Math.max(0, n)));
 }
 
-export async function incrementUnread(
-  storage: AdapterStorage,
-  sessionId: string,
-): Promise<number> {
+export async function incrementUnread(storage: AdapterStorage, sessionId: string): Promise<number> {
   const current = await readUnread(storage, sessionId);
   const next = current + 1;
   await writeUnread(storage, sessionId, next);

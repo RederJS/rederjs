@@ -50,10 +50,7 @@ function setupServer(): {
   };
   const server = createMcpChannelServer(deps);
   const [serverT, clientT] = InMemoryTransport.createLinkedPair();
-  const client = new Client(
-    { name: 'test-client', version: '0.0.1' },
-    { capabilities: {} },
-  );
+  const client = new Client({ name: 'test-client', version: '0.0.1' }, { capabilities: {} });
   const connected = Promise.all([server.connect(serverT), client.connect(clientT)]).then(() => {});
   return { client, ipc, connected };
 }

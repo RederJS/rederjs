@@ -189,7 +189,12 @@ export function createRouter(opts: RouterOptions): Router {
 
   // Inbound path ---------------------------------------------------------------
 
-  async function deliverInbound(sessionId: string, messageId: string, content: string, meta: Record<string, string>): Promise<void> {
+  async function deliverInbound(
+    sessionId: string,
+    messageId: string,
+    content: string,
+    meta: Record<string, string>,
+  ): Promise<void> {
     const sent = ipcServer.sendToSession(sessionId, {
       kind: 'channel_event',
       message_id: messageId,
@@ -214,7 +219,10 @@ export function createRouter(opts: RouterOptions): Router {
 
   // Outbound path --------------------------------------------------------------
 
-  function resolveRecipient(sessionId: string, inReplyTo?: string): { adapter: string; recipient: string } | null {
+  function resolveRecipient(
+    sessionId: string,
+    inReplyTo?: string,
+  ): { adapter: string; recipient: string } | null {
     if (inReplyTo) {
       const row = db
         .prepare(
@@ -402,8 +410,9 @@ export function createRouter(opts: RouterOptions): Router {
           senderId: rec.senderId,
         };
         if (rec.senderMetadata) payload.metadata = rec.senderMetadata;
-        const displayName = opts.config?.sessions.find((s) => s.session_id === evt.session_id)
-          ?.display_name;
+        const displayName = opts.config?.sessions.find(
+          (s) => s.session_id === evt.session_id,
+        )?.display_name;
         if (displayName !== undefined) payload.displayName = displayName;
         await reg.adapter.onPairingCompleted(payload);
       } catch (err) {
@@ -460,10 +469,7 @@ export function createRouter(opts: RouterOptions): Router {
         content: msg.content,
         meta: msg.meta,
         files: msg.files,
-        receivedAt: (msg.receivedAt instanceof Date
-          ? msg.receivedAt
-          : new Date()
-        ).toISOString(),
+        receivedAt: (msg.receivedAt instanceof Date ? msg.receivedAt : new Date()).toISOString(),
       });
       await deliverInbound(msg.sessionId, message_id, msg.content, msg.meta);
     },

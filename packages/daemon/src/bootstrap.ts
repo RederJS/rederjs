@@ -9,7 +9,11 @@ import { createSession } from '@rederjs/core/sessions';
 import { createIpcServer, type IpcServer } from '@rederjs/core/ipc/server';
 import { createRouter, type Router } from '@rederjs/core/router';
 import { createAuditLog, type AuditLog } from '@rederjs/core/audit';
-import { startHealthEndpoint, type HealthEndpoint, type HealthSnapshot } from '@rederjs/core/health';
+import {
+  startHealthEndpoint,
+  type HealthEndpoint,
+  type HealthSnapshot,
+} from '@rederjs/core/health';
 import { startSession as startTmuxSession, getPaneCommand } from '@rederjs/core/tmux';
 import type { Adapter } from '@rederjs/core/adapter';
 import { createAdapterHost, type AdapterHost, loadAdapter } from './adapter-host.js';
@@ -54,7 +58,10 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 
   const logger = createLogger({ level: config.logging.level });
-  logger.info({ configPath, runtimeDir, dataDir, component: 'daemon.bootstrap' }, 'starting rederd');
+  logger.info(
+    { configPath, runtimeDir, dataDir, component: 'daemon.bootstrap' },
+    'starting rederd',
+  );
 
   const audit = createAuditLog(runtimeDir);
   const db = openDatabase(join(dataDir, 'reder.db'));
@@ -217,7 +224,9 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
           workspace_dir: s.workspace_dir,
           component: 'daemon.bootstrap',
         },
-        "claude hook config missing — dashboard activity status will show 'unknown'. Run `reder sessions repair " + s.session_id + "`",
+        "claude hook config missing — dashboard activity status will show 'unknown'. Run `reder sessions repair " +
+          s.session_id +
+          '`',
       );
     }
   }

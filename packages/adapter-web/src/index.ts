@@ -209,10 +209,7 @@ export class WebAdapter extends Adapter {
     });
   }
 
-  override async cancelPermissionPrompt(
-    requestId: string,
-    finalVerdict?: string,
-  ): Promise<void> {
+  override async cancelPermissionPrompt(requestId: string, finalVerdict?: string): Promise<void> {
     this.sse.broadcast({
       event: 'permission.cancelled',
       data: { requestId, ...(finalVerdict !== undefined ? { finalVerdict } : {}) },

@@ -43,7 +43,12 @@ interface TestClient {
 function connect(path: string): Promise<TestClient> {
   return new Promise((resolve, reject) => {
     const socket = createConnection({ path });
-    const client: TestClient = { socket, decoder: new FrameDecoder(), received: [], pendingWaiters: [] };
+    const client: TestClient = {
+      socket,
+      decoder: new FrameDecoder(),
+      received: [],
+      pendingWaiters: [],
+    };
     socket.on('data', (chunk) => {
       for (const frame of client.decoder.push(chunk)) {
         client.received.push(frame);
@@ -59,7 +64,11 @@ function connect(path: string): Promise<TestClient> {
   });
 }
 
-function waitFor(client: TestClient, predicate: (msg: unknown) => boolean, timeoutMs = 2000): Promise<unknown> {
+function waitFor(
+  client: TestClient,
+  predicate: (msg: unknown) => boolean,
+  timeoutMs = 2000,
+): Promise<unknown> {
   return new Promise((resolve, reject) => {
     for (const msg of client.received) {
       if (predicate(msg)) {
@@ -122,7 +131,11 @@ describe('ipc server', () => {
       }),
     );
     const welcome = await waitFor(client, (m) => (m as { kind: string }).kind === 'welcome');
-    expect(welcome).toMatchObject({ kind: 'welcome', session_id: 'booknerds', protocol_version: 1 });
+    expect(welcome).toMatchObject({
+      kind: 'welcome',
+      session_id: 'booknerds',
+      protocol_version: 1,
+    });
     await closeClient(client);
   });
 
@@ -255,8 +268,18 @@ describe('ipc server', () => {
     );
     await waitFor(c1, (m) => (m as { kind: string }).kind === 'welcome');
     await waitFor(c2, (m) => (m as { kind: string }).kind === 'welcome');
-    server.sendToSession('s1', { kind: 'channel_event', message_id: 'a', content: 'for-s1', meta: {} });
-    server.sendToSession('s2', { kind: 'channel_event', message_id: 'b', content: 'for-s2', meta: {} });
+    server.sendToSession('s1', {
+      kind: 'channel_event',
+      message_id: 'a',
+      content: 'for-s1',
+      meta: {},
+    });
+    server.sendToSession('s2', {
+      kind: 'channel_event',
+      message_id: 'b',
+      content: 'for-s2',
+      meta: {},
+    });
     const m1 = (await waitFor(c1, (m) => (m as { kind: string }).kind === 'channel_event')) as {
       content: string;
     };

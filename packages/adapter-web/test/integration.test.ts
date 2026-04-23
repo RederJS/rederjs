@@ -180,7 +180,9 @@ describe('adapter-web http surface', () => {
     const res = await fetch(`${baseUrl}/api/sessions`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const body = (await res.json()) as { sessions: Array<{ session_id: string; activity_state: string }> };
+    const body = (await res.json()) as {
+      sessions: Array<{ session_id: string; activity_state: string }>;
+    };
     expect(res.status).toBe(200);
     // Fixture has no tmux and no shim connection, so every session is offline.
     const demo = body.sessions.find((s) => s.session_id === 'demo');

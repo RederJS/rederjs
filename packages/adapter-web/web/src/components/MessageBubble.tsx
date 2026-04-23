@@ -51,7 +51,11 @@ export function MessageBubble({
   fileCount = 0,
 }: MessageBubbleProps): JSX.Element {
   const mine = msg.direction === 'inbound' && msg.adapter === 'web';
-  const whoLabel = mine ? 'you' : msg.direction === 'outbound' ? 'claude' : `${msg.adapter}:${msg.party}`;
+  const whoLabel = mine
+    ? 'you'
+    : msg.direction === 'outbound'
+      ? 'claude'
+      : `${msg.adapter}:${msg.party}`;
 
   const bubbleStyles =
     bubbleVariant === 'terminal'
@@ -66,10 +70,17 @@ export function MessageBubble({
           : 'rounded-[10px] rounded-tl-[3px] border border-line bg-bubble-them text-fg px-3 py-2.5';
 
   const meBorderExtra =
-    bubbleVariant === 'classic' && mine ? { borderColor: 'color-mix(in oklab, var(--accent) 25%, var(--line))' } : undefined;
+    bubbleVariant === 'classic' && mine
+      ? { borderColor: 'color-mix(in oklab, var(--accent) 25%, var(--line))' }
+      : undefined;
 
   return (
-    <div className={cn('flex max-w-[88%] flex-col gap-1', mine ? 'self-end items-end' : 'self-start items-start')}>
+    <div
+      className={cn(
+        'flex max-w-[88%] flex-col gap-1',
+        mine ? 'self-end items-end' : 'self-start items-start',
+      )}
+    >
       <div className="flex items-center gap-2 font-mono text-[10.5px] text-fg-4">
         <b className="font-medium text-fg-2">{whoLabel}</b>
         <span>{formatHHMM(msg.timestamp)}</span>
@@ -78,7 +89,11 @@ export function MessageBubble({
         className={cn('max-w-full break-words text-[13.5px] leading-[1.55]', bubbleStyles)}
         style={meBorderExtra}
       >
-        {msg.content ? <Markdown src={msg.content} /> : <span className="text-fg-4">(no content)</span>}
+        {msg.content ? (
+          <Markdown src={msg.content} />
+        ) : (
+          <span className="text-fg-4">(no content)</span>
+        )}
         {fileCount > 0 && (
           <div className="mt-1.5 text-[11px] text-fg-3">
             {fileCount} attachment{fileCount === 1 ? '' : 's'}
@@ -97,7 +112,11 @@ export function MessageBubble({
               <button
                 key={b.label}
                 type="button"
-                className={cn('qbtn', b.kind === 'primary' && 'primary', b.kind === 'danger' && 'danger')}
+                className={cn(
+                  'qbtn',
+                  b.kind === 'primary' && 'primary',
+                  b.kind === 'danger' && 'danger',
+                )}
                 onClick={() => onQuickReply?.(b.value, b.label)}
               >
                 {b.label}

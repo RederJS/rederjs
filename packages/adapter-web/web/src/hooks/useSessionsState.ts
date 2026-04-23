@@ -19,23 +19,26 @@ export function useSessionsState(): SessionsState {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadPreviewsFor = useCallback(async (list: SessionSummary[]): Promise<Map<string, string>> => {
-    const map = new Map<string, string>();
-    const runners = list.map(async (s) => {
-      try {
-        const msgs = await listMessages(s.session_id, { limit: 5 });
-        const latest = msgs.find((m) => m.direction === 'outbound' && m.content);
-        if (latest) {
-          const single = latest.content.replace(/\n+/g, ' ').trim();
-          map.set(s.session_id, single);
+  const loadPreviewsFor = useCallback(
+    async (list: SessionSummary[]): Promise<Map<string, string>> => {
+      const map = new Map<string, string>();
+      const runners = list.map(async (s) => {
+        try {
+          const msgs = await listMessages(s.session_id, { limit: 5 });
+          const latest = msgs.find((m) => m.direction === 'outbound' && m.content);
+          if (latest) {
+            const single = latest.content.replace(/\n+/g, ' ').trim();
+            map.set(s.session_id, single);
+          }
+        } catch {
+          // ignore per-session preview failure
         }
-      } catch {
-        // ignore per-session preview failure
-      }
-    });
-    await Promise.allSettled(runners);
-    return map;
-  }, []);
+      });
+      await Promise.allSettled(runners);
+      return map;
+    },
+    [],
+  );
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
@@ -51,25 +54,22 @@ export function useSessionsState(): SessionsState {
     }
   }, [loadPreviewsFor]);
 
-  const refreshPreview = useCallback(
-    async (sessionId: string): Promise<void> => {
-      try {
-        const msgs = await listMessages(sessionId, { limit: 5 });
-        const latest = msgs.find((m) => m.direction === 'outbound' && m.content);
-        if (latest) {
-          const single = latest.content.replace(/\n+/g, ' ').trim();
-          setPreviews((prev) => {
-            const next = new Map(prev);
-            next.set(sessionId, single);
-            return next;
-          });
-        }
-      } catch {
-        // ignore
+  const refreshPreview = useCallback(async (sessionId: string): Promise<void> => {
+    try {
+      const msgs = await listMessages(sessionId, { limit: 5 });
+      const latest = msgs.find((m) => m.direction === 'outbound' && m.content);
+      if (latest) {
+        const single = latest.content.replace(/\n+/g, ' ').trim();
+        setPreviews((prev) => {
+          const next = new Map(prev);
+          next.set(sessionId, single);
+          return next;
+        });
       }
-    },
-    [],
-  );
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     void refresh();

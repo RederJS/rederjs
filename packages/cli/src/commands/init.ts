@@ -143,7 +143,8 @@ export async function interactiveInit(opts: InteractiveInitOptions): Promise<Ini
   const existing = readWebAdapterConfig(configPath);
   const tailscaleIp = detectTailscaleIPv4();
 
-  const bind = opts.bindOverride ?? (await promptForBind(existing?.bind, tailscaleIp, opts.nonInteractive));
+  const bind =
+    opts.bindOverride ?? (await promptForBind(existing?.bind, tailscaleIp, opts.nonInteractive));
   const port = opts.portOverride ?? (await promptForPort(existing?.port, opts.nonInteractive));
 
   const result = runInit({ configPath, envPath, webBind: bind, webPort: port });

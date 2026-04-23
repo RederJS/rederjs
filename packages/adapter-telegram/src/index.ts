@@ -175,7 +175,11 @@ export class TelegramAdapter extends Adapter {
     const recipientChatId = this.findRecipientChatId(prompt.sessionId);
     if (recipientChatId === null) {
       this.logger.warn(
-        { session_id: prompt.sessionId, request_id: prompt.requestId, component: 'adapter.telegram' },
+        {
+          session_id: prompt.sessionId,
+          request_id: prompt.requestId,
+          component: 'adapter.telegram',
+        },
         'no paired Telegram recipient for permission prompt; skipping',
       );
       return;
@@ -196,10 +200,7 @@ export class TelegramAdapter extends Adapter {
       };
       await this.ctx.storage.set(`perm:${prompt.requestId}`, JSON.stringify(stored));
     } catch (err) {
-      this.logger.warn(
-        { err, request_id: prompt.requestId },
-        'failed to send permission prompt',
-      );
+      this.logger.warn({ err, request_id: prompt.requestId }, 'failed to send permission prompt');
     }
   }
 
@@ -217,10 +218,7 @@ export class TelegramAdapter extends Adapter {
     }
 
     const suffix = this.suffixFor(finalVerdict);
-    const text =
-      '🔒 Permission request (resolved)\n' +
-      `Tool: ${stored.toolName}\n` +
-      suffix;
+    const text = '🔒 Permission request (resolved)\n' + `Tool: ${stored.toolName}\n` + suffix;
     try {
       const botForSession = this.bots.find((b) => b.sessionId === stored.sessionId) ?? runtime;
       await botForSession.transport.editMessageText(stored.chatId, stored.messageId, text);
@@ -265,7 +263,9 @@ export class TelegramAdapter extends Adapter {
   private isMarkdownParseError(err: Error | undefined): boolean {
     if (!err) return false;
     const msg = err.message.toLowerCase();
-    return msg.includes("can't parse") || msg.includes('parse entities') || msg.includes('bad request');
+    return (
+      msg.includes("can't parse") || msg.includes('parse entities') || msg.includes('bad request')
+    );
   }
 
   private isRetriable(err: Error | undefined): boolean {
@@ -323,10 +323,7 @@ export class TelegramAdapter extends Adapter {
           try {
             await this.handleUpdate(runtime, update);
           } catch (err) {
-            this.logger.error(
-              { err, update_id: update.update_id },
-              'failed to handle update',
-            );
+            this.logger.error({ err, update_id: update.update_id }, 'failed to handle update');
           }
           // Advance offset AFTER router ingest / DB commit (router.ingestInbound
           // already committed the row before returning).
@@ -736,9 +733,7 @@ export class TelegramAdapter extends Adapter {
    * routing and permission prompts can find the chat. Metadata mirrors the
    * shape used by the pairing flow.
    */
-  private ensureAllowlistBinding(
-    msg: import('@rederjs/core/adapter').InboundMessage,
-  ): void {
+  private ensureAllowlistBinding(msg: import('@rederjs/core/adapter').InboundMessage): void {
     const chatId = msg.meta['chat_id'];
     const username = msg.meta['username'];
     const metadata: Record<string, unknown> = {};

@@ -97,10 +97,7 @@ export class FakeTelegramTransport implements TelegramTransport {
     return { botId: this.opts.botId ?? 12345, botUsername: this.opts.botUsername ?? 'fake_bot' };
   }
 
-  async getUpdates(params: {
-    offset: number;
-    timeout: number;
-  }): Promise<TelegramUpdate[]> {
+  async getUpdates(params: { offset: number; timeout: number }): Promise<TelegramUpdate[]> {
     if (this.simulatedDownUntil !== null && Date.now() < this.simulatedDownUntil) {
       throw new Error('ECONNRESET: simulated network drop');
     }

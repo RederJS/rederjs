@@ -82,7 +82,9 @@ describe('inbound outbox', () => {
     markInboundDelivered(db.raw, message_id);
     markInboundAcknowledged(db.raw, message_id);
     const row = db.raw
-      .prepare('SELECT state, delivered_at, acknowledged_at FROM inbound_messages WHERE message_id = ?')
+      .prepare(
+        'SELECT state, delivered_at, acknowledged_at FROM inbound_messages WHERE message_id = ?',
+      )
       .get(message_id) as { state: string; delivered_at: string; acknowledged_at: string };
     expect(row.state).toBe('acknowledged');
     expect(row.delivered_at).toBeTruthy();
@@ -148,7 +150,9 @@ describe('outbound outbox', () => {
       meta: {},
       files: [],
     });
-    const row = db.raw.prepare('SELECT state, attempt_count FROM outbound_messages WHERE message_id = ?').get(msgId) as { state: string; attempt_count: number };
+    const row = db.raw
+      .prepare('SELECT state, attempt_count FROM outbound_messages WHERE message_id = ?')
+      .get(msgId) as { state: string; attempt_count: number };
     expect(row.state).toBe('pending');
     expect(row.attempt_count).toBe(0);
   });
@@ -165,7 +169,11 @@ describe('outbound outbox', () => {
       files: [],
     });
     markOutboundSent(db.raw, msgId, 'tg-789');
-    const row = db.raw.prepare('SELECT state, transport_msg_id, sent_at FROM outbound_messages WHERE message_id = ?').get(msgId) as { state: string; transport_msg_id: string; sent_at: string };
+    const row = db.raw
+      .prepare(
+        'SELECT state, transport_msg_id, sent_at FROM outbound_messages WHERE message_id = ?',
+      )
+      .get(msgId) as { state: string; transport_msg_id: string; sent_at: string };
     expect(row.state).toBe('sent');
     expect(row.transport_msg_id).toBe('tg-789');
     expect(row.sent_at).toBeTruthy();
@@ -183,7 +191,9 @@ describe('outbound outbox', () => {
       files: [],
     });
     markOutboundFailed(db.raw, msgId, 'rate limited');
-    const row = db.raw.prepare('SELECT state, last_error FROM outbound_messages WHERE message_id = ?').get(msgId) as { state: string; last_error: string };
+    const row = db.raw
+      .prepare('SELECT state, last_error FROM outbound_messages WHERE message_id = ?')
+      .get(msgId) as { state: string; last_error: string };
     expect(row.state).toBe('failed');
     expect(row.last_error).toBe('rate limited');
   });
@@ -201,7 +211,9 @@ describe('outbound outbox', () => {
     });
     incrementOutboundAttempt(db.raw, msgId);
     incrementOutboundAttempt(db.raw, msgId);
-    const row = db.raw.prepare('SELECT attempt_count FROM outbound_messages WHERE message_id = ?').get(msgId) as { attempt_count: number };
+    const row = db.raw
+      .prepare('SELECT attempt_count FROM outbound_messages WHERE message_id = ?')
+      .get(msgId) as { attempt_count: number };
     expect(row.attempt_count).toBe(2);
   });
 

@@ -22,7 +22,8 @@ function RailBtn({ icon, active, disabled, onClick, title }: RailBtnProps): JSX.
       className={cn(
         'grid size-9 place-items-center rounded-lg text-fg-3 transition-colors',
         'hover:bg-bg-2 hover:text-fg',
-        active && 'bg-bg-3 text-accent shadow-[inset_0_0_0_1px_var(--line-2)] hover:text-accent hover:bg-bg-3',
+        active &&
+          'bg-bg-3 text-accent shadow-[inset_0_0_0_1px_var(--line-2)] hover:text-accent hover:bg-bg-3',
         disabled && 'opacity-40 cursor-not-allowed hover:bg-transparent hover:text-fg-3',
       )}
     >

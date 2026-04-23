@@ -19,12 +19,13 @@ export function Tweaks({ tweaks, setTweak, onClose }: TweaksProps): JSX.Element 
         className="fixed inset-0 z-[99] bg-black/35 backdrop-blur-[1.5px] animate-scrim-in"
         onClick={onClose}
       />
-      <aside
-        className="fixed bottom-5 right-5 z-[100] flex max-h-[82vh] w-[300px] flex-col overflow-hidden rounded-[12px] border border-accent bg-bg shadow-tweaks animate-tweak-in"
-      >
+      <aside className="fixed bottom-5 right-5 z-[100] flex max-h-[82vh] w-[300px] flex-col overflow-hidden rounded-[12px] border border-accent bg-bg shadow-tweaks animate-tweak-in">
         <div
           className="h-[3px]"
-          style={{ background: 'linear-gradient(90deg, var(--accent), color-mix(in oklab, var(--accent) 50%, transparent))' }}
+          style={{
+            background:
+              'linear-gradient(90deg, var(--accent), color-mix(in oklab, var(--accent) 50%, transparent))',
+          }}
         />
         <div
           className="flex items-center gap-2.5 border-b border-line px-3.5 py-3 text-accent"
@@ -35,7 +36,9 @@ export function Tweaks({ tweaks, setTweak, onClose }: TweaksProps): JSX.Element 
             style={{ background: 'var(--accent)', boxShadow: '0 0 8px var(--accent)' }}
           />
           <Icons.settings size={14} />
-          <span className="flex-1 font-mono text-xs font-bold uppercase tracking-[0.08em]">Tweaks</span>
+          <span className="flex-1 font-mono text-xs font-bold uppercase tracking-[0.08em]">
+            Tweaks
+          </span>
           <button
             type="button"
             onClick={onClose}

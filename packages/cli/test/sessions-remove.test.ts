@@ -3,10 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, mkdirSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runSessionAdd } from '../src/commands/sessions-add.js';
-import {
-  runSessionRemove,
-  SessionNotFoundError,
-} from '../src/commands/sessions-remove.js';
+import { runSessionRemove, SessionNotFoundError } from '../src/commands/sessions-remove.js';
 import { peekSession, scaffoldConfig } from '../src/commands/config-writer.js';
 
 let dir: string;

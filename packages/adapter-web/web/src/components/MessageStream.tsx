@@ -63,9 +63,7 @@ export function MessageStream({
     <div
       ref={scrollRef}
       data-bubble={bubbleVariant}
-      className={cn(
-        'stream-bg flex flex-col gap-3.5 overflow-y-auto px-4 pt-5 pb-2.5 min-h-0',
-      )}
+      className={cn('stream-bg flex flex-col gap-3.5 overflow-y-auto px-4 pt-5 pb-2.5 min-h-0')}
     >
       {items.map((it) =>
         it.kind === 'day' ? (
@@ -83,7 +81,9 @@ export function MessageStream({
             buttons={parseButtons(it.msg) ?? undefined}
             isLatestButtoned={it.msg.messageId === latestButtonedId}
             answeredLabel={answeredByMsgId.get(it.msg.messageId)}
-            onQuickReply={onQuickReply ? (val, label) => onQuickReply(it.msg, val, label) : undefined}
+            onQuickReply={
+              onQuickReply ? (val, label) => onQuickReply(it.msg, val, label) : undefined
+            }
             fileCount={it.msg.files.length}
           />
         ),
