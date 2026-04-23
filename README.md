@@ -42,7 +42,7 @@ Provides three binaries:
 
 | Binary       | Role                                                                |
 | ------------ | ------------------------------------------------------------------- |
-| `reder`      | CLI — init, sessions add/remove, start/stop, status, dashboard, etc. |
+| `reder`      | CLI — init, sessions add/remove/repair/restart, start/stop, status, dashboard, etc. |
 | `rederd`     | Long-running daemon                                                 |
 | `reder-shim` | MCP server Claude Code loads in each project                        |
 
@@ -152,10 +152,17 @@ adapters:
 When `auto_start: true`, on daemon start reder runs the equivalent of:
 
 ```sh
-tmux new-session -d -s <session_id> -c <workspace_dir> 'claude'
+tmux new-session -d -s <session_id> -c <workspace_dir> \
+  'claude --dangerously-load-development-channels server:reder'
 ```
 
 (if no tmux session by that name exists). Each workspace needs `.mcp.json` in place — put it there once with `reder sessions add` run from inside the project directory.
+
+**Requirements for auto-start to actually work:**
+
+- The `claude` binary must be on the daemon's `PATH`. `reder init` generates a systemd user unit that prepends `$HOME/.local/bin` and `$HOME/bin` to the PATH so the Claude Code CLI (installed at `~/.local/bin/claude` by default) is reachable. If you install Claude elsewhere, ensure it's on one of those dirs or edit the unit's `Environment=PATH=…` line.
+- Claude Code 2.1.118+ shows a one-time confirmation dialog for `--dangerously-load-development-channels` on every new session. Reder auto-presses Enter on the dialog ~6s after tmux spawn so daemon-auto-started sessions don't sit at it forever.
+- If a tmux session already exists with the session's name but its pane is no longer running `claude` (e.g. you exited out to a shell), auto-start will **skip** it and the daemon logs a warning naming `reder sessions restart <id>` as remediation. This is deliberate — reder never auto-kills a tmux where you might be working.
 
 ### Web adapter security
 
@@ -181,10 +188,12 @@ reder doctor                      # run diagnostic checks
 reder pair <code>                 # redeem a 6-char Telegram pair code
 reder config validate             # lint config YAML
 
-reder sessions add [id]           # register a session (writes .mcp.json, adds to config)
-reder sessions remove <id>        # remove a session (YAML, DB, .mcp.json)
+reder sessions add [id]           # register a session (writes .mcp.json + .claude/settings.local.json)
+reder sessions remove <id>        # remove a session (YAML, DB, .mcp.json, hook entries)
 reder sessions list               # configured sessions + tmux status
 reder sessions start <id>         # start a tmux session now
+reder sessions restart <id>       # kill stale tmux + re-start (recovers panes where claude exited)
+reder sessions repair <id>        # rewrite .mcp.json and .claude/settings.local.json (use on `unknown` status)
 reder sessions up                 # start every session with a workspace_dir
 
 reder dashboard url               # print the authenticated dashboard URL
