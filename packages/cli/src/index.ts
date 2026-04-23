@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { interactiveInit } from './commands/init.js';
 import { interactiveSessionAdd } from './commands/sessions-add.js';
 import { interactiveSessionRemove } from './commands/sessions-remove.js';
+import { runSessionRepair } from './commands/sessions-repair.js';
 import { runStatus, formatStatus } from './commands/status.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { runPair, formatPairResult } from './commands/pair.js';
@@ -306,6 +307,26 @@ sessions
           `  .mcp.json: ${result.mcpEntryRemoved ? '✓' : '—'}${result.mcpJsonPath ? ` (${result.mcpJsonPath})` : ''}`,
         ];
         for (const w of result.warnings) lines.push(`  warning: ${w}`);
+        process.stdout.write(lines.join('\n') + '\n');
+      }
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+sessions
+  .command('repair <session-id>')
+  .description('re-write .mcp.json and .claude/settings.local.json for a registered session')
+  .action(async (sessionId: string) => {
+    try {
+      const result = await runSessionRepair({ sessionId, ...buildCfgOpts() });
+      if (jsonMode()) {
+        process.stdout.write(JSON.stringify(result) + '\n');
+      } else {
+        const lines = [
+          `Repaired session '${result.sessionId}' (workspace ${result.workspaceDir})`,
+          `  .mcp.json: ${result.mcpJsonPath}${result.tokenRotated ? ' (token rotated)' : ''}`,
+        ];
         process.stdout.write(lines.join('\n') + '\n');
       }
     } catch (err) {
