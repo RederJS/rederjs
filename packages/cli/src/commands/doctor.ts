@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { loadConfigContext } from '../config-loader.js';
 import { fetchHealth } from '../admin-client.js';
 import { ConfigError } from '@rederjs/core/config';
+import { hasClaudeHooks, claudeSettingsPath } from './claude-hooks.js';
 
 export interface DoctorCheck {
   name: string;
@@ -95,6 +96,22 @@ export async function runDoctor(opts: { configPath?: string } = {}): Promise<Doc
         remediation: 'Start rederd with `reder start` or `systemctl --user start reder`.',
       });
     }
+  }
+
+  for (const s of ctx.config.sessions) {
+    if (!s.workspace_dir) continue;
+    const settingsPath = claudeSettingsPath(s.workspace_dir);
+    const present = hasClaudeHooks({ projectDir: s.workspace_dir, sessionId: s.session_id });
+    checks.push({
+      name: `claude hooks for '${s.session_id}'`,
+      pass: present,
+      detail: present ? settingsPath : `missing at ${settingsPath}`,
+      ...(present
+        ? {}
+        : {
+            remediation: `Run 'reder sessions repair ${s.session_id}' to reinstall Claude Code hooks.`,
+          }),
+    });
   }
 
   return checks;
