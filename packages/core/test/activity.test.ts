@@ -141,7 +141,20 @@ describe('SessionActivityTracker', () => {
     expect(tracker.get('s1')?.state).toBe('unknown');
   });
 
-  it('SessionStart resets the working flag just like UserPromptSubmit', () => {
+  it('SessionStart on a fresh shim-connected session derives to idle, not working', () => {
+    // Regression: `reder sessions restart` launches a fresh Claude Code which
+    // fires SessionStart. The UI used to show 'working' even though Claude is
+    // sitting there waiting for the first prompt.
+    tracker.onShimConnected('s1');
+    tracker.onHookEvent({
+      sessionId: 's1',
+      hook: 'SessionStart',
+      timestamp: '2026-04-22T12:00:00Z',
+    });
+    expect(tracker.get('s1')?.state).toBe('idle');
+  });
+
+  it('SessionStart after a completed prompt keeps the session idle', () => {
     tracker.onShimConnected('s1');
     tracker.onHookEvent({
       sessionId: 's1',
@@ -155,7 +168,7 @@ describe('SessionActivityTracker', () => {
       hook: 'SessionStart',
       timestamp: '2026-04-22T12:02:00Z',
     });
-    expect(tracker.get('s1')?.state).toBe('working');
+    expect(tracker.get('s1')?.state).toBe('idle');
   });
 
   it('keeps per-session state isolated', () => {
