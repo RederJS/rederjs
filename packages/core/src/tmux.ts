@@ -61,9 +61,10 @@ export function getPaneCommand(name: string, opts: TmuxRunnerOption = {}): strin
 }
 
 /**
- * Kill a tmux session by name. Returns true if tmux exited 0 (session was
- * killed or didn't exist), false on error. `force: true` suppresses
- * "session not found" stderr noise from the caller's perspective.
+ * Kill a tmux session by name. Returns true when the session existed and was
+ * killed; returns false when tmux exited non-zero (including "session not
+ * found"). Callers who want idempotent semantics should guard with
+ * `isRunning(name)` first, or accept false as "nothing to kill".
  */
 export function killSession(name: string, opts: TmuxRunnerOption = {}): boolean {
   assertValidName(name);
@@ -186,8 +187,10 @@ export function startSession(opts: StartSessionOptions): StartSessionResult {
     // Claude takes a few seconds to render the dialog. Send Enter at 6s, 10s,
     // and 15s to cover variability in startup time. If Claude is already past
     // the dialog, a stray Enter submits an empty prompt which Claude ignores.
+    // `.unref()` so short-lived callers (e.g. `reder sessions up` on a one-shot
+    // CLI invocation) exit promptly — the timers still run in long-lived daemons.
     for (const delayMs of [6000, 10000, 15000]) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         try {
           run(['send-keys', '-t', session_id, 'Enter']);
         } catch (err) {
@@ -197,6 +200,7 @@ export function startSession(opts: StartSessionOptions): StartSessionResult {
           );
         }
       }, delayMs);
+      timer.unref();
     }
   }
 

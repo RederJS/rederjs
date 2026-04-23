@@ -176,7 +176,24 @@ export function runSessionRestart(opts: {
     };
   }
   const wasRunning = isRunning(s.session_id);
-  const killed = wasRunning ? killSession(s.session_id) : false;
+  if (wasRunning) {
+    const killed = killSession(s.session_id);
+    if (!killed) {
+      // kill-session exited non-zero but has-session said it exists. Either a
+      // race (session died between checks — harmless, proceed) or tmux is
+      // unhappy (permissions, socket gone). Re-check: if still running, we
+      // can't restart, so bail instead of quietly reporting 'already_running'.
+      if (isRunning(s.session_id)) {
+        return {
+          session_id: s.session_id,
+          killed: false,
+          started: false,
+          reason: 'kill_failed',
+          error: `could not kill existing tmux session '${s.session_id}'; refusing to start`,
+        };
+      }
+    }
+  }
   const result = startSession({
     session_id: s.session_id,
     workspace_dir: s.workspace_dir,
@@ -184,7 +201,7 @@ export function runSessionRestart(opts: {
   });
   return {
     session_id: s.session_id,
-    killed,
+    killed: wasRunning,
     started: result.started,
     ...(result.reason !== undefined ? { reason: result.reason } : {}),
     ...(result.error !== undefined ? { error: result.error } : {}),
