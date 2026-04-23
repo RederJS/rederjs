@@ -5,7 +5,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "reder-shim": "./dist/index.js"
+    "reder-shim": "./dist/index.js",
+    "reder-hook": "./dist/hook-cli.js"
   },
   "publishConfig": {
     "access": "public"
