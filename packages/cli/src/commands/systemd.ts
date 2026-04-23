@@ -20,9 +20,18 @@ const DEFAULT_SYSTEM_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/
 
 export function renderServiceUnit(opts: RenderServiceUnitOptions): string {
   const { nodePath, binaryPath, configPath } = opts;
-  // systemd user's PATH is minimal; prepend the node install dir so the daemon
-  // and its subprocesses (tmux, etc.) can find colocated tools.
-  const servicePath = `${dirname(nodePath)}:${DEFAULT_SYSTEM_PATH}`;
+  // systemd user's PATH is minimal; prepend the node install dir AND the
+  // user-local bin dirs (~/.local/bin, ~/bin) so the daemon's subprocesses
+  // (tmux → claude, etc.) can find tools installed by npm i -g, pipx, curl
+  // installers, and similar. Without these, the daemon can spawn tmux but
+  // tmux fails to find `claude` and the sessions die immediately.
+  const home = homedir();
+  const servicePath = [
+    dirname(nodePath),
+    join(home, '.local', 'bin'),
+    join(home, 'bin'),
+    DEFAULT_SYSTEM_PATH,
+  ].join(':');
   // Invoke node directly on the script to bypass `#!/usr/bin/env node`, which
   // relies on PATH resolution that can differ under systemd.
   return (
