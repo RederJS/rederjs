@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, chmodSync, mkdirSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import prompts from 'prompts';
 import { openDatabase } from '@rederjs/core/storage/db';
 import { createSession } from '@rederjs/core/sessions';
@@ -19,6 +20,24 @@ const PERMISSION_MODE_CHOICES: ReadonlyArray<{ title: string; value: PermissionM
   { title: 'dontAsk — skip permission prompts', value: 'dontAsk' },
   { title: 'bypassPermissions — bypass all permission checks', value: 'bypassPermissions' },
 ];
+
+function resolveHookCommand(): string {
+  // Claude Code runs hooks via /bin/sh -c, which may not have npm's global bin
+  // on PATH (systemd user services, desktop-launched Claude, etc.). Resolve to
+  // an absolute path at install time so the hook works regardless of the
+  // shell's PATH. Fall back to bare 'reder-hook' if resolution fails.
+  // Static argv (no user input) — no injection surface.
+  try {
+    const out = execFileSync('/usr/bin/env', ['which', 'reder-hook'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (out.length > 0 && out.startsWith('/')) return out;
+  } catch {
+    // `which` not found or reder-hook not on PATH at install time.
+  }
+  return 'reder-hook';
+}
 
 export class ConfigNotFoundError extends Error {
   override readonly name = 'ConfigNotFoundError';
@@ -156,7 +175,7 @@ export async function runSessionAdd(opts: SessionAddOptions): Promise<SessionAdd
       installClaudeHooks({
         projectDir,
         sessionId: opts.sessionId,
-        hookCommand: 'reder-hook',
+        hookCommand: resolveHookCommand(),
         socketPath,
         token,
       });
