@@ -1,14 +1,8 @@
 import type { SessionSummary } from './api';
 import type { Status } from './types';
 
-const BUSY_WINDOW_MS = 2 * 60_000;
-
-export function deriveStatus(s: SessionSummary): Status {
-  if (!s.tmux_running) return 'offline';
-  if (s.unread > 0) return 'waiting';
-  const last = s.last_outbound_at ? Date.parse(s.last_outbound_at) : 0;
-  if (last && Date.now() - last < BUSY_WINDOW_MS) return 'busy';
-  return 'idle';
+export function sessionStatus(s: SessionSummary): Status {
+  return s.activity_state;
 }
 
 export function initials(name: string): string {

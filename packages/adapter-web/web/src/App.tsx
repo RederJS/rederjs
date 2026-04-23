@@ -5,7 +5,7 @@ import { Rail } from './components/Rail';
 import { SessionGrid } from './components/SessionGrid';
 import { Topbar } from './components/Topbar';
 import { Tweaks } from './components/Tweaks';
-import { deriveStatus } from './derive';
+import { sessionStatus } from './derive';
 import { useSessionsState } from './hooks/useSessionsState';
 import { useTweaks } from './hooks/useTweaks';
 import { navigate, parseRoute, useHashRoute } from './router';
@@ -35,8 +35,8 @@ export function App(): JSX.Element {
     }
   }, [selectedId, selectedSession, sessions.length]);
 
-  const waitingCount = useMemo(
-    () => sessions.filter((s) => deriveStatus(s) === 'waiting').length,
+  const attentionCount = useMemo(
+    () => sessions.filter((s) => sessionStatus(s) === 'awaiting-user').length,
     [sessions],
   );
 
@@ -91,7 +91,7 @@ export function App(): JSX.Element {
       <main className="relative grid min-h-0 min-w-0" style={{ gridTemplateRows: 'auto 1fr' }}>
         <Topbar
           sessionsCount={sessions.length}
-          waitingCount={waitingCount}
+          waitingCount={attentionCount}
           search={search}
           onSearchChange={setSearch}
           onNewSession={() => void handleNewSession()}

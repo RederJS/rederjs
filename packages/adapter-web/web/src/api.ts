@@ -10,6 +10,10 @@ export interface SessionSummary {
   last_inbound_at: string | null;
   last_outbound_at: string | null;
   unread: number;
+  activity_state: 'working' | 'awaiting-user' | 'idle' | 'unknown' | 'offline';
+  activity_since: string | null;
+  last_hook: string | null;
+  last_hook_at: string | null;
 }
 
 export interface TranscriptMessage {
@@ -67,6 +71,11 @@ export async function sendMessage(sessionId: string, content: string): Promise<v
 export async function startSession(sessionId: string): Promise<{ started: boolean; reason?: string; error?: string }> {
   const res = await fetch(`/api/sessions/${sessionId}/start`, { method: 'POST' });
   return (await jsonOrThrow(res)) as { started: boolean; reason?: string; error?: string };
+}
+
+export async function repairSession(sessionId: string): Promise<void> {
+  const res = await fetch(`/api/sessions/${sessionId}/repair`, { method: 'POST' });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 }
 
 export async function resolvePermission(

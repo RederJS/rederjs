@@ -1,4 +1,4 @@
-export type Status = 'waiting' | 'busy' | 'idle' | 'offline';
+export type Status = 'working' | 'awaiting-user' | 'idle' | 'unknown' | 'offline';
 
 export type Theme = 'dark' | 'light';
 

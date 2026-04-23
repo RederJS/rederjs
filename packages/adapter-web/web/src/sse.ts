@@ -18,6 +18,7 @@ export function useEventStream(url: string | null, handler: SseHandler): void {
       'permission.resolved',
       'permission.cancelled',
       'session.state_changed',
+      'session.activity_changed',
     ];
 
     const listeners = events.map((name) => {

@@ -78,7 +78,13 @@ export function useSessionsState(): SessionsState {
   }, [refresh]);
 
   useEventStream('/api/stream', (name, data) => {
-    if (name === 'inbound' || name === 'outbound' || name === 'outbound.persisted' || name === 'session.state_changed') {
+    if (
+      name === 'inbound' ||
+      name === 'outbound' ||
+      name === 'outbound.persisted' ||
+      name === 'session.state_changed' ||
+      name === 'session.activity_changed'
+    ) {
       void refresh();
       if (name === 'outbound' || name === 'outbound.persisted') {
         const payload = data as { sessionId?: string } | undefined;
