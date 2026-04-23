@@ -246,7 +246,11 @@ export class WebAdapter extends Adapter {
       });
       // Bump unread unless it's from this adapter (user typed it in).
       if (p.adapter !== this.name) {
-        void incrementUnread(this.ctx.storage, p.sessionId).catch(() => {});
+        void incrementUnread(this.ctx.storage, p.sessionId)
+          .then((n) => {
+            this.ctx.router.notifyUnread(p.sessionId, n);
+          })
+          .catch(() => {});
       }
     };
     const onOutbound = (p: OutboundPersistedPayload): void => {
@@ -274,12 +278,19 @@ export class WebAdapter extends Adapter {
         data: p,
       });
     };
+    const onActivity = (p: import('@rederjs/core/adapter').SessionActivityChangedPayload): void => {
+      this.sse.broadcast({
+        event: 'session.activity_changed',
+        data: p,
+      });
+    };
 
     events.on('inbound.persisted', onInbound);
     events.on('outbound.persisted', onOutbound);
     events.on('permission.requested', onPermReq);
     events.on('permission.resolved', onPermRes);
     events.on('session.state_changed', onState);
+    events.on('session.activity_changed', onActivity);
 
     this.unsubscribers.push(
       () => events.off('inbound.persisted', onInbound),
@@ -287,6 +298,7 @@ export class WebAdapter extends Adapter {
       () => events.off('permission.requested', onPermReq),
       () => events.off('permission.resolved', onPermRes),
       () => events.off('session.state_changed', onState),
+      () => events.off('session.activity_changed', onActivity),
     );
 
     // Suppress unused-variable warnings.

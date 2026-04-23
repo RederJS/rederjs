@@ -176,6 +176,17 @@ describe('adapter-web http surface', () => {
     expect(afterBody.unread).toBe(0);
   });
 
+  it('includes activity_state in /api/sessions', async () => {
+    const res = await fetch(`${baseUrl}/api/sessions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = (await res.json()) as { sessions: Array<{ activity_state: string }> };
+    expect(res.status).toBe(200);
+    for (const s of body.sessions) {
+      expect(['working', 'awaiting-user', 'idle', 'unknown', 'offline']).toContain(s.activity_state);
+    }
+  });
+
   it('POST /api/sessions/:id/start errors when workspace_dir is missing on disk', async () => {
     const res = await fetch(`${baseUrl}/api/sessions/demo/start`, {
       method: 'POST',
