@@ -48,11 +48,7 @@ interface ActiveEntry {
 }
 
 function canonicalSignature(toolName: string, inputPreview: string): string {
-  return createHash('sha256')
-    .update(toolName)
-    .update('\0')
-    .update(inputPreview)
-    .digest('hex');
+  return createHash('sha256').update(toolName).update('\0').update(inputPreview).digest('hex');
 }
 
 export class PermissionManager {

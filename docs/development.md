@@ -46,12 +46,10 @@ The three binaries — `reder`, `rederd`, `reder-shim` — all live in `packages
 ### 1. Link the workspace bins (one-time)
 
 ```sh
-npm link -w rederjs
-npm link -w @rederjs/daemon
-npm link -w @rederjs/shim
+npm run link
 ```
 
-Confirm:
+That's shorthand for linking `rederjs`, `@rederjs/daemon`, and `@rederjs/shim` into your global npm prefix. Confirm:
 
 ```sh
 which reder rederd reder-shim
@@ -63,11 +61,10 @@ Linking `@rederjs/shim` isn't optional, even if you're only hacking on the daemo
 ### 2. Keep TypeScript watching
 
 ```sh
-npx tsc -b packages/core packages/cli packages/daemon packages/shim \
-        packages/adapter-telegram packages/adapter-web --watch
+npm run watch
 ```
 
-Leave that running in a terminal. On each save it re-emits only the affected packages.
+(`npm run dev` is an alias.) This runs `tsc -b` across every package in watch mode. Leave it running in a terminal — on each save it re-emits only the affected packages.
 
 ### 3. Iterate
 
@@ -84,6 +81,36 @@ npm run build -w @rederjs/core
 
 That invokes `tsc` plus the `cpSync` step in core's `build` script.
 
+### Session activity hooks
+
+Reder installs three Claude Code hooks per session (`SessionStart`, `UserPromptSubmit`, `Stop`) into `<workspace>/.claude/settings.local.json`. They invoke the `reder-hook` binary, which forwards the lifecycle event to the daemon so the dashboard can tell the difference between a session that is working and one that needs attention.
+
+The installed hook command is rendered with an **absolute path to `reder-hook`** (resolved via `which reder-hook` at install time), so it works even in contexts where PATH is minimal (systemd, desktop-launched Claude, hooks fired from restricted shells). If you move or reinstall reder, re-run `reder sessions repair <id>` to regenerate the hook block with the new path.
+
+If a session shows `unknown` in the dashboard, the hook block is missing or stale. Run:
+
+    reder sessions repair <session-id>
+
+to re-install it. `reder doctor` reports which sessions are missing hooks.
+
+To debug hook invocations, set `REDER_HOOK_DEBUG=1` in Claude Code's environment — the `reder-hook` binary will emit stderr lines describing socket connect failures or fatal errors. Default (unset) behavior is silent so hooks never break Claude's flow.
+
+### MCP channel-delivery instructions
+
+The shim's MCP server advertises explicit `instructions` on the initialize handshake telling Claude how to handle `<channel source="reder">…</channel>` user turns: load `mcp__reder__reply` via ToolSearch if deferred, then call it with a 5-letter `request_id` and the reply content. Claude Code surfaces these as `mcp_instructions_delta` in the session transcript. Without this, Claude treats channel messages as ordinary user input and responds with plain text that stays in the local tmux (instead of routing back through reder).
+
+For channel delivery to actually land, the Claude Code process must be spawned with **both** `--dangerously-load-development-channels` and `server:reder` as its argument (a variadic value). Reder's default auto-start command includes this. Claude 2.1.118+ shows a one-time confirmation dialog for this flag — reder's tmux start-session helper auto-presses Enter on the dialog at 6s / 10s / 15s after spawn so daemon-auto-started sessions don't hang.
+
+`--channels server:reder` alone (without the dangerous flag) does **not** work: Claude accepts the flag but prints `server: entries need --dangerously-load-development-channels` and declines to listen.
+
+### Stale-tmux recovery
+
+Auto-start detects "tmux session exists but its pane isn't running `claude`" on each daemon boot and logs a warning pointing at:
+
+    reder sessions restart <session-id>
+
+The restart command kills the stale tmux (losing any shell history in it) and relaunches with the configured permission mode. Auto-start never kills tmux on its own — a tmux with a live shell might be the user's deliberate workspace.
+
 ## Dashboard UI with hot reload
 
 The React SPA has its own Vite dev server that proxies `/api` to the real daemon, so you get HMR against live data:
@@ -93,8 +120,10 @@ The React SPA has its own Vite dev server that proxies `/api` to the real daemon
 reder start
 
 # terminal 2
-npm run dev:web -w @rederjs/adapter-web
+npm run dev:web
 ```
+
+(That's an alias for `npm run dev:web -w @rederjs/adapter-web`.)
 
 Open the URL Vite prints. API calls hit `127.0.0.1:7781` (your dev daemon); SPA code reloads on save.
 
@@ -141,7 +170,7 @@ Run these before opening a PR.
 ## Cleanup
 
 ```sh
-npm unlink -g rederjs @rederjs/daemon @rederjs/shim
+npm run unlink
 ```
 
 After that, `which reder` should report "not found" again (or point at a previously-installed published version).

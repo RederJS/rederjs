@@ -1,11 +1,7 @@
 import { dirname } from 'node:path';
 import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
-import {
-  Adapter,
-  type AdapterContext,
-  type RouterHandle,
-} from '@rederjs/core/adapter';
+import { Adapter, type AdapterContext, type RouterHandle } from '@rederjs/core/adapter';
 import { createAdapterStorage } from '@rederjs/core/storage/kv';
 import type { AuditLog } from '@rederjs/core/audit';
 import type { Config } from '@rederjs/core/config';
@@ -23,6 +19,7 @@ export interface AdapterHostDeps {
   dataDir: string;
   resolveModule: (spec: string) => Promise<AdapterFactory>;
   healthSnapshot?: () => Promise<unknown>;
+  repairSession?: (sessionId: string) => Promise<void>;
 }
 
 export interface LoadedAdapter {
@@ -62,7 +59,10 @@ export async function createAdapterHost(deps: AdapterHostDeps): Promise<AdapterH
 
   for (const [name, cfg] of Object.entries(deps.config.adapters)) {
     if (!cfg.enabled) continue;
-    const adapterLogger = deps.logger.child({ component: `adapter.${name}`, adapter_module: cfg.module });
+    const adapterLogger = deps.logger.child({
+      component: `adapter.${name}`,
+      adapter_module: cfg.module,
+    });
     try {
       const factory = await deps.resolveModule(cfg.module);
       const adapter = await factory(cfg.config);
@@ -72,7 +72,11 @@ export async function createAdapterHost(deps: AdapterHostDeps): Promise<AdapterH
       }
     } catch (err) {
       adapterLogger.error({ err }, 'failed to load adapter; skipping');
-      deps.audit.write({ kind: 'adapter_start', adapter: name, details: { error: String(err), failed: true } });
+      deps.audit.write({
+        kind: 'adapter_start',
+        adapter: name,
+        details: { error: String(err), failed: true },
+      });
     }
   }
 
@@ -97,6 +101,7 @@ export async function createAdapterHost(deps: AdapterHostDeps): Promise<AdapterH
           })),
           db: deps.db,
           ...(deps.healthSnapshot ? { healthSnapshot: deps.healthSnapshot } : {}),
+          ...(deps.repairSession ? { repairSession: deps.repairSession } : {}),
         };
         try {
           await entry.adapter.start(ctx);

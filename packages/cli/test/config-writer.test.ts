@@ -134,13 +134,33 @@ describe('peekSession', () => {
       displayName: 'X',
       workspaceDir: '/tmp/x',
       autoStart: true,
+      permissionMode: 'default',
     });
     expect(peekSession({ configPath, sessionId: 'x' })).toEqual({
       session_id: 'x',
       display_name: 'X',
       workspace_dir: '/tmp/x',
       auto_start: true,
+      permission_mode: 'default',
     });
+  });
+
+  it('coerces unknown permission_mode in YAML back to default', () => {
+    writeFileSync(
+      configPath,
+      `version: 1
+runtime: { runtime_dir: ${join(dir, 'rt')}, data_dir: ${join(dir, 'data')} }
+sessions:
+  - session_id: legacy
+    display_name: Legacy
+    workspace_dir: /tmp/legacy
+    auto_start: false
+    permission_mode: bogus
+adapters: {}
+`,
+    );
+    const p = peekSession({ configPath, sessionId: 'legacy' });
+    expect(p?.permission_mode).toBe('default');
   });
 });
 
@@ -156,6 +176,7 @@ describe('upsertSession', () => {
       displayName: 'S1',
       workspaceDir: '/tmp/s1',
       autoStart: false,
+      permissionMode: 'default',
     });
     expect(r.kind).toBe('created');
     const peeked = peekSession({ configPath, sessionId: 's1' });
@@ -164,7 +185,22 @@ describe('upsertSession', () => {
       display_name: 'S1',
       workspace_dir: '/tmp/s1',
       auto_start: false,
+      permission_mode: 'default',
     });
+  });
+
+  it('persists a non-default permission_mode to YAML', () => {
+    upsertSession({
+      configPath,
+      sessionId: 'planner',
+      displayName: 'Planner',
+      workspaceDir: '/tmp/p',
+      autoStart: false,
+      permissionMode: 'plan',
+    });
+    const text = readFileSync(configPath, 'utf8');
+    expect(text).toContain('permission_mode: plan');
+    expect(peekSession({ configPath, sessionId: 'planner' })?.permission_mode).toBe('plan');
   });
 
   it('is a no-op when all fields match', () => {
@@ -174,6 +210,7 @@ describe('upsertSession', () => {
       displayName: 'S1',
       workspaceDir: '/tmp/s1',
       autoStart: false,
+      permissionMode: 'default',
     });
     const r = upsertSession({
       configPath,
@@ -181,6 +218,7 @@ describe('upsertSession', () => {
       displayName: 'S1',
       workspaceDir: '/tmp/s1',
       autoStart: false,
+      permissionMode: 'default',
     });
     expect(r.kind).toBe('updated_same');
   });
@@ -192,6 +230,7 @@ describe('upsertSession', () => {
       displayName: 'S1',
       workspaceDir: '/tmp/old',
       autoStart: false,
+      permissionMode: 'default',
     });
     const r = upsertSession({
       configPath,
@@ -199,8 +238,29 @@ describe('upsertSession', () => {
       displayName: 'S1',
       workspaceDir: '/tmp/new',
       autoStart: false,
+      permissionMode: 'default',
     });
     expect(r).toEqual({ kind: 'updated_workspace_dir', previous: '/tmp/old' });
+  });
+
+  it('updates permission_mode and reports previous', () => {
+    upsertSession({
+      configPath,
+      sessionId: 's1',
+      displayName: 'S1',
+      workspaceDir: '/tmp/s1',
+      autoStart: false,
+      permissionMode: 'default',
+    });
+    const r = upsertSession({
+      configPath,
+      sessionId: 's1',
+      displayName: 'S1',
+      workspaceDir: '/tmp/s1',
+      autoStart: false,
+      permissionMode: 'bypassPermissions',
+    });
+    expect(r).toEqual({ kind: 'updated_permission_mode', previous: 'default' });
   });
 
   it('migrates an old entry missing workspace_dir', () => {
@@ -222,10 +282,12 @@ adapters: {}
       displayName: 'Legacy',
       workspaceDir: '/tmp/legacy',
       autoStart: false,
+      permissionMode: 'default',
     });
     expect(r).toEqual({ kind: 'updated_workspace_dir', previous: undefined });
     const p = peekSession({ configPath, sessionId: 'legacy' });
     expect(p?.workspace_dir).toBe('/tmp/legacy');
+    expect(p?.permission_mode).toBe('default');
   });
 
   it('preserves unrelated comments when updating sessions', () => {
@@ -246,6 +308,7 @@ adapters: {}
       displayName: 'S1',
       workspaceDir: '/tmp/s1',
       autoStart: false,
+      permissionMode: 'default',
     });
     const text = readFileSync(configPath, 'utf8');
     expect(text).toContain('# top-level comment about logging');
@@ -406,9 +469,8 @@ describe('telegram allowlist', () => {
   });
 
   it('rejects non-numeric user ids', () => {
-    expect(() =>
-      addTelegramAllowlistUser({ configPath, userId: '@alice' }),
-    ).toThrow(/numeric Telegram user_id/);
+    expect(() => addTelegramAllowlistUser({ configPath, userId: '@alice' })).toThrow(
+      /numeric Telegram user_id/,
+    );
   });
 });
-

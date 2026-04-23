@@ -23,9 +23,7 @@ export class InvalidTmuxName extends Error {
 
 function assertValidName(name: string): void {
   if (!TMUX_TARGET_RE.test(name)) {
-    throw new InvalidTmuxName(
-      `invalid tmux session name '${name}' (must match ${TMUX_TARGET_RE})`,
-    );
+    throw new InvalidTmuxName(`invalid tmux session name '${name}' (must match ${TMUX_TARGET_RE})`);
   }
 }
 
@@ -46,6 +44,38 @@ export function isRunning(name: string, opts: TmuxRunnerOption = {}): boolean {
   return result.status === 0;
 }
 
+/**
+ * Return the current command running in the first pane of a tmux session,
+ * or null if the session doesn't exist. Useful for detecting "tmux alive
+ * but its process (e.g. `claude`) has since exited" — where `isRunning`
+ * returns true but the session is effectively stale.
+ */
+export function getPaneCommand(name: string, opts: TmuxRunnerOption = {}): string | null {
+  assertValidName(name);
+  const run = opts.runner ?? defaultRunner;
+  const result = run(['list-panes', '-F', '#{pane_current_command}', '-t', name]);
+  if (result.status !== 0) return null;
+  const out = result.stdout?.toString('utf8') ?? '';
+  const first = out
+    .split('\n')
+    .map((s) => s.trim())
+    .find((s) => s.length > 0);
+  return first ?? null;
+}
+
+/**
+ * Kill a tmux session by name. Returns true when the session existed and was
+ * killed; returns false when tmux exited non-zero (including "session not
+ * found"). Callers who want idempotent semantics should guard with
+ * `isRunning(name)` first, or accept false as "nothing to kill".
+ */
+export function killSession(name: string, opts: TmuxRunnerOption = {}): boolean {
+  assertValidName(name);
+  const run = opts.runner ?? defaultRunner;
+  const result = run(['kill-session', '-t', name]);
+  return result.status === 0;
+}
+
 export function listRunning(opts: TmuxRunnerOption = {}): string[] {
   const run = opts.runner ?? defaultRunner;
   const result = run(['list-sessions', '-F', '#{session_name}']);
@@ -59,12 +89,35 @@ export function listRunning(opts: TmuxRunnerOption = {}): string[] {
 
 export type StartReason = 'already_running' | 'missing_dir' | 'tmux_error' | 'invalid_name';
 
+export const PERMISSION_MODES = [
+  'default',
+  'plan',
+  'acceptEdits',
+  'auto',
+  'dontAsk',
+  'bypassPermissions',
+] as const;
+export type PermissionMode = (typeof PERMISSION_MODES)[number];
+
 export interface StartSessionOptions extends TmuxRunnerOption {
   session_id: string;
   workspace_dir: string;
-  command?: string;
+  command?: readonly string[];
+  permission_mode?: PermissionMode;
   env?: Record<string, string>;
   logger?: Logger;
+}
+
+export const DEFAULT_CLAUDE_COMMAND: readonly string[] = [
+  'claude',
+  '--dangerously-load-development-channels',
+  'server:reder',
+];
+
+function buildDefaultCommand(mode: PermissionMode | undefined): readonly string[] {
+  if (mode === undefined || mode === 'default') return DEFAULT_CLAUDE_COMMAND;
+  const [head, ...rest] = DEFAULT_CLAUDE_COMMAND;
+  return [head!, '--permission-mode', mode, ...rest];
 }
 
 export interface StartSessionResult {
@@ -75,7 +128,7 @@ export interface StartSessionResult {
 
 export function startSession(opts: StartSessionOptions): StartSessionResult {
   const { session_id, workspace_dir } = opts;
-  const command = opts.command ?? 'claude';
+  const command = opts.command ?? buildDefaultCommand(opts.permission_mode);
 
   try {
     assertValidName(session_id);
@@ -108,7 +161,7 @@ export function startSession(opts: StartSessionOptions): StartSessionResult {
       args.push('-e', `${k}=${v}`);
     }
   }
-  args.push(command);
+  args.push(...command);
 
   const result = run(args);
   if (result.status !== 0) {
@@ -121,9 +174,39 @@ export function startSession(opts: StartSessionOptions): StartSessionResult {
   }
 
   opts.logger?.info(
-    { session_id, dir, command, component: 'core.tmux' },
+    { session_id, dir, command: command.join(' '), component: 'core.tmux' },
     'started tmux session',
   );
+
+  // Claude 2.1.118+ shows a "WARNING: Loading development channels" confirmation
+  // dialog when --dangerously-load-development-channels is passed. It requires
+  // the user to press Enter (or Esc to cancel) before Claude starts listening
+  // for channel events. Auto-confirm it a few seconds after spawn so
+  // daemon-auto-started sessions don't sit at the dialog forever. If Claude
+  // has already moved past the dialog (or a future version doesn't show it),
+  // a stray Enter in the empty prompt is harmless.
+  const needsAutoConfirm = command.includes('--dangerously-load-development-channels');
+  if (needsAutoConfirm) {
+    // Claude takes a few seconds to render the dialog. Send Enter at 6s, 10s,
+    // and 15s to cover variability in startup time. If Claude is already past
+    // the dialog, a stray Enter submits an empty prompt which Claude ignores.
+    // `.unref()` so short-lived callers (e.g. `reder sessions up` on a one-shot
+    // CLI invocation) exit promptly — the timers still run in long-lived daemons.
+    for (const delayMs of [6000, 10000, 15000]) {
+      const timer = setTimeout(() => {
+        try {
+          run(['send-keys', '-t', session_id, 'Enter']);
+        } catch (err) {
+          opts.logger?.debug(
+            { session_id, err, component: 'core.tmux' },
+            'dev-channels auto-confirm send-keys failed (non-fatal)',
+          );
+        }
+      }, delayMs);
+      timer.unref();
+    }
+  }
+
   return { started: true };
 }
 

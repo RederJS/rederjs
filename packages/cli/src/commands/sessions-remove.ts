@@ -7,6 +7,7 @@ import { loadConfigContext } from '../config-loader.js';
 import { defaultConfigPath } from '../paths.js';
 import { peekSession, removeSession } from './config-writer.js';
 import { ConfigNotFoundError } from './sessions-add.js';
+import { removeClaudeHooks } from './claude-hooks.js';
 
 export class SessionNotFoundError extends Error {
   override readonly name = 'SessionNotFoundError';
@@ -78,6 +79,19 @@ export function runSessionRemove(opts: SessionRemoveOptions): SessionRemoveResul
       }
     } catch (err) {
       warnings.push(`failed to update ${mcpJsonPath}: ${(err as Error).message}`);
+    }
+
+    try {
+      if (existsSync(existing.workspace_dir)) {
+        removeClaudeHooks({
+          projectDir: existing.workspace_dir,
+          sessionId: opts.sessionId,
+        });
+      }
+    } catch (err) {
+      warnings.push(
+        `failed to strip Claude hooks in ${existing.workspace_dir}/.claude: ${(err as Error).message}`,
+      );
     }
   }
 

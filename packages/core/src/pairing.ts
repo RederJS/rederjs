@@ -63,7 +63,13 @@ export function lookupPairCode(db: Db, code: string): PairCodeRecord | null {
       'SELECT code, adapter, sender_id, sender_metadata, expires_at FROM pair_codes WHERE code = ?',
     )
     .get(code) as
-    | { code: string; adapter: string; sender_id: string; sender_metadata: string | null; expires_at: string }
+    | {
+        code: string;
+        adapter: string;
+        sender_id: string;
+        sender_metadata: string | null;
+        expires_at: string;
+      }
     | undefined;
   if (!row) return null;
   if (new Date(row.expires_at).getTime() < Date.now()) return null;
@@ -71,7 +77,9 @@ export function lookupPairCode(db: Db, code: string): PairCodeRecord | null {
     code: row.code,
     adapter: row.adapter,
     senderId: row.sender_id,
-    senderMetadata: row.sender_metadata ? (JSON.parse(row.sender_metadata) as Record<string, unknown>) : null,
+    senderMetadata: row.sender_metadata
+      ? (JSON.parse(row.sender_metadata) as Record<string, unknown>)
+      : null,
     expiresAt: row.expires_at,
   };
 }
@@ -81,7 +89,9 @@ export function consumePairCode(db: Db, code: string): void {
 }
 
 export function purgeExpiredPairCodes(db: Db): number {
-  const result = db.prepare('DELETE FROM pair_codes WHERE expires_at < ?').run(new Date().toISOString());
+  const result = db
+    .prepare('DELETE FROM pair_codes WHERE expires_at < ?')
+    .run(new Date().toISOString());
   return Number(result.changes);
 }
 
@@ -100,7 +110,12 @@ export interface Binding {
 
 export function createBinding(
   db: Db,
-  params: { sessionId: string; adapter: string; senderId: string; metadata?: Record<string, unknown> },
+  params: {
+    sessionId: string;
+    adapter: string;
+    senderId: string;
+    metadata?: Record<string, unknown>;
+  },
 ): Binding {
   const bindingId = randomUUID();
   const createdAt = new Date().toISOString();
@@ -130,7 +145,12 @@ export function createBinding(
  */
 export function upsertBinding(
   db: Db,
-  params: { sessionId: string; adapter: string; senderId: string; metadata?: Record<string, unknown> },
+  params: {
+    sessionId: string;
+    adapter: string;
+    senderId: string;
+    metadata?: Record<string, unknown>;
+  },
 ): Binding {
   const existing = getBinding(db, params.adapter, params.senderId, params.sessionId);
   if (existing) {
@@ -138,12 +158,7 @@ export function upsertBinding(
       db.prepare(
         `UPDATE bindings SET metadata = ?
            WHERE adapter = ? AND sender_id = ? AND session_id = ?`,
-      ).run(
-        JSON.stringify(params.metadata),
-        params.adapter,
-        params.senderId,
-        params.sessionId,
-      );
+      ).run(JSON.stringify(params.metadata), params.adapter, params.senderId, params.sessionId);
       return {
         ...existing,
         metadata: params.metadata,
@@ -167,7 +182,14 @@ export function getBinding(
         WHERE adapter = ? AND sender_id = ? AND session_id = ?`,
     )
     .get(adapter, senderId, sessionId) as
-    | { binding_id: string; session_id: string; adapter: string; sender_id: string; created_at: string; metadata: string | null }
+    | {
+        binding_id: string;
+        session_id: string;
+        adapter: string;
+        sender_id: string;
+        created_at: string;
+        metadata: string | null;
+      }
     | undefined;
   if (!row) return null;
   return {
@@ -180,12 +202,7 @@ export function getBinding(
   };
 }
 
-export function isPaired(
-  db: Db,
-  adapter: string,
-  senderId: string,
-  sessionId: string,
-): boolean {
+export function isPaired(db: Db, adapter: string, senderId: string, sessionId: string): boolean {
   return getBinding(db, adapter, senderId, sessionId) !== null;
 }
 

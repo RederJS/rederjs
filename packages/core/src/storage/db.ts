@@ -16,7 +16,6 @@ export interface OpenDatabaseOptions {
 }
 
 function runSql(db: Db, sql: string): void {
-  // eslint-disable-next-line no-useless-call
   db.exec.call(db, sql);
 }
 
@@ -58,9 +57,7 @@ function applyMigrations(db: Db, dir: string): void {
     ),
   );
 
-  const record = db.prepare(
-    'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-  );
+  const record = db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)');
 
   for (const file of files) {
     const match = /^(\d+)_/.exec(file);

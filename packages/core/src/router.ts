@@ -30,6 +30,7 @@ import type {
 } from './ipc/server.js';
 import type { AuditLog } from './audit.js';
 import { PermissionManager, type PermissionManagerOptions } from './permissions.js';
+import { SessionActivityTracker, type SessionActivitySnapshot } from './activity.js';
 import {
   lookupPairCode,
   consumePairCode,
@@ -92,6 +93,19 @@ export function createRouter(opts: RouterOptions): Router {
     },
   };
 
+  const activity = new SessionActivityTracker();
+  const activityListener = (snap: SessionActivitySnapshot): void => {
+    const payload: RouterEventMap['session.activity_changed'] = {
+      sessionId: snap.sessionId,
+      state: snap.state,
+      since: snap.since,
+      ...(snap.lastHook !== undefined ? { lastHook: snap.lastHook } : {}),
+      ...(snap.lastHookAt !== undefined ? { lastHookAt: snap.lastHookAt } : {}),
+    };
+    emit('session.activity_changed', payload);
+  };
+  activity.on('changed', activityListener);
+
   const permissions = new PermissionManager({
     db,
     adapters: {
@@ -119,6 +133,7 @@ export function createRouter(opts: RouterOptions): Router {
       });
     },
     onResolved: (info) => {
+      activity.onPermissionResolved(info.sessionId, info.requestId);
       emit('permission.resolved', info);
     },
   });
@@ -126,12 +141,22 @@ export function createRouter(opts: RouterOptions): Router {
   // IPC event wiring -----------------------------------------------------------
 
   ipcServer.on('shim_connected', (sessionId) => {
+    activity.onShimConnected(sessionId);
     emit('session.state_changed', { sessionId, state: 'connected' });
     void flushPendingForSession(sessionId);
   });
 
   ipcServer.on('shim_disconnected', (sessionId) => {
+    activity.onShimDisconnected(sessionId);
     emit('session.state_changed', { sessionId, state: 'disconnected' });
+  });
+
+  ipcServer.on('hook_event', (evt) => {
+    activity.onHookEvent({
+      sessionId: evt.session_id,
+      hook: evt.hook,
+      timestamp: evt.timestamp,
+    });
   });
 
   ipcServer.on('channel_ack', (evt: ChannelAckEvent) => {
@@ -146,6 +171,7 @@ export function createRouter(opts: RouterOptions): Router {
     const expiresAt = new Date(
       Date.now() + (opts.permissions?.timeoutSeconds ?? 600) * 1000,
     ).toISOString();
+    activity.onPermissionRequested(evt.session_id, evt.request_id);
     emit('permission.requested', {
       requestId: evt.request_id,
       sessionId: evt.session_id,
@@ -163,7 +189,12 @@ export function createRouter(opts: RouterOptions): Router {
 
   // Inbound path ---------------------------------------------------------------
 
-  async function deliverInbound(sessionId: string, messageId: string, content: string, meta: Record<string, string>): Promise<void> {
+  async function deliverInbound(
+    sessionId: string,
+    messageId: string,
+    content: string,
+    meta: Record<string, string>,
+  ): Promise<void> {
     const sent = ipcServer.sendToSession(sessionId, {
       kind: 'channel_event',
       message_id: messageId,
@@ -188,7 +219,10 @@ export function createRouter(opts: RouterOptions): Router {
 
   // Outbound path --------------------------------------------------------------
 
-  function resolveRecipient(sessionId: string, inReplyTo?: string): { adapter: string; recipient: string } | null {
+  function resolveRecipient(
+    sessionId: string,
+    inReplyTo?: string,
+  ): { adapter: string; recipient: string } | null {
     if (inReplyTo) {
       const row = db
         .prepare(
@@ -376,8 +410,9 @@ export function createRouter(opts: RouterOptions): Router {
           senderId: rec.senderId,
         };
         if (rec.senderMetadata) payload.metadata = rec.senderMetadata;
-        const displayName = opts.config?.sessions.find((s) => s.session_id === evt.session_id)
-          ?.display_name;
+        const displayName = opts.config?.sessions.find(
+          (s) => s.session_id === evt.session_id,
+        )?.display_name;
         if (displayName !== undefined) payload.displayName = displayName;
         await reg.adapter.onPairingCompleted(payload);
       } catch (err) {
@@ -434,10 +469,7 @@ export function createRouter(opts: RouterOptions): Router {
         content: msg.content,
         meta: msg.meta,
         files: msg.files,
-        receivedAt: (msg.receivedAt instanceof Date
-          ? msg.receivedAt
-          : new Date()
-        ).toISOString(),
+        receivedAt: (msg.receivedAt instanceof Date ? msg.receivedAt : new Date()).toISOString(),
       });
       await deliverInbound(msg.sessionId, message_id, msg.content, msg.meta);
     },
@@ -491,10 +523,37 @@ export function createRouter(opts: RouterOptions): Router {
       });
     },
 
+    notifyUnread(sessionId, unread) {
+      activity.onUnreadChanged(sessionId, unread);
+    },
+
+    listActivity() {
+      return activity.list().map((snap) => ({
+        sessionId: snap.sessionId,
+        state: snap.state,
+        since: snap.since,
+        ...(snap.lastHook !== undefined ? { lastHook: snap.lastHook } : {}),
+        ...(snap.lastHookAt !== undefined ? { lastHookAt: snap.lastHookAt } : {}),
+      }));
+    },
+
+    getActivity(sessionId) {
+      const snap = activity.get(sessionId);
+      if (!snap) return undefined;
+      return {
+        sessionId: snap.sessionId,
+        state: snap.state,
+        since: snap.since,
+        ...(snap.lastHook !== undefined ? { lastHook: snap.lastHook } : {}),
+        ...(snap.lastHookAt !== undefined ? { lastHookAt: snap.lastHookAt } : {}),
+      };
+    },
+
     events,
 
     async stop(): Promise<void> {
       await permissions.stop();
+      activity.off('changed', activityListener);
       emitter.removeAllListeners();
     },
   };

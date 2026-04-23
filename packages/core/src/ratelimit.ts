@@ -12,7 +12,10 @@ export interface RateLimitCheck {
 export class RateLimiter {
   private windows = new Map<string, number[]>();
 
-  constructor(private readonly limit: number, private readonly windowMs: number = 60_000) {}
+  constructor(
+    private readonly limit: number,
+    private readonly windowMs: number = 60_000,
+  ) {}
 
   check(key: string, now: number = Date.now()): RateLimitCheck {
     const cutoff = now - this.windowMs;

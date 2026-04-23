@@ -21,7 +21,10 @@ export interface CachedFile {
 
 export class FileTooLargeError extends Error {
   override readonly name = 'FileTooLargeError';
-  constructor(public readonly size: number, public readonly limit: number) {
+  constructor(
+    public readonly size: number,
+    public readonly limit: number,
+  ) {
     super(`file size ${size} bytes exceeds limit ${limit}`);
   }
 }

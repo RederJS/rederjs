@@ -14,13 +14,13 @@ import {
   type PermissionRequestedPayload,
   type PermissionResolvedPayload,
   type SessionStateChangedPayload,
+  type SessionActivityChangedPayload,
 } from '@rederjs/core/adapter';
 import { WebAdapterConfigSchema, type WebAdapterConfig } from './config.js';
 import { createSseRegistry, type SseRegistry } from './sse.js';
 import { buildApp, listen } from './http.js';
 import { loadOrCreateToken, buildLoginUrl } from './auth.js';
 import { incrementUnread } from './routes/sessions.js';
-import { getSessionActivity } from './transcript.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 /** Shipped SPA dist — <package>/dist/../web/dist */
@@ -138,6 +138,7 @@ export class WebAdapter extends Adapter {
         })),
       staticDir: this.opts.staticDir ?? DEFAULT_STATIC_DIR,
       exposeHealth: this.cfg.expose_health,
+      ...(this.ctx.repairSession ? { repairSession: this.ctx.repairSession } : {}),
     });
 
     this.server = await listen(app, this.cfg.bind, this.cfg.port);
@@ -208,10 +209,7 @@ export class WebAdapter extends Adapter {
     });
   }
 
-  override async cancelPermissionPrompt(
-    requestId: string,
-    finalVerdict?: string,
-  ): Promise<void> {
+  override async cancelPermissionPrompt(requestId: string, finalVerdict?: string): Promise<void> {
     this.sse.broadcast({
       event: 'permission.cancelled',
       data: { requestId, ...(finalVerdict !== undefined ? { finalVerdict } : {}) },
@@ -246,7 +244,11 @@ export class WebAdapter extends Adapter {
       });
       // Bump unread unless it's from this adapter (user typed it in).
       if (p.adapter !== this.name) {
-        void incrementUnread(this.ctx.storage, p.sessionId).catch(() => {});
+        void incrementUnread(this.ctx.storage, p.sessionId)
+          .then((n) => {
+            this.ctx.router.notifyUnread(p.sessionId, n);
+          })
+          .catch(() => {});
       }
     };
     const onOutbound = (p: OutboundPersistedPayload): void => {
@@ -274,12 +276,19 @@ export class WebAdapter extends Adapter {
         data: p,
       });
     };
+    const onActivity = (p: SessionActivityChangedPayload): void => {
+      this.sse.broadcast({
+        event: 'session.activity_changed',
+        data: p,
+      });
+    };
 
     events.on('inbound.persisted', onInbound);
     events.on('outbound.persisted', onOutbound);
     events.on('permission.requested', onPermReq);
     events.on('permission.resolved', onPermRes);
     events.on('session.state_changed', onState);
+    events.on('session.activity_changed', onActivity);
 
     this.unsubscribers.push(
       () => events.off('inbound.persisted', onInbound),
@@ -287,10 +296,8 @@ export class WebAdapter extends Adapter {
       () => events.off('permission.requested', onPermReq),
       () => events.off('permission.resolved', onPermRes),
       () => events.off('session.state_changed', onState),
+      () => events.off('session.activity_changed', onActivity),
     );
-
-    // Suppress unused-variable warnings.
-    void getSessionActivity;
   }
 }
 

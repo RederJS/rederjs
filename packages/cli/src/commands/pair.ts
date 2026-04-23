@@ -1,4 +1,8 @@
-import { discoverSessionFromProject, sendAdminPair, type AdminPairResult } from '../admin-client.js';
+import {
+  discoverSessionFromProject,
+  sendAdminPair,
+  type AdminPairResult,
+} from '../admin-client.js';
 
 export interface PairOptions {
   code: string;

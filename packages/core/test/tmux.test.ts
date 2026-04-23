@@ -7,6 +7,8 @@ import {
   listRunning,
   startSession,
   tmuxHealth,
+  getPaneCommand,
+  killSession,
   InvalidTmuxName,
   type TmuxRunner,
 } from '../src/tmux.js';
@@ -16,9 +18,10 @@ interface Call {
   input?: string;
 }
 
-function makeRunner(
-  responses: Array<{ status: number; stdout?: string; stderr?: string }>,
-): { runner: TmuxRunner; calls: Call[] } {
+function makeRunner(responses: Array<{ status: number; stdout?: string; stderr?: string }>): {
+  runner: TmuxRunner;
+  calls: Call[];
+} {
   const calls: Call[] = [];
   let i = 0;
   const runner: TmuxRunner = (args, input) => {
@@ -101,7 +104,7 @@ describe('tmux.startSession', () => {
     expect(calls).toHaveLength(1);
   });
 
-  it('starts with plain claude command by default', () => {
+  it('starts claude with the channels flag enabled by default', () => {
     const { runner, calls } = makeRunner([
       { status: 1 }, // has-session → not running
       { status: 0 }, // new-session
@@ -116,18 +119,78 @@ describe('tmux.startSession', () => {
       '-c',
       workspace,
       'claude',
+      '--dangerously-load-development-channels',
+      'server:reder',
     ]);
   });
 
-  it('uses custom command when provided', () => {
+  it('injects --permission-mode when permission_mode is set', () => {
     const { runner, calls } = makeRunner([{ status: 1 }, { status: 0 }]);
     startSession({
       session_id: 'reder',
       workspace_dir: workspace,
-      command: 'claude --dangerously-skip-permissions',
+      permission_mode: 'plan',
       runner,
     });
-    expect(calls[1]?.args).toContain('claude --dangerously-skip-permissions');
+    const args = calls[1]?.args ?? [];
+    const claudeIdx = args.indexOf('claude');
+    expect(args.slice(claudeIdx)).toEqual([
+      'claude',
+      '--permission-mode',
+      'plan',
+      '--dangerously-load-development-channels',
+      'server:reder',
+    ]);
+  });
+
+  it('injects --permission-mode auto (classifier mode)', () => {
+    const { runner, calls } = makeRunner([{ status: 1 }, { status: 0 }]);
+    startSession({
+      session_id: 'reder',
+      workspace_dir: workspace,
+      permission_mode: 'auto',
+      runner,
+    });
+    const args = calls[1]?.args ?? [];
+    expect(args).toContain('--permission-mode');
+    expect(args[args.indexOf('--permission-mode') + 1]).toBe('auto');
+  });
+
+  it('omits --permission-mode when mode is default', () => {
+    const { runner, calls } = makeRunner([{ status: 1 }, { status: 0 }]);
+    startSession({
+      session_id: 'reder',
+      workspace_dir: workspace,
+      permission_mode: 'default',
+      runner,
+    });
+    const args = calls[1]?.args ?? [];
+    expect(args).not.toContain('--permission-mode');
+  });
+
+  it('leaves caller-supplied command untouched even when permission_mode is set', () => {
+    const { runner, calls } = makeRunner([{ status: 1 }, { status: 0 }]);
+    startSession({
+      session_id: 'reder',
+      workspace_dir: workspace,
+      command: ['claude', '--custom'],
+      permission_mode: 'plan',
+      runner,
+    });
+    const args = calls[1]?.args ?? [];
+    expect(args.slice(-2)).toEqual(['claude', '--custom']);
+    expect(args).not.toContain('--permission-mode');
+  });
+
+  it('uses custom command argv when provided', () => {
+    const { runner, calls } = makeRunner([{ status: 1 }, { status: 0 }]);
+    startSession({
+      session_id: 'reder',
+      workspace_dir: workspace,
+      command: ['claude', '--dangerously-skip-permissions'],
+      runner,
+    });
+    expect(calls[1]?.args.slice(-2)).toEqual(['claude', '--dangerously-skip-permissions']);
   });
 
   it('returns tmux_error when new-session fails', () => {
@@ -167,6 +230,58 @@ describe('tmux.startSession', () => {
     const cIdx = newSessionArgs.indexOf('-c');
     expect(newSessionArgs[cIdx + 1]).not.toBe('~');
     expect(newSessionArgs[cIdx + 1]).toMatch(/^\//);
+  });
+});
+
+describe('tmux.getPaneCommand', () => {
+  it('returns the first pane command when tmux exits 0', () => {
+    const { runner, calls } = makeRunner([{ status: 0, stdout: 'claude\n' }]);
+    expect(getPaneCommand('sommelai', { runner })).toBe('claude');
+    expect(calls[0]?.args).toEqual([
+      'list-panes',
+      '-F',
+      '#{pane_current_command}',
+      '-t',
+      'sommelai',
+    ]);
+  });
+
+  it('returns null when tmux exits nonzero (session missing)', () => {
+    const { runner } = makeRunner([{ status: 1, stderr: 'no server' }]);
+    expect(getPaneCommand('nope', { runner })).toBeNull();
+  });
+
+  it('returns null when stdout is empty/whitespace', () => {
+    const { runner } = makeRunner([{ status: 0, stdout: '   \n\n' }]);
+    expect(getPaneCommand('empty', { runner })).toBeNull();
+  });
+
+  it('returns the first non-empty line when multiple panes', () => {
+    const { runner } = makeRunner([{ status: 0, stdout: 'bash\nclaude\n' }]);
+    expect(getPaneCommand('multi', { runner })).toBe('bash');
+  });
+
+  it('rejects invalid names', () => {
+    const { runner } = makeRunner([]);
+    expect(() => getPaneCommand('bad name!', { runner })).toThrow(InvalidTmuxName);
+  });
+});
+
+describe('tmux.killSession', () => {
+  it('returns true when tmux exits 0', () => {
+    const { runner, calls } = makeRunner([{ status: 0 }]);
+    expect(killSession('sommelai', { runner })).toBe(true);
+    expect(calls[0]?.args).toEqual(['kill-session', '-t', 'sommelai']);
+  });
+
+  it('returns false when tmux exits nonzero', () => {
+    const { runner } = makeRunner([{ status: 1, stderr: "can't find session" }]);
+    expect(killSession('nope', { runner })).toBe(false);
+  });
+
+  it('rejects invalid names', () => {
+    const { runner } = makeRunner([]);
+    expect(() => killSession('bad name!', { runner })).toThrow(InvalidTmuxName);
   });
 });
 

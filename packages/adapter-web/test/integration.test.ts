@@ -176,6 +176,20 @@ describe('adapter-web http surface', () => {
     expect(afterBody.unread).toBe(0);
   });
 
+  it('includes activity_state in /api/sessions', async () => {
+    const res = await fetch(`${baseUrl}/api/sessions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = (await res.json()) as {
+      sessions: Array<{ session_id: string; activity_state: string }>;
+    };
+    expect(res.status).toBe(200);
+    // Fixture has no tmux and no shim connection, so every session is offline.
+    const demo = body.sessions.find((s) => s.session_id === 'demo');
+    expect(demo).toBeDefined();
+    expect(demo!.activity_state).toBe('offline');
+  });
+
   it('POST /api/sessions/:id/start errors when workspace_dir is missing on disk', async () => {
     const res = await fetch(`${baseUrl}/api/sessions/demo/start`, {
       method: 'POST',
@@ -189,5 +203,24 @@ describe('adapter-web http surface', () => {
     const body = (await res.json()) as { started: boolean; reason?: string };
     expect(body.started).toBe(false);
     expect(['missing_dir', 'tmux_error', 'already_running']).toContain(body.reason);
+  });
+
+  it('POST /api/sessions/:id/repair returns 501 when no callback is wired', async () => {
+    const res = await fetch(`${baseUrl}/api/sessions/demo/repair`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    // Test fixture doesn't inject a repairSession, so expect 501.
+    expect(res.status).toBe(501);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe('repair not available');
+  });
+
+  it('POST /api/sessions/:id/repair returns 404 for unknown session', async () => {
+    const res = await fetch(`${baseUrl}/api/sessions/nope/repair`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(404);
   });
 });

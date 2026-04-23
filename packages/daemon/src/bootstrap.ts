@@ -9,10 +9,16 @@ import { createSession } from '@rederjs/core/sessions';
 import { createIpcServer, type IpcServer } from '@rederjs/core/ipc/server';
 import { createRouter, type Router } from '@rederjs/core/router';
 import { createAuditLog, type AuditLog } from '@rederjs/core/audit';
-import { startHealthEndpoint, type HealthEndpoint, type HealthSnapshot } from '@rederjs/core/health';
-import { startSession as startTmuxSession } from '@rederjs/core/tmux';
+import {
+  startHealthEndpoint,
+  type HealthEndpoint,
+  type HealthSnapshot,
+} from '@rederjs/core/health';
+import { startSession as startTmuxSession, getPaneCommand } from '@rederjs/core/tmux';
 import type { Adapter } from '@rederjs/core/adapter';
 import { createAdapterHost, type AdapterHost, loadAdapter } from './adapter-host.js';
+import { runSessionRepair } from 'rederjs/commands/sessions-repair';
+import { hasClaudeHooks } from 'rederjs/commands/claude-hooks';
 export type { AdapterHost };
 
 export interface BootstrapResult {
@@ -52,7 +58,10 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 
   const logger = createLogger({ level: config.logging.level });
-  logger.info({ configPath, runtimeDir, dataDir, component: 'daemon.bootstrap' }, 'starting rederd');
+  logger.info(
+    { configPath, runtimeDir, dataDir, component: 'daemon.bootstrap' },
+    'starting rederd',
+  );
 
   const audit = createAuditLog(runtimeDir);
   const db = openDatabase(join(dataDir, 'reder.db'));
@@ -154,6 +163,9 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
     dataDir,
     resolveModule: opts.overrideResolveModule ?? loadAdapter,
     healthSnapshot: snapshotFn,
+    repairSession: async (sessionId: string) => {
+      await runSessionRepair({ sessionId, configPath });
+    },
   });
   adapterHostRef = adapterHost;
 
@@ -168,6 +180,7 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
     const result = startTmuxSession({
       session_id: s.session_id,
       workspace_dir: s.workspace_dir,
+      permission_mode: s.permission_mode,
       logger: logger.child({ component: 'core.tmux' }),
     });
     logger.info(
@@ -179,6 +192,43 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
       },
       result.started ? 'auto-started tmux session' : 'tmux auto-start skipped',
     );
+
+    // A tmux session can outlive its `claude` process (manual ctrl+D, crash,
+    // etc.). `isRunning` only checks that the session exists, so auto-start
+    // silently skips stale sessions. Detect and warn.
+    if (result.reason === 'already_running') {
+      const paneCmd = getPaneCommand(s.session_id);
+      if (paneCmd !== null && paneCmd !== 'claude') {
+        logger.warn(
+          {
+            session_id: s.session_id,
+            workspace_dir: s.workspace_dir,
+            pane_current_command: paneCmd,
+            component: 'daemon.bootstrap',
+          },
+          `tmux session '${s.session_id}' is running but pane is '${paneCmd}' (not claude). ` +
+            `Run \`reder sessions restart ${s.session_id}\` to relaunch.`,
+        );
+      }
+    }
+  }
+
+  // Warn about sessions that are auto-started but missing their Claude hook config.
+  for (const s of config.sessions) {
+    if (!s.auto_start || !s.workspace_dir) continue;
+    const present = hasClaudeHooks({ projectDir: s.workspace_dir, sessionId: s.session_id });
+    if (!present) {
+      logger.warn(
+        {
+          session_id: s.session_id,
+          workspace_dir: s.workspace_dir,
+          component: 'daemon.bootstrap',
+        },
+        "claude hook config missing — dashboard activity status will show 'unknown'. Run `reder sessions repair " +
+          s.session_id +
+          '`',
+      );
+    }
   }
 
   // Legacy health endpoint: only start if the web adapter isn't enabled.

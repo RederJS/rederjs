@@ -18,6 +18,11 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      # Workspaces use subpath exports (e.g. @rederjs/core/ipc/protocol) that
+      # resolve to dist/*.d.ts. Typecheck must run after build so declarations
+      # exist and cross-package type imports resolve. `npm run build` at the
+      # root builds @rederjs/core first (other packages depend on its types).
+      - run: npm run build
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test

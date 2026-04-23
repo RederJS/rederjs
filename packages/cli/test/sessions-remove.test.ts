@@ -3,10 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, mkdirSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runSessionAdd } from '../src/commands/sessions-add.js';
-import {
-  runSessionRemove,
-  SessionNotFoundError,
-} from '../src/commands/sessions-remove.js';
+import { runSessionRemove, SessionNotFoundError } from '../src/commands/sessions-remove.js';
 import { peekSession, scaffoldConfig } from '../src/commands/config-writer.js';
 
 let dir: string;
@@ -119,5 +116,14 @@ describe('runSessionRemove', () => {
     expect(r.yamlRemoved).toBe(true);
     expect(r.mcpEntryRemoved).toBe(false);
     expect(readFileSync(join(projectDir, '.mcp.json'), 'utf8')).toBe(before);
+  });
+
+  it('removes Claude hooks from .claude/settings.local.json', async () => {
+    seedConfig();
+    await runSessionAdd({ sessionId: 'sess', projectDir, configPath });
+    expect(existsSync(join(projectDir, '.claude', 'settings.local.json'))).toBe(true);
+
+    runSessionRemove({ sessionId: 'sess', configPath });
+    expect(existsSync(join(projectDir, '.claude', 'settings.local.json'))).toBe(false);
   });
 });

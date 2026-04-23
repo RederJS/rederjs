@@ -1,7 +1,11 @@
 import { Router as expressRouter, type Request, type Response } from 'express';
 import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
-import type { RouterHandle, AdapterStorage } from '@rederjs/core/adapter';
+import type {
+  RouterHandle,
+  AdapterStorage,
+  SessionActivityChangedPayload,
+} from '@rederjs/core/adapter';
 import { listSessions } from '@rederjs/core/sessions';
 import { isRunning, startSession } from '@rederjs/core/tmux';
 import { listTranscript, getSessionActivity } from '../transcript.js';
@@ -24,6 +28,7 @@ export interface SessionsRouteDeps {
   adapterName: string;
   senderId: string;
   isSessionConnected: (sessionId: string) => boolean;
+  repairSession?: (sessionId: string) => Promise<void>;
 }
 
 const UNREAD_KEY = (sessionId: string): string => `unread:${sessionId}`;
@@ -39,10 +44,7 @@ async function writeUnread(storage: AdapterStorage, sessionId: string, n: number
   await storage.set(UNREAD_KEY(sessionId), String(Math.max(0, n)));
 }
 
-export async function incrementUnread(
-  storage: AdapterStorage,
-  sessionId: string,
-): Promise<number> {
+export async function incrementUnread(storage: AdapterStorage, sessionId: string): Promise<number> {
   const current = await readUnread(storage, sessionId);
   const next = current + 1;
   await writeUnread(storage, sessionId, next);
@@ -58,12 +60,15 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
 
   r.get('/sessions', async (_req: Request, res: Response) => {
     const dbRows = new Map(listSessions(deps.db).map((s) => [s.session_id, s]));
+    const activityByIdRaw = deps.router.listActivity();
+    const activityById = new Map(activityByIdRaw.map((a) => [a.sessionId, a]));
     const out = await Promise.all(
       deps.sessions.map(async (cfg) => {
         const row = dbRows.get(cfg.session_id);
         const activity = getSessionActivity(deps.db, cfg.session_id);
         const tmuxRunning = isRunning(cfg.session_id);
         const unread = await readUnread(deps.storage, cfg.session_id);
+        const act = activityById.get(cfg.session_id);
         return {
           session_id: cfg.session_id,
           display_name: cfg.display_name,
@@ -76,6 +81,13 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
           last_inbound_at: activity.lastInboundAt,
           last_outbound_at: activity.lastOutboundAt,
           unread,
+          activity_state: deriveOverall(act, {
+            tmuxRunning,
+            shimConnected: deps.isSessionConnected(cfg.session_id),
+          }),
+          activity_since: act?.since ?? null,
+          last_hook: act?.lastHook ?? null,
+          last_hook_at: act?.lastHookAt ?? null,
         };
       }),
     );
@@ -92,6 +104,7 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
     const activity = getSessionActivity(deps.db, cfg.session_id);
     const tmuxRunning = isRunning(cfg.session_id);
     const unread = await readUnread(deps.storage, cfg.session_id);
+    const act = deps.router.getActivity(cfg.session_id);
     res.json({
       session_id: cfg.session_id,
       display_name: cfg.display_name,
@@ -104,6 +117,13 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
       last_inbound_at: activity.lastInboundAt,
       last_outbound_at: activity.lastOutboundAt,
       unread,
+      activity_state: deriveOverall(act, {
+        tmuxRunning,
+        shimConnected: deps.isSessionConnected(cfg.session_id),
+      }),
+      activity_since: act?.since ?? null,
+      last_hook: act?.lastHook ?? null,
+      last_hook_at: act?.lastHookAt ?? null,
     });
   });
 
@@ -123,6 +143,7 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
     });
     // Reading the transcript clears unread count.
     await clearUnread(deps.storage, sessionId);
+    deps.router.notifyUnread(sessionId, 0);
     res.json({ messages });
   });
 
@@ -183,5 +204,38 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
     res.status(result.started ? 201 : 200).json(result);
   });
 
+  r.post('/sessions/:id/repair', async (req: Request, res: Response) => {
+    const sessionId = req.params['id']!;
+    if (!deps.sessions.some((s) => s.session_id === sessionId)) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
+    if (!deps.repairSession) {
+      res.status(501).json({ error: 'repair not available' });
+      return;
+    }
+    try {
+      await deps.repairSession(sessionId);
+      res.status(200).json({ repaired: true });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
   return r;
+}
+
+function deriveOverall(
+  act: SessionActivityChangedPayload | undefined,
+  ctx: { tmuxRunning: boolean; shimConnected: boolean },
+): 'working' | 'awaiting-user' | 'idle' | 'unknown' | 'offline' {
+  // Tmux liveness is owned here (in the adapter) rather than in the router's
+  // SessionActivityTracker, because the adapter already polls tmux status for
+  // each session on every request. A future refinement could feed tmux state
+  // into the tracker via a notifyTmuxRunning() signal; until then, other
+  // adapters using router.listActivity()/getActivity() should layer their own
+  // tmux check on top if they need "offline" for dead tmux sessions.
+  if (!ctx.tmuxRunning) return 'offline';
+  if (!ctx.shimConnected) return 'offline';
+  return act?.state ?? 'unknown';
 }

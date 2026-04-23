@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, statSync, mkdirSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+  statSync,
+  mkdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -8,7 +16,7 @@ import {
   SessionWorkspaceMismatchError,
   InvalidSessionIdError,
 } from '../src/commands/sessions-add.js';
-import { scaffoldConfig, peekSession } from '../src/commands/config-writer.js';
+import { peekSession } from '../src/commands/config-writer.js';
 import * as service from '../src/commands/service.js';
 
 let dir: string;
@@ -52,9 +60,9 @@ adapters:
 
 describe('runSessionAdd', () => {
   it('fails with ConfigNotFoundError when config missing', async () => {
-    await expect(
-      runSessionAdd({ sessionId: 'xx', projectDir, configPath }),
-    ).rejects.toBeInstanceOf(ConfigNotFoundError);
+    await expect(runSessionAdd({ sessionId: 'xx', projectDir, configPath })).rejects.toBeInstanceOf(
+      ConfigNotFoundError,
+    );
   });
 
   it('adds session entry to YAML with workspace_dir and auto_start', async () => {
@@ -68,13 +76,39 @@ describe('runSessionAdd', () => {
     });
     expect(r.yamlCreated).toBe(true);
     expect(r.workspaceDir).toBe(projectDir);
+    expect(r.permissionMode).toBe('default');
     const p = peekSession({ configPath, sessionId: 'mysession' });
     expect(p).toEqual({
       session_id: 'mysession',
       display_name: 'My Session',
       workspace_dir: projectDir,
       auto_start: false,
+      permission_mode: 'default',
     });
+  });
+
+  it('persists a non-default permissionMode to YAML', async () => {
+    seedConfig();
+    const r = await runSessionAdd({
+      sessionId: 'planner',
+      projectDir,
+      configPath,
+      permissionMode: 'plan',
+    });
+    expect(r.permissionMode).toBe('plan');
+    expect(peekSession({ configPath, sessionId: 'planner' })?.permission_mode).toBe('plan');
+  });
+
+  it('preserves an existing permission_mode when not overridden on re-add', async () => {
+    seedConfig();
+    await runSessionAdd({
+      sessionId: 'keepme',
+      projectDir,
+      configPath,
+      permissionMode: 'bypassPermissions',
+    });
+    const r = await runSessionAdd({ sessionId: 'keepme', projectDir, configPath });
+    expect(r.permissionMode).toBe('bypassPermissions');
   });
 
   it('creates .mcp.json with token and mode 0600', async () => {
@@ -90,6 +124,15 @@ describe('runSessionAdd', () => {
     const token = args[args.indexOf('--token') + 1]!;
     expect(token).toMatch(/^rdr_sess_/);
     expect(r.tokenRotated).toBe(false);
+
+    // Also installs Claude hooks.
+    const settingsPath = join(projectDir, '.claude', 'settings.local.json');
+    expect(existsSync(settingsPath)).toBe(true);
+    const settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
+      hooks: Record<string, Array<{ _reder_session_id?: string }>>;
+    };
+    expect(settings.hooks.UserPromptSubmit).toBeDefined();
+    expect(settings.hooks.UserPromptSubmit[0]!._reder_session_id).toBe('booknerds');
   });
 
   it('rotates token on re-install', async () => {
@@ -174,6 +217,7 @@ describe('runSessionAdd', () => {
     expect(r.daemonStart).toEqual({ method: 'direct', ok: true, detail: 'forked (pid 1)' });
     const p = peekSession({ configPath, sessionId: 'runner' });
     expect(p?.auto_start).toBe(true);
+    expect(p?.permission_mode).toBe('default');
   });
 
   it('does not call runStart when autoStart is false', async () => {

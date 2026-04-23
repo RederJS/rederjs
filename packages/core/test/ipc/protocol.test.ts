@@ -23,7 +23,12 @@ describe('ipc/protocol ShimToDaemon', () => {
       request_id: 'r1',
       content: 'hello',
     });
-    expect(parsed).toMatchObject({ kind: 'reply_tool_call', content: 'hello', meta: {}, files: [] });
+    expect(parsed).toMatchObject({
+      kind: 'reply_tool_call',
+      content: 'hello',
+      meta: {},
+      files: [],
+    });
   });
 
   it('parses a permission_request', () => {

@@ -143,6 +143,8 @@ To use an externally-managed secret (systemd drop-in, secret manager) instead of
 ```sh
 reder sessions list           # configured sessions + tmux status
 reder sessions start <id>     # start a tmux session on demand
+reder sessions restart <id>   # kill stale tmux (claude exited) + re-start
+reder sessions repair <id>    # rewrite .mcp.json and .claude/settings.local.json
 reder sessions up             # start everything with a workspace_dir (idempotent)
 reder dashboard url           # (web adapter) print authenticated dashboard URL
 reder telegram bot list       # (telegram adapter) configured bots
@@ -157,6 +159,10 @@ reder doctor                  # diagnostic checks with remediation
 - **`reder doctor`** runs every safety check (Node version, config parse, daemon reachable, env vars present, third-party adapter flagged). Every failing check includes a remediation.
 - **Dashboard won't load**: confirm the daemon is running (`reder status`) and you're using the exact URL from `reder dashboard url`. Bare `http://127.0.0.1:7781/` without a cookie returns 401 until the token has been presented once.
 - **Session shows `tmux: off` in dashboard**: the tmux session for that `session_id` isn't running. Click **Start** or `reder sessions start <id>`.
+- **Session shows `tmux: on` but is disconnected / showing `unknown`**: the tmux session exists but its pane isn't running `claude` anymore (you exited, it crashed, an update restarted it). Run `reder sessions restart <id>` to kill the stale tmux and relaunch Claude. On daemon startup you'll see a warning in the logs naming the affected session.
+- **Session activity shows `unknown` in dashboard**: reder's Claude Code hooks aren't installed (or the config drifted). Click the **Repair hooks** button on the card or run `reder sessions repair <id>`. `reder doctor` enumerates which sessions are missing hooks.
+- **Daemon auto-started but no claude processes**: the daemon-spawned tmux couldn't find `claude`. Check `journalctl --user -fu reder` for `tmux-spawn-*.scope: Failed with result 'resources'` — that's Claude exiting `command not found`. Ensure `claude` is on the PATH in `~/.config/systemd/user/reder.service` (`Environment=PATH=…`). `reder init` generates this with `~/.local/bin` and `~/bin` prepended by default.
+- **Claude sits at a "WARNING: Loading development channels" dialog**: reder auto-presses Enter on this confirmation ~6s after tmux spawn, but if you spawn Claude manually with `--dangerously-load-development-channels`, you'll need to press Enter yourself once per session.
 - **Logs**: on systemd-user hosts, `journalctl --user -fu reder`. Otherwise, tail the output of `rederd`.
 - **`reder status --json`** dumps the full daemon health JSON for piping into other tools.
 

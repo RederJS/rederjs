@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { interactiveInit } from './commands/init.js';
 import { interactiveSessionAdd } from './commands/sessions-add.js';
 import { interactiveSessionRemove } from './commands/sessions-remove.js';
+import { runSessionRepair } from './commands/sessions-repair.js';
 import { runStatus, formatStatus } from './commands/status.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { runPair, formatPairResult } from './commands/pair.js';
@@ -13,10 +14,13 @@ import {
   formatSessionsList,
   runSessionStart,
   formatSessionStart,
+  runSessionRestart,
+  formatSessionRestart,
   runSessionsUp,
   formatSessionsUp,
 } from './commands/sessions.js';
 import { runDashboardUrl, formatDashboardUrl } from './commands/dashboard.js';
+import { PERMISSION_MODES, type PermissionMode } from '@rederjs/core/tmux';
 import {
   runTelegramBotAdd,
   formatTelegramBotAdd,
@@ -63,23 +67,46 @@ program
   .description('configure rederd for this machine (web bind, port); re-runnable')
   .option('--bind <addr>', 'web dashboard bind address (skip prompt)')
   .option('--port <number>', 'web dashboard port (skip prompt)', (v) => parseInt(v, 10))
+  .option('--install-service', 'install and enable the systemd user service without prompting')
   .action(async (opts: Record<string, unknown>) => {
     try {
+      const installService = opts['installService'] === true ? true : undefined;
       const result = await interactiveInit({
         configPath: configArg(),
         ...(opts['bind'] !== undefined ? { bindOverride: opts['bind'] as string } : {}),
         ...(opts['port'] !== undefined ? { portOverride: opts['port'] as number } : {}),
         nonInteractive: jsonMode(),
+        ...(installService !== undefined ? { installService } : {}),
       });
       if (jsonMode()) {
         process.stdout.write(JSON.stringify(result) + '\n');
       } else {
         const verb = result.created ? 'Wrote' : result.updated ? 'Updated' : 'Verified';
-        process.stdout.write(
-          `${verb} ${result.configPath}\n` +
-            `Web dashboard: ${result.webBind}:${result.webPort}\n` +
-            `Next: cd into a project and run 'reder sessions add' to register a session.\n`,
-        );
+        const lines = [
+          `${verb} ${result.configPath}`,
+          `Web dashboard: ${result.webBind}:${result.webPort}`,
+        ];
+        if (result.service) {
+          const s = result.service;
+          if (s.skipped) {
+            lines.push(`Service: skipped (${s.reason ?? 'n/a'})`);
+          } else {
+            const wrote = s.unitWritten ? 'wrote' : 'unchanged';
+            lines.push(`Service: ${wrote} ${s.unitPath}`);
+            if (s.enabled === true) {
+              lines.push(`Service: enabled + started`);
+              if (s.lingerEnabled === false) {
+                lines.push(
+                  `  Tip: run 'loginctl enable-linger $USER' if you want the daemon to start at boot before you log in.`,
+                );
+              }
+            } else if (s.enabled === false) {
+              lines.push(`Service: ${s.enableDetail ?? 'enable failed'}`);
+            }
+          }
+        }
+        lines.push(`Next: cd into a project and run 'reder sessions add' to register a session.`);
+        process.stdout.write(lines.join('\n') + '\n');
       }
     } catch (err) {
       fail(err);
@@ -191,6 +218,20 @@ sessions
   });
 
 sessions
+  .command('restart <session-id>')
+  .description("kill the session's tmux (if any) and start it fresh")
+  .action((sessionId: string) => {
+    try {
+      const r = runSessionRestart({ sessionId, ...buildCfgOpts() });
+      if (jsonMode()) process.stdout.write(JSON.stringify(r) + '\n');
+      else process.stdout.write(formatSessionRestart(r) + '\n');
+      process.exit(r.started ? 0 : 1);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+sessions
   .command('up')
   .description('start every configured session with a workspace_dir (idempotent)')
   .action(() => {
@@ -210,10 +251,18 @@ sessions
   .option('--project-dir <path>', 'project directory to write .mcp.json into', process.cwd())
   .option('--shim-command <cmd>', 'command to invoke reder-shim', 'reder-shim')
   .option('--auto-start', 'mark session auto_start=true and start the daemon now', false)
+  .option(
+    '--permission-mode <mode>',
+    'Claude permission mode: default | plan | acceptEdits | auto | dontAsk | bypassPermissions',
+  )
   .option('--force-rebind', 'rebind an existing session without prompting', false)
   .option('-y, --yes', 'accept all defaults (non-interactive)', false)
   .action(async (sessionIdArg: string | undefined, opts: Record<string, unknown>) => {
     try {
+      const permissionMode =
+        opts['permissionMode'] !== undefined
+          ? validatePermissionMode(opts['permissionMode'] as string)
+          : undefined;
       const result = await interactiveSessionAdd({
         ...(sessionIdArg !== undefined ? { sessionIdArg } : {}),
         ...(opts['displayName'] !== undefined
@@ -223,6 +272,7 @@ sessions
         configPath: configArg(),
         shimCommand: [opts['shimCommand'] as string],
         autoStart: Boolean(opts['autoStart']),
+        ...(permissionMode !== undefined ? { permissionMode } : {}),
         forceRebind: Boolean(opts['forceRebind']),
         yes: Boolean(opts['yes']),
         nonInteractive: jsonMode() || Boolean(opts['yes']),
@@ -233,9 +283,8 @@ sessions
         const lines: string[] = [];
         if (result.yamlCreated) lines.push(`Added session '${result.sessionId}' to config`);
         else if (result.yamlUpdated) lines.push(`Updated session '${result.sessionId}' in config`);
-        lines.push(
-          `Wrote ${result.mcpJsonPath}${result.tokenRotated ? ' (token rotated)' : ''}`,
-        );
+        lines.push(`Permission mode: ${result.permissionMode}`);
+        lines.push(`Wrote ${result.mcpJsonPath}${result.tokenRotated ? ' (token rotated)' : ''}`);
         if (result.daemonStart) {
           lines.push(`Daemon: ${result.daemonStart.ok ? '✓' : '•'} ${result.daemonStart.detail}`);
         }
@@ -281,6 +330,26 @@ sessions
     }
   });
 
+sessions
+  .command('repair <session-id>')
+  .description('re-write .mcp.json and .claude/settings.local.json for a registered session')
+  .action(async (sessionId: string) => {
+    try {
+      const result = await runSessionRepair({ sessionId, ...buildCfgOpts() });
+      if (jsonMode()) {
+        process.stdout.write(JSON.stringify(result) + '\n');
+      } else {
+        const lines = [
+          `Repaired session '${result.sessionId}' (workspace ${result.workspaceDir})`,
+          `  .mcp.json: ${result.mcpJsonPath}${result.tokenRotated ? ' (token rotated)' : ''}`,
+        ];
+        process.stdout.write(lines.join('\n') + '\n');
+      }
+    } catch (err) {
+      fail(err);
+    }
+  });
+
 const telegram = program.command('telegram').description('manage Telegram bots and access control');
 
 const telegramBot = telegram.command('bot').description('per-session bot tokens');
@@ -288,7 +357,10 @@ telegramBot
   .command('add <session-id>')
   .description('attach a Telegram bot token to a session (writes token inline into config)')
   .option('--token <value>', 'bot token (prompts if omitted)')
-  .option('--token-env <name>', 'reference an externally-set env var instead of storing the token inline')
+  .option(
+    '--token-env <name>',
+    'reference an externally-set env var instead of storing the token inline',
+  )
   .action(async (sessionId: string, opts: Record<string, unknown>) => {
     try {
       const result = await runTelegramBotAdd({
@@ -307,7 +379,7 @@ telegramBot
 
 telegramBot
   .command('remove <session-id>')
-  .description('remove a session\'s Telegram bot entry')
+  .description("remove a session's Telegram bot entry")
   .action((sessionId: string) => {
     try {
       const result = runTelegramBotRemove({ sessionId, configPath: configArg() });
@@ -332,7 +404,9 @@ telegramBot
     }
   });
 
-const telegramAllow = telegram.command('allow').description('global allowlist of Telegram user ids');
+const telegramAllow = telegram
+  .command('allow')
+  .description('global allowlist of Telegram user ids');
 telegramAllow
   .command('add <user-id>')
   .description('add a numeric Telegram user_id to the global allowlist')
@@ -419,6 +493,15 @@ program
     );
     process.exit(0);
   });
+
+function validatePermissionMode(value: string): PermissionMode {
+  if ((PERMISSION_MODES as readonly string[]).includes(value)) {
+    return value as PermissionMode;
+  }
+  throw new Error(
+    `--permission-mode must be one of ${PERMISSION_MODES.join(', ')} (got '${value}')`,
+  );
+}
 
 function fail(err: unknown): never {
   const msg = err instanceof Error ? err.message : String(err);

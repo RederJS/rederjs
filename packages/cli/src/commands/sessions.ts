@@ -1,11 +1,18 @@
 import { loadConfigContext } from '../config-loader.js';
-import { isRunning, listRunning, startSession } from '@rederjs/core/tmux';
+import {
+  isRunning,
+  killSession,
+  listRunning,
+  startSession,
+  type PermissionMode,
+} from '@rederjs/core/tmux';
 
 export interface SessionListEntry {
   session_id: string;
   display_name: string;
   workspace_dir: string | null;
   auto_start: boolean;
+  permission_mode: PermissionMode;
   tmux_running: boolean;
 }
 
@@ -23,6 +30,7 @@ export function runSessionsList(opts: { configPath?: string } = {}): SessionsLis
     display_name: s.display_name,
     workspace_dir: s.workspace_dir ?? null,
     auto_start: s.auto_start,
+    permission_mode: s.permission_mode,
     tmux_running: running.has(s.session_id),
   }));
   const orphan_tmux = [...running].filter((n) => !knownIds.has(n));
@@ -31,19 +39,18 @@ export function runSessionsList(opts: { configPath?: string } = {}): SessionsLis
 
 export function formatSessionsList(r: SessionsListResult): string {
   if (r.sessions.length === 0) return 'No sessions configured.';
-  const rows = [['ID', 'Name', 'Workspace', 'Auto', 'Tmux']];
+  const rows = [['ID', 'Name', 'Workspace', 'Auto', 'Mode', 'Tmux']];
   for (const s of r.sessions) {
     rows.push([
       s.session_id,
       s.display_name,
       s.workspace_dir ?? '-',
       s.auto_start ? 'yes' : 'no',
+      s.permission_mode,
       s.tmux_running ? '✓' : ' ',
     ]);
   }
-  const widths = rows[0]!.map((_, col) =>
-    Math.max(...rows.map((row) => (row[col] ?? '').length)),
-  );
+  const widths = rows[0]!.map((_, col) => Math.max(...rows.map((row) => (row[col] ?? '').length)));
   const lines = rows.map((row) => row.map((c, i) => c.padEnd(widths[i]!)).join('  '));
   if (r.orphan_tmux.length > 0) {
     lines.push('', `Orphan tmux sessions (not in config): ${r.orphan_tmux.join(', ')}`);
@@ -83,6 +90,7 @@ export function runSessionStart(opts: {
   const result = startSession({
     session_id: s.session_id,
     workspace_dir: s.workspace_dir,
+    permission_mode: s.permission_mode,
   });
   return {
     session_id: s.session_id,
@@ -114,6 +122,7 @@ export function runSessionsUp(opts: { configPath?: string } = {}): SessionsUpRes
     const result = startSession({
       session_id: s.session_id,
       workspace_dir: s.workspace_dir,
+      permission_mode: s.permission_mode,
     });
     results.push({
       session_id: s.session_id,
@@ -128,6 +137,81 @@ export function runSessionsUp(opts: { configPath?: string } = {}): SessionsUpRes
 export function formatSessionsUp(r: SessionsUpResult): string {
   if (r.results.length === 0) return 'No sessions with workspace_dir configured.';
   return r.results.map(formatSessionStart).join('\n');
+}
+
+export interface SessionRestartResult {
+  session_id: string;
+  killed: boolean;
+  started: boolean;
+  reason?: string;
+  error?: string;
+}
+
+/**
+ * Kill the tmux session (if any) and start it fresh. Used to recover sessions
+ * where tmux is alive but its pane stopped running `claude`.
+ */
+export function runSessionRestart(opts: {
+  sessionId: string;
+  configPath?: string;
+}): SessionRestartResult {
+  const ctx = loadConfigContext(opts.configPath);
+  const s = ctx.config.sessions.find((x) => x.session_id === opts.sessionId);
+  if (!s) {
+    return {
+      session_id: opts.sessionId,
+      killed: false,
+      started: false,
+      reason: 'not_in_config',
+      error: `session '${opts.sessionId}' not in config.sessions[]`,
+    };
+  }
+  if (!s.workspace_dir) {
+    return {
+      session_id: opts.sessionId,
+      killed: false,
+      started: false,
+      reason: 'no_workspace_dir',
+      error: `session '${opts.sessionId}' has no workspace_dir; cannot restart tmux`,
+    };
+  }
+  const wasRunning = isRunning(s.session_id);
+  if (wasRunning) {
+    const killed = killSession(s.session_id);
+    if (!killed) {
+      // kill-session exited non-zero but has-session said it exists. Either a
+      // race (session died between checks — harmless, proceed) or tmux is
+      // unhappy (permissions, socket gone). Re-check: if still running, we
+      // can't restart, so bail instead of quietly reporting 'already_running'.
+      if (isRunning(s.session_id)) {
+        return {
+          session_id: s.session_id,
+          killed: false,
+          started: false,
+          reason: 'kill_failed',
+          error: `could not kill existing tmux session '${s.session_id}'; refusing to start`,
+        };
+      }
+    }
+  }
+  const result = startSession({
+    session_id: s.session_id,
+    workspace_dir: s.workspace_dir,
+    permission_mode: s.permission_mode,
+  });
+  return {
+    session_id: s.session_id,
+    killed: wasRunning,
+    started: result.started,
+    ...(result.reason !== undefined ? { reason: result.reason } : {}),
+    ...(result.error !== undefined ? { error: result.error } : {}),
+  };
+}
+
+export function formatSessionRestart(r: SessionRestartResult): string {
+  if (!r.started) return `✗ ${r.session_id}: ${r.error ?? r.reason ?? 'failed'}`;
+  if (r.killed) return `✓ restarted ${r.session_id} (killed stale tmux first)`;
+  return `✓ started ${r.session_id}`;
 }
 
 // Re-exported helper for other CLI commands / tests.

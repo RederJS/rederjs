@@ -27,12 +27,15 @@ export interface RenderResult {
 export function renderToMarkdownV2(input: string): RenderResult {
   // Pull out fenced code blocks first. In MarkdownV2 code blocks, only ` and \ need escaping.
   const fences: string[] = [];
-  let work = input.replace(/```([a-zA-Z0-9_+-]*)\n?([\s\S]*?)```/g, (_m, _lang: string, body: string) => {
-    const idx = fences.length;
-    const escapedBody = body.replace(/([`\\])/g, '\\$1');
-    fences.push('```\n' + escapedBody + '```');
-    return `${FENCE_MARKER}${idx}${FENCE_MARKER}`;
-  });
+  let work = input.replace(
+    /```([a-zA-Z0-9_+-]*)\n?([\s\S]*?)```/g,
+    (_m, _lang: string, body: string) => {
+      const idx = fences.length;
+      const escapedBody = body.replace(/([`\\])/g, '\\$1');
+      fences.push('```\n' + escapedBody + '```');
+      return `${FENCE_MARKER}${idx}${FENCE_MARKER}`;
+    },
+  );
 
   // Inline code (`...`)
   const inlines: string[] = [];

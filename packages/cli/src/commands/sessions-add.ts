@@ -1,24 +1,48 @@
 import { readFileSync, writeFileSync, existsSync, chmodSync, mkdirSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import prompts from 'prompts';
 import { openDatabase } from '@rederjs/core/storage/db';
 import { createSession } from '@rederjs/core/sessions';
+import type { PermissionMode } from '@rederjs/core/tmux';
 import { loadConfigContext } from '../config-loader.js';
 import { defaultConfigPath, socketPathFor } from '../paths.js';
-import {
-  peekSession,
-  upsertSession,
-  type PeekedSession,
-} from './config-writer.js';
+import { peekSession, upsertSession } from './config-writer.js';
 import { runStart, type ServiceResult } from './service.js';
 import { sanitizeSessionId, validateSessionId, prettifyDisplayName } from '../session-id.js';
+import { installClaudeHooks } from './claude-hooks.js';
+
+const PERMISSION_MODE_CHOICES: ReadonlyArray<{ title: string; value: PermissionMode }> = [
+  { title: 'default — ask before each tool use', value: 'default' },
+  { title: 'plan — read-only planning, no edits', value: 'plan' },
+  { title: 'acceptEdits — auto-approve file edits', value: 'acceptEdits' },
+  { title: 'auto — classifier-driven auto-permission (see `claude auto-mode`)', value: 'auto' },
+  { title: 'dontAsk — skip permission prompts', value: 'dontAsk' },
+  { title: 'bypassPermissions — bypass all permission checks', value: 'bypassPermissions' },
+];
+
+function resolveHookCommand(): string {
+  // Claude Code runs hooks via /bin/sh -c, which may not have npm's global bin
+  // on PATH (systemd user services, desktop-launched Claude, etc.). Resolve to
+  // an absolute path at install time so the hook works regardless of the
+  // shell's PATH. Fall back to bare 'reder-hook' if resolution fails.
+  // Static argv (no user input) — no injection surface.
+  try {
+    const out = execFileSync('/usr/bin/env', ['which', 'reder-hook'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (out.length > 0 && out.startsWith('/')) return out;
+  } catch {
+    // `which` not found or reder-hook not on PATH at install time.
+  }
+  return 'reder-hook';
+}
 
 export class ConfigNotFoundError extends Error {
   override readonly name = 'ConfigNotFoundError';
   constructor(public readonly configPath: string) {
-    super(
-      `No config found at ${configPath}. Run 'reder init' first.`,
-    );
+    super(`No config found at ${configPath}. Run 'reder init' first.`);
   }
 }
 
@@ -46,6 +70,7 @@ export interface SessionAddOptions {
   configPath?: string | undefined;
   shimCommand?: readonly string[] | undefined;
   autoStart?: boolean | undefined;
+  permissionMode?: PermissionMode | undefined;
   forceRebind?: boolean | undefined;
 }
 
@@ -60,6 +85,7 @@ export interface SessionAddResult {
   yamlCreated: boolean;
   yamlUpdated: boolean;
   autoStart: boolean;
+  permissionMode: PermissionMode;
   daemonStart?: ServiceResult;
 }
 
@@ -83,17 +109,15 @@ export async function runSessionAdd(opts: SessionAddOptions): Promise<SessionAdd
   const autoStart = opts.autoStart ?? false;
 
   const existing = peekSession({ configPath, sessionId: opts.sessionId });
+  const permissionMode: PermissionMode =
+    opts.permissionMode ?? existing?.permission_mode ?? 'default';
   if (
     existing &&
     existing.workspace_dir !== undefined &&
     existing.workspace_dir !== projectDir &&
     !opts.forceRebind
   ) {
-    throw new SessionWorkspaceMismatchError(
-      opts.sessionId,
-      existing.workspace_dir,
-      projectDir,
-    );
+    throw new SessionWorkspaceMismatchError(opts.sessionId, existing.workspace_dir, projectDir);
   }
 
   const upsert = upsertSession({
@@ -102,6 +126,7 @@ export async function runSessionAdd(opts: SessionAddOptions): Promise<SessionAdd
     displayName,
     workspaceDir: projectDir,
     autoStart,
+    permissionMode,
   });
   const yamlCreated = upsert.kind === 'created';
   const yamlUpdated = upsert.kind !== 'updated_same';
@@ -146,6 +171,22 @@ export async function runSessionAdd(opts: SessionAddOptions): Promise<SessionAdd
     writeFileSync(mcpJsonPath, JSON.stringify(doc, null, 2) + '\n', { mode: 0o600 });
     chmodSync(mcpJsonPath, 0o600);
 
+    try {
+      installClaudeHooks({
+        projectDir,
+        sessionId: opts.sessionId,
+        hookCommand: resolveHookCommand(),
+        socketPath,
+        token,
+      });
+    } catch (err) {
+      // Non-fatal — the session is still registered. `reder sessions repair` can
+      // recover from this. Surface the warning to stderr so it's not silent.
+      process.stderr.write(
+        `warning: failed to install Claude hooks in ${projectDir}/.claude: ${(err as Error).message}\n`,
+      );
+    }
+
     tokenRotated = !created;
   } finally {
     db.close();
@@ -162,6 +203,7 @@ export async function runSessionAdd(opts: SessionAddOptions): Promise<SessionAdd
     yamlCreated,
     yamlUpdated,
     autoStart,
+    permissionMode,
   };
 
   if (autoStart) {
@@ -178,6 +220,7 @@ export interface InteractiveSessionAddOptions {
   configPath?: string | undefined;
   shimCommand?: readonly string[] | undefined;
   autoStart?: boolean | undefined;
+  permissionMode?: PermissionMode | undefined;
   forceRebind?: boolean | undefined;
   yes?: boolean | undefined;
   nonInteractive?: boolean | undefined;
@@ -192,13 +235,13 @@ export async function interactiveSessionAdd(
   }
 
   const projectDir = resolve(opts.projectDir ?? process.cwd());
-  const canInteract =
-    !opts.nonInteractive && !opts.yes && Boolean(process.stdin.isTTY);
+  const canInteract = !opts.nonInteractive && !opts.yes && Boolean(process.stdin.isTTY);
   const positionalMode = opts.sessionIdArg !== undefined && opts.sessionIdArg.length > 0;
 
   let sessionId: string;
   let displayName: string | undefined = opts.displayName;
   let autoStart: boolean = opts.autoStart ?? false;
+  let permissionMode: PermissionMode | undefined = opts.permissionMode;
 
   if (positionalMode) {
     sessionId = sanitizeSessionId(opts.sessionIdArg!);
@@ -228,6 +271,18 @@ export async function interactiveSessionAdd(
     if (name === undefined) throw new Error('cancelled');
     displayName = name;
 
+    const existing = peekSession({ configPath, sessionId });
+    const modeInitial: PermissionMode = permissionMode ?? existing?.permission_mode ?? 'default';
+    const { mode } = (await prompts({
+      type: 'select',
+      name: 'mode',
+      message: 'Claude permission mode',
+      choices: PERMISSION_MODE_CHOICES.map((c) => ({ title: c.title, value: c.value })),
+      initial: PERMISSION_MODE_CHOICES.findIndex((c) => c.value === modeInitial),
+    })) as { mode?: PermissionMode };
+    if (mode === undefined) throw new Error('cancelled');
+    permissionMode = mode;
+
     const { start } = (await prompts({
       type: 'confirm',
       name: 'start',
@@ -246,6 +301,7 @@ export async function interactiveSessionAdd(
       configPath,
       ...(opts.shimCommand !== undefined ? { shimCommand: opts.shimCommand } : {}),
       autoStart,
+      ...(permissionMode !== undefined ? { permissionMode } : {}),
       ...(opts.forceRebind !== undefined ? { forceRebind: opts.forceRebind } : {}),
     });
   } catch (err) {
@@ -257,6 +313,7 @@ export async function interactiveSessionAdd(
         configPath,
         shimCommand: opts.shimCommand,
         autoStart,
+        permissionMode,
       });
     }
     throw err;
@@ -272,6 +329,7 @@ async function handleCollision(
     configPath: string;
     shimCommand: readonly string[] | undefined;
     autoStart: boolean;
+    permissionMode: PermissionMode | undefined;
   },
 ): Promise<SessionAddResult> {
   const { choice } = (await prompts({
@@ -296,6 +354,7 @@ async function handleCollision(
       configPath: base.configPath,
       ...(base.shimCommand !== undefined ? { shimCommand: base.shimCommand } : {}),
       autoStart: base.autoStart,
+      ...(base.permissionMode !== undefined ? { permissionMode: base.permissionMode } : {}),
       forceRebind: true,
     });
   }
@@ -318,6 +377,7 @@ async function handleCollision(
       configPath: base.configPath,
       ...(base.shimCommand !== undefined ? { shimCommand: base.shimCommand } : {}),
       autoStart: base.autoStart,
+      ...(base.permissionMode !== undefined ? { permissionMode: base.permissionMode } : {}),
     });
   }
 

@@ -33,9 +33,7 @@ export interface InboundRow {
 export function insertInbound(db: Db, msg: InboundInsert): InboundInsertResult {
   if (msg.idempotency_key) {
     const existing = db
-      .prepare(
-        'SELECT message_id FROM inbound_messages WHERE adapter = ? AND idempotency_key = ?',
-      )
+      .prepare('SELECT message_id FROM inbound_messages WHERE adapter = ? AND idempotency_key = ?')
       .get(msg.adapter, msg.idempotency_key) as { message_id: string } | undefined;
     if (existing) {
       return { message_id: existing.message_id, inserted: false };
@@ -194,7 +192,9 @@ export function markOutboundFailed(db: Db, messageId: string, error: string): vo
 }
 
 export function incrementOutboundAttempt(db: Db, messageId: string): void {
-  db.prepare('UPDATE outbound_messages SET attempt_count = attempt_count + 1 WHERE message_id = ?').run(messageId);
+  db.prepare(
+    'UPDATE outbound_messages SET attempt_count = attempt_count + 1 WHERE message_id = ?',
+  ).run(messageId);
 }
 
 function rowToOutbound(row: {

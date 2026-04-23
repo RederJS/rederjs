@@ -56,6 +56,13 @@ export type AdminPairRequestEvent = {
   code: string;
 };
 
+export type HookEventEvent = {
+  session_id: string;
+  hook: 'SessionStart' | 'UserPromptSubmit' | 'Stop' | 'SessionEnd';
+  timestamp: string;
+  payload?: Record<string, unknown>;
+};
+
 type IpcEvents = {
   shim_connected: (sessionId: string) => void;
   shim_disconnected: (sessionId: string) => void;
@@ -63,6 +70,7 @@ type IpcEvents = {
   permission_request: (event: PermissionRequestEvent) => void;
   channel_ack: (event: ChannelAckEvent) => void;
   admin_pair_request: (event: AdminPairRequestEvent) => void;
+  hook_event: (event: HookEventEvent) => void;
 };
 
 export interface IpcServer {
@@ -116,10 +124,7 @@ export async function createIpcServer(opts: CreateIpcServerOptions): Promise<Ipc
       const buf = encode(msg);
       return ctx.socket.write(buf);
     } catch (err) {
-      logger.error(
-        { err, component: 'ipc.server' },
-        'failed to encode/write frame',
-      );
+      logger.error({ err, component: 'ipc.server' }, 'failed to encode/write frame');
       return false;
     }
   }
@@ -148,11 +153,11 @@ export async function createIpcServer(opts: CreateIpcServerOptions): Promise<Ipc
     }
     const msg: ShimToDaemonMsg = parseResult.data;
 
-    if (!ctx.authenticated && msg.kind !== 'hello') {
+    if (!ctx.authenticated && msg.kind !== 'hello' && msg.kind !== 'hook_event') {
       sendFrame(ctx, {
         kind: 'error',
         code: 'UNAUTHENTICATED',
-        message: 'expected hello as first frame',
+        message: 'expected hello or hook_event as first frame',
       });
       ctx.socket.destroy();
       return;
@@ -221,6 +226,33 @@ export async function createIpcServer(opts: CreateIpcServerOptions): Promise<Ipc
         resetHeartbeat(ctx);
         emitter.emit('admin_pair_request', { session_id: ctx.sessionId!, code: msg.code });
         return;
+      case 'hook_event': {
+        if (ctx.authenticated) {
+          sendFrame(ctx, {
+            kind: 'error',
+            code: 'INVALID_FRAME',
+            message: 'hook_event only allowed as first frame',
+          });
+          ctx.socket.destroy();
+          return;
+        }
+        const ok = await verifyToken(db, msg.session_id, msg.shim_token);
+        if (!ok) {
+          sendFrame(ctx, { kind: 'error', code: 'AUTH', message: 'invalid session_id or token' });
+          ctx.socket.destroy();
+          return;
+        }
+        emitter.emit('hook_event', {
+          session_id: msg.session_id,
+          hook: msg.hook,
+          timestamp: msg.timestamp,
+          ...(msg.payload !== undefined ? { payload: msg.payload } : {}),
+        });
+        // One-shot: do not register the connection, do not mark session connected.
+        // Just close the socket after a short drain window.
+        ctx.socket.end();
+        return;
+      }
     }
   }
 

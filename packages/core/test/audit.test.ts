@@ -66,7 +66,9 @@ describe('audit log', () => {
     audit.write({ kind: 'adapter_start', adapter: 'x' });
     vi.setSystemTime(new Date('2026-04-21T00:00:30Z'));
     audit.write({ kind: 'adapter_stop', adapter: 'x' });
-    const files = readdirSync(dir).filter((f) => f.startsWith('audit-')).sort();
+    const files = readdirSync(dir)
+      .filter((f) => f.startsWith('audit-'))
+      .sort();
     expect(files).toHaveLength(2);
     expect(files[0]).toContain('2026-04-20');
     expect(files[1]).toContain('2026-04-21');

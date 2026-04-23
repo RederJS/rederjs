@@ -5,24 +5,82 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./ipc/codec": { "types": "./dist/ipc/codec.d.ts", "default": "./dist/ipc/codec.js" },
-    "./ipc/protocol": { "types": "./dist/ipc/protocol.d.ts", "default": "./dist/ipc/protocol.js" },
-    "./ipc/server": { "types": "./dist/ipc/server.d.ts", "default": "./dist/ipc/server.js" },
-    "./storage/db": { "types": "./dist/storage/db.d.ts", "default": "./dist/storage/db.js" },
-    "./sessions": { "types": "./dist/sessions.d.ts", "default": "./dist/sessions.js" },
-    "./logger": { "types": "./dist/logger.d.ts", "default": "./dist/logger.js" },
-    "./config": { "types": "./dist/config.d.ts", "default": "./dist/config.js" },
-    "./audit": { "types": "./dist/audit.d.ts", "default": "./dist/audit.js" },
-    "./adapter": { "types": "./dist/adapter.d.ts", "default": "./dist/adapter.js" },
-    "./router": { "types": "./dist/router.d.ts", "default": "./dist/router.js" },
-    "./permissions": { "types": "./dist/permissions.d.ts", "default": "./dist/permissions.js" },
-    "./health": { "types": "./dist/health.d.ts", "default": "./dist/health.js" },
-    "./storage/kv": { "types": "./dist/storage/kv.d.ts", "default": "./dist/storage/kv.js" },
-    "./storage/outbox": { "types": "./dist/storage/outbox.d.ts", "default": "./dist/storage/outbox.js" },
-    "./pairing": { "types": "./dist/pairing.d.ts", "default": "./dist/pairing.js" },
-    "./ratelimit": { "types": "./dist/ratelimit.d.ts", "default": "./dist/ratelimit.js" },
-    "./tmux": { "types": "./dist/tmux.d.ts", "default": "./dist/tmux.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./ipc/codec": {
+      "types": "./dist/ipc/codec.d.ts",
+      "default": "./dist/ipc/codec.js"
+    },
+    "./ipc/protocol": {
+      "types": "./dist/ipc/protocol.d.ts",
+      "default": "./dist/ipc/protocol.js"
+    },
+    "./ipc/server": {
+      "types": "./dist/ipc/server.d.ts",
+      "default": "./dist/ipc/server.js"
+    },
+    "./storage/db": {
+      "types": "./dist/storage/db.d.ts",
+      "default": "./dist/storage/db.js"
+    },
+    "./sessions": {
+      "types": "./dist/sessions.d.ts",
+      "default": "./dist/sessions.js"
+    },
+    "./logger": {
+      "types": "./dist/logger.d.ts",
+      "default": "./dist/logger.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "default": "./dist/config.js"
+    },
+    "./audit": {
+      "types": "./dist/audit.d.ts",
+      "default": "./dist/audit.js"
+    },
+    "./activity": {
+      "types": "./dist/activity.d.ts",
+      "default": "./dist/activity.js"
+    },
+    "./adapter": {
+      "types": "./dist/adapter.d.ts",
+      "default": "./dist/adapter.js"
+    },
+    "./router": {
+      "types": "./dist/router.d.ts",
+      "default": "./dist/router.js"
+    },
+    "./permissions": {
+      "types": "./dist/permissions.d.ts",
+      "default": "./dist/permissions.js"
+    },
+    "./health": {
+      "types": "./dist/health.d.ts",
+      "default": "./dist/health.js"
+    },
+    "./storage/kv": {
+      "types": "./dist/storage/kv.d.ts",
+      "default": "./dist/storage/kv.js"
+    },
+    "./storage/outbox": {
+      "types": "./dist/storage/outbox.d.ts",
+      "default": "./dist/storage/outbox.js"
+    },
+    "./pairing": {
+      "types": "./dist/pairing.d.ts",
+      "default": "./dist/pairing.js"
+    },
+    "./ratelimit": {
+      "types": "./dist/ratelimit.d.ts",
+      "default": "./dist/ratelimit.js"
+    },
+    "./tmux": {
+      "types": "./dist/tmux.d.ts",
+      "default": "./dist/tmux.js"
+    }
   },
   "publishConfig": {
     "access": "public"

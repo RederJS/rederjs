@@ -7,6 +7,20 @@
   "bin": {
     "reder": "./dist/index.js"
   },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./commands/sessions-repair": {
+      "types": "./dist/commands/sessions-repair.d.ts",
+      "default": "./dist/commands/sessions-repair.js"
+    },
+    "./commands/claude-hooks": {
+      "types": "./dist/commands/claude-hooks.d.ts",
+      "default": "./dist/commands/claude-hooks.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"

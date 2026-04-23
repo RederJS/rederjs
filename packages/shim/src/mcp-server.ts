@@ -1,9 +1,6 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 type ChannelEventListener = (msg: {
   kind: 'channel_event';
@@ -41,7 +38,11 @@ export interface ShimIpcClient {
 export interface ShimDeps {
   ipc: ShimIpcClient;
   shimVersion: string;
-  logger?: { debug: (msg: string) => void; info: (msg: string) => void; error: (msg: string) => void };
+  logger?: {
+    debug: (msg: string) => void;
+    info: (msg: string) => void;
+    error: (msg: string) => void;
+  };
 }
 
 export interface McpChannelServer {
@@ -83,6 +84,17 @@ export function createMcpChannelServer(deps: ShimDeps): McpChannelServer {
           'claude/channel/permission': {},
         },
       },
+      instructions:
+        'Messages wrapped in <channel source="reder">…</channel> come from the ' +
+        'reder daemon — a user reading them in a browser dashboard, Telegram, or ' +
+        'another adapter, NOT the local terminal. Plain text responses stay in ' +
+        'this tmux session and never reach the sender.\n\n' +
+        'To reply, call the `reply` MCP tool exposed by this server ' +
+        '(`mcp__reder__reply` in tool-namespaced form). Pass a short `request_id` ' +
+        '(a fresh 5-letter id per reply) and your reply as `content`. If the tool ' +
+        'schema is deferred, load it first via ' +
+        '`ToolSearch(query="select:mcp__reder__reply", max_results=1)`.\n\n' +
+        'Do this for every inbound channel message that expects a response.',
     },
   );
 

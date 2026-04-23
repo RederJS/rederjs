@@ -12,10 +12,7 @@ import { createAdapterStorage } from '../../core/src/storage/kv.js';
 import { createBinding } from '../../core/src/pairing.js';
 import type { AdapterContext } from '../../core/src/adapter.js';
 import { TelegramAdapter } from '../src/index.js';
-import {
-  parsePermissionCallback,
-  renderPermissionPrompt,
-} from '../src/permission-prompt.js';
+import { parsePermissionCallback, renderPermissionPrompt } from '../src/permission-prompt.js';
 import { FakeTelegramTransport } from './fake-transport.js';
 
 let dir: string;
@@ -130,7 +127,8 @@ describe('TelegramAdapter permission relay', () => {
       expiresAt: new Date(Date.now() + 60_000),
     });
 
-    const verdictsReceived: Array<{ requestId: string; behavior: string; persistent?: boolean }> = [];
+    const verdictsReceived: Array<{ requestId: string; behavior: string; persistent?: boolean }> =
+      [];
     const origIngest = router.ingestPermissionVerdict.bind(router);
     router.ingestPermissionVerdict = async (v) => {
       verdictsReceived.push({

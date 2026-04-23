@@ -10,8 +10,7 @@ export interface LoadedConfigContext {
 }
 
 export function loadConfigContext(configPathInput?: string): LoadedConfigContext {
-  const configPath =
-    configPathInput ?? process.env['REDER_CONFIG'] ?? defaultConfigPath();
+  const configPath = configPathInput ?? process.env['REDER_CONFIG'] ?? defaultConfigPath();
   if (!existsSync(configPath)) {
     throw new ConfigError(`Config not found at ${configPath}. Run 'reder init' to create one.`);
   }

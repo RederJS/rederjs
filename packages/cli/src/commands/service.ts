@@ -2,16 +2,12 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { pidPathFor } from '../paths.js';
 import { loadConfigContext } from '../config-loader.js';
+import { hasRederUserUnit } from './systemd.js';
 
 export interface ServiceResult {
   method: 'systemctl' | 'direct';
   ok: boolean;
   detail: string;
-}
-
-function hasSystemctlUser(): boolean {
-  const res = spawnSync('systemctl', ['--user', 'status'], { stdio: 'ignore' });
-  return res.status === 0 || res.status === 3; // 3 = inactive, still present
 }
 
 export function runStart(opts: { configPath?: string } = {}): ServiceResult {
@@ -28,7 +24,7 @@ export function runStart(opts: { configPath?: string } = {}): ServiceResult {
       }
     }
   }
-  if (hasSystemctlUser()) {
+  if (hasRederUserUnit()) {
     const res = spawnSync('systemctl', ['--user', 'start', 'reder'], { stdio: 'inherit' });
     return {
       method: 'systemctl',
@@ -47,7 +43,7 @@ export function runStart(opts: { configPath?: string } = {}): ServiceResult {
 
 export function runStop(opts: { configPath?: string } = {}): ServiceResult {
   const ctx = loadConfigContext(opts.configPath);
-  if (hasSystemctlUser()) {
+  if (hasRederUserUnit()) {
     const res = spawnSync('systemctl', ['--user', 'stop', 'reder'], { stdio: 'inherit' });
     if (res.status === 0) {
       return { method: 'systemctl', ok: true, detail: 'stopped via systemctl --user' };

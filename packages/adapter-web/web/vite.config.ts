@@ -7,8 +7,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://127.0.0.1:7781',
-      '/health': 'http://127.0.0.1:7781',
+      '/api': process.env.REDER_DAEMON_URL ?? 'http://127.0.0.1:7781',
+      '/health': process.env.REDER_DAEMON_URL ?? 'http://127.0.0.1:7781',
     },
   },
   build: {

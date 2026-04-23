@@ -62,6 +62,16 @@ export interface SessionStateChangedPayload {
   readonly state: 'registered' | 'connected' | 'disconnected' | 'revoked';
 }
 
+export type SessionActivityState = 'working' | 'awaiting-user' | 'idle' | 'unknown' | 'offline';
+
+export interface SessionActivityChangedPayload {
+  readonly sessionId: string;
+  readonly state: SessionActivityState;
+  readonly since: string;
+  readonly lastHook?: 'SessionStart' | 'UserPromptSubmit' | 'Stop' | 'SessionEnd';
+  readonly lastHookAt?: string;
+}
+
 export interface RouterEventMap {
   'inbound.persisted': InboundPersistedPayload;
   'outbound.persisted': OutboundPersistedPayload;
@@ -69,11 +79,18 @@ export interface RouterEventMap {
   'permission.requested': PermissionRequestedPayload;
   'permission.resolved': PermissionResolvedPayload;
   'session.state_changed': SessionStateChangedPayload;
+  'session.activity_changed': SessionActivityChangedPayload;
 }
 
 export interface RouterEvents {
-  on<K extends keyof RouterEventMap>(event: K, listener: (payload: RouterEventMap[K]) => void): void;
-  off<K extends keyof RouterEventMap>(event: K, listener: (payload: RouterEventMap[K]) => void): void;
+  on<K extends keyof RouterEventMap>(
+    event: K,
+    listener: (payload: RouterEventMap[K]) => void,
+  ): void;
+  off<K extends keyof RouterEventMap>(
+    event: K,
+    listener: (payload: RouterEventMap[K]) => void,
+  ): void;
 }
 
 export interface RouterHandle {
@@ -98,6 +115,12 @@ export interface RouterHandle {
     sessionId: string;
     metadata?: Record<string, unknown>;
   }): void;
+  /** Inform the router that an adapter's unread count for a session changed. */
+  notifyUnread(sessionId: string, unread: number): void;
+  /** Current activity snapshots for every session the router knows about. */
+  listActivity(): SessionActivityChangedPayload[];
+  /** Current activity snapshot for a single session, or undefined if untracked. */
+  getActivity(sessionId: string): SessionActivityChangedPayload | undefined;
   readonly events: RouterEvents;
 }
 
@@ -127,6 +150,12 @@ export interface AdapterContext {
    * daemon's `/health` endpoint. Used by the web adapter to serve `/health`.
    */
   readonly healthSnapshot?: () => Promise<unknown>;
+  /**
+   * Optional callback for adapters that need to trigger a session-repair
+   * flow (equivalent to `reder sessions repair <id>`). Populated by the
+   * daemon when it knows the config path.
+   */
+  readonly repairSession?: (sessionId: string) => Promise<void>;
 }
 
 export interface InboundMessage {

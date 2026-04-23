@@ -7,3 +7,12 @@ coverage/
 *.env
 .DS_Store
 *.log
+
+# Per-workspace reder shim pointer — contains a session token, not for git.
+.mcp.json
+# TypeScript incremental build cache
+*.tsbuildinfo
+# Local design-exploration scratch (see docs/design/ if anything graduates)
+design/
+# Superpowers workflow artifacts (specs graduate to docs/design/; plans stay local)
+docs/superpowers/
