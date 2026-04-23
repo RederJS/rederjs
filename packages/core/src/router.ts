@@ -30,7 +30,7 @@ import type {
 } from './ipc/server.js';
 import type { AuditLog } from './audit.js';
 import { PermissionManager, type PermissionManagerOptions } from './permissions.js';
-import { SessionActivityTracker } from './activity.js';
+import { SessionActivityTracker, type SessionActivitySnapshot } from './activity.js';
 import {
   lookupPairCode,
   consumePairCode,
@@ -94,7 +94,7 @@ export function createRouter(opts: RouterOptions): Router {
   };
 
   const activity = new SessionActivityTracker();
-  activity.on('changed', (snap) => {
+  const activityListener = (snap: SessionActivitySnapshot): void => {
     const payload: RouterEventMap['session.activity_changed'] = {
       sessionId: snap.sessionId,
       state: snap.state,
@@ -103,7 +103,8 @@ export function createRouter(opts: RouterOptions): Router {
       ...(snap.lastHookAt !== undefined ? { lastHookAt: snap.lastHookAt } : {}),
     };
     emit('session.activity_changed', payload);
-  });
+  };
+  activity.on('changed', activityListener);
 
   const permissions = new PermissionManager({
     db,
@@ -140,14 +141,14 @@ export function createRouter(opts: RouterOptions): Router {
   // IPC event wiring -----------------------------------------------------------
 
   ipcServer.on('shim_connected', (sessionId) => {
-    emit('session.state_changed', { sessionId, state: 'connected' });
     activity.onShimConnected(sessionId);
+    emit('session.state_changed', { sessionId, state: 'connected' });
     void flushPendingForSession(sessionId);
   });
 
   ipcServer.on('shim_disconnected', (sessionId) => {
-    emit('session.state_changed', { sessionId, state: 'disconnected' });
     activity.onShimDisconnected(sessionId);
+    emit('session.state_changed', { sessionId, state: 'disconnected' });
   });
 
   ipcServer.on('hook_event', (evt) => {
@@ -170,6 +171,7 @@ export function createRouter(opts: RouterOptions): Router {
     const expiresAt = new Date(
       Date.now() + (opts.permissions?.timeoutSeconds ?? 600) * 1000,
     ).toISOString();
+    activity.onPermissionRequested(evt.session_id, evt.request_id);
     emit('permission.requested', {
       requestId: evt.request_id,
       sessionId: evt.session_id,
@@ -178,7 +180,6 @@ export function createRouter(opts: RouterOptions): Router {
       inputPreview: evt.input_preview,
       expiresAt,
     });
-    activity.onPermissionRequested(evt.session_id, evt.request_id);
     void permissions.handleRequest(evt);
   });
 
@@ -534,6 +535,7 @@ export function createRouter(opts: RouterOptions): Router {
 
     async stop(): Promise<void> {
       await permissions.stop();
+      activity.off('changed', activityListener);
       emitter.removeAllListeners();
     },
   };
