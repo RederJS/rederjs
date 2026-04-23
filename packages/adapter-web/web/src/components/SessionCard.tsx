@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import type { SessionSummary } from '../api';
 import { repairSession } from '../api';
 import { sessionStatus, shortId } from '../derive';
@@ -28,6 +28,13 @@ export function SessionCard({
   const status = sessionStatus(session);
   const lastIso = session.last_inbound_at || session.last_outbound_at || session.last_seen_at;
 
+  const handleKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   const handleRepair = async (e: MouseEvent): Promise<void> => {
     e.stopPropagation();
     try {
@@ -50,9 +57,11 @@ export function SessionCard({
 
   if (variant === 'compact') {
     return (
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onClick}
+        onKeyDown={handleKey}
         className={cn(
           'flex w-full items-center gap-3 rounded-lg border border-line bg-bg-1 p-3 text-left transition',
           'hover:border-line-2 hover:bg-bg-2',
@@ -67,15 +76,17 @@ export function SessionCard({
         {statusVariant !== 'pill' ? null : <StatusPill status={status} />}
         <StatusPill status={status} />
         {repairButton}
-      </button>
+      </div>
     );
   }
 
   if (variant === 'panel') {
     return (
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onClick}
+        onKeyDown={handleKey}
         className={cn(
           '@container/card group relative flex min-h-[180px] w-full flex-col overflow-hidden rounded-[10px] border border-line text-left transition',
           'bg-gradient-to-b from-bg-1 to-bg-2',
@@ -102,15 +113,17 @@ export function SessionCard({
           <MetaCell label="Unread" value={session.unread > 0 ? String(session.unread) : '—'} />
         </div>
         {repairButton && <div className="px-3.5 pb-2.5">{repairButton}</div>}
-      </button>
+      </div>
     );
   }
 
   // tactical (default)
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={handleKey}
       className={cn(
         '@container/card group relative flex min-h-[170px] w-full flex-col gap-3 overflow-hidden rounded-[10px] border border-line bg-bg-1 p-4 text-left transition',
         'hover:border-line-2 hover:bg-bg-2',
@@ -147,7 +160,7 @@ export function SessionCard({
         <MetaCell label="Unread" value={session.unread > 0 ? String(session.unread) : '—'} />
       </div>
       {repairButton}
-    </button>
+    </div>
   );
 }
 
