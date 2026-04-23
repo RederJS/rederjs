@@ -81,6 +81,18 @@ npm run build -w @rederjs/core
 
 That invokes `tsc` plus the `cpSync` step in core's `build` script.
 
+### Session activity hooks
+
+Reder installs three Claude Code hooks per session (`SessionStart`, `UserPromptSubmit`, `Stop`) into `<workspace>/.claude/settings.local.json`. They invoke the `reder-hook` binary, which forwards the lifecycle event to the daemon so the dashboard can tell the difference between a session that is working and one that needs attention.
+
+If a session shows `unknown` in the dashboard, the hook block is missing or stale. Run:
+
+    reder sessions repair <session-id>
+
+to re-install it. `reder doctor` reports which sessions are missing hooks.
+
+To debug hook invocations, set `REDER_HOOK_DEBUG=1` in Claude Code's environment — the `reder-hook` binary will emit stderr lines describing socket connect failures or fatal errors. Default (unset) behavior is silent so hooks never break Claude's flow.
+
 ## Dashboard UI with hot reload
 
 The React SPA has its own Vite dev server that proxies `/api` to the real daemon, so you get HMR against live data:

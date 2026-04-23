@@ -197,7 +197,8 @@ reder dashboard url               # print the authenticated dashboard URL
 **Session list** — one card per configured session:
 
 - Display name + workspace path
-- Status dots: **shim** (is a Claude Code process connected?) and **tmux** (is a tmux session by that name running?)
+- Status pill: **working** (Claude is actively processing) / **needs you** (Claude is awaiting your reply or a permission) / **idle** / **unknown** / **offline**. Powered by Claude Code hooks that reder installs per session.
+- Connection dots: **shim** (is a Claude Code process connected?) and **tmux** (is a tmux session by that name running?)
 - Unread-message badge (messages received from other adapters since you last opened the session)
 - "Start" button when tmux isn't running and the session has a `workspace_dir`
 - Last message timestamp
