@@ -104,11 +104,7 @@ export interface StartSessionOptions extends TmuxRunnerOption {
   logger?: Logger;
 }
 
-export const DEFAULT_CLAUDE_COMMAND: readonly string[] = [
-  'claude',
-  '--dangerously-load-development-channels',
-  'server:reder',
-];
+export const DEFAULT_CLAUDE_COMMAND: readonly string[] = ['claude'];
 
 function buildDefaultCommand(mode: PermissionMode | undefined): readonly string[] {
   if (mode === undefined || mode === 'default') return DEFAULT_CLAUDE_COMMAND;

@@ -173,6 +173,7 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
     const result = startTmuxSession({
       session_id: s.session_id,
       workspace_dir: s.workspace_dir,
+      permission_mode: s.permission_mode,
       logger: logger.child({ component: 'core.tmux' }),
     });
     logger.info(
