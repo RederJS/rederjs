@@ -124,6 +124,15 @@ describe('runSessionAdd', () => {
     const token = args[args.indexOf('--token') + 1]!;
     expect(token).toMatch(/^rdr_sess_/);
     expect(r.tokenRotated).toBe(false);
+
+    // Also installs Claude hooks.
+    const settingsPath = join(projectDir, '.claude', 'settings.local.json');
+    expect(existsSync(settingsPath)).toBe(true);
+    const settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
+      hooks: Record<string, Array<{ _reder_session_id?: string }>>;
+    };
+    expect(settings.hooks.UserPromptSubmit).toBeDefined();
+    expect(settings.hooks.UserPromptSubmit[0]!._reder_session_id).toBe('booknerds');
   });
 
   it('rotates token on re-install', async () => {

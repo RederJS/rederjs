@@ -120,4 +120,13 @@ describe('runSessionRemove', () => {
     expect(r.mcpEntryRemoved).toBe(false);
     expect(readFileSync(join(projectDir, '.mcp.json'), 'utf8')).toBe(before);
   });
+
+  it('removes Claude hooks from .claude/settings.local.json', async () => {
+    seedConfig();
+    await runSessionAdd({ sessionId: 'sess', projectDir, configPath });
+    expect(existsSync(join(projectDir, '.claude', 'settings.local.json'))).toBe(true);
+
+    runSessionRemove({ sessionId: 'sess', configPath });
+    expect(existsSync(join(projectDir, '.claude', 'settings.local.json'))).toBe(false);
+  });
 });

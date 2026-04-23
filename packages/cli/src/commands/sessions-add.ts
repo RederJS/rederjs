@@ -9,6 +9,7 @@ import { defaultConfigPath, socketPathFor } from '../paths.js';
 import { peekSession, upsertSession, type PeekedSession } from './config-writer.js';
 import { runStart, type ServiceResult } from './service.js';
 import { sanitizeSessionId, validateSessionId, prettifyDisplayName } from '../session-id.js';
+import { installClaudeHooks } from './claude-hooks.js';
 
 const PERMISSION_MODE_CHOICES: ReadonlyArray<{ title: string; value: PermissionMode }> = [
   { title: 'default — ask before each tool use', value: 'default' },
@@ -150,6 +151,22 @@ export async function runSessionAdd(opts: SessionAddOptions): Promise<SessionAdd
 
     writeFileSync(mcpJsonPath, JSON.stringify(doc, null, 2) + '\n', { mode: 0o600 });
     chmodSync(mcpJsonPath, 0o600);
+
+    try {
+      installClaudeHooks({
+        projectDir,
+        sessionId: opts.sessionId,
+        hookCommand: 'reder-hook',
+        socketPath,
+        token,
+      });
+    } catch (err) {
+      // Non-fatal — the session is still registered. `reder sessions repair` can
+      // recover from this. Surface the warning to stderr so it's not silent.
+      process.stderr.write(
+        `warning: failed to install Claude hooks in ${projectDir}/.claude: ${(err as Error).message}\n`,
+      );
+    }
 
     tokenRotated = !created;
   } finally {
