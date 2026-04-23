@@ -111,4 +111,39 @@ describe('ipc server hook_event', () => {
     expect(ipcServer.isSessionConnected('sess')).toBe(true);
     helloSock.end();
   });
+
+  it('rejects hook_event on an already-authenticated shim socket', async () => {
+    const hookReceived: unknown[] = [];
+    ipcServer.on('hook_event', (evt) => hookReceived.push(evt));
+
+    // Become a shim.
+    const sock = createConnection({ path: socketPath });
+    await new Promise<void>((r) => sock.once('connect', () => r()));
+    sock.write(
+      encode({
+        kind: 'hello',
+        session_id: 'sess',
+        shim_token: token,
+        shim_version: '0.1.0',
+        claude_code_version: '2.1.81',
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 300));
+    expect(ipcServer.isSessionConnected('sess')).toBe(true);
+
+    // Now send a hook_event over the same socket — server must refuse and destroy.
+    sock.write(
+      encode({
+        kind: 'hook_event',
+        session_id: 'sess',
+        shim_token: token,
+        hook: 'Stop',
+        timestamp: '2026-04-22T12:03:00.000Z',
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 300));
+    expect(hookReceived).toHaveLength(0);
+    // The destroyed shim socket will also mark session disconnected.
+    expect(ipcServer.isSessionConnected('sess')).toBe(false);
+  });
 });

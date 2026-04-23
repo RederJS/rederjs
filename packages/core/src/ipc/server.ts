@@ -230,6 +230,15 @@ export async function createIpcServer(opts: CreateIpcServerOptions): Promise<Ipc
         emitter.emit('admin_pair_request', { session_id: ctx.sessionId!, code: msg.code });
         return;
       case 'hook_event': {
+        if (ctx.authenticated) {
+          sendFrame(ctx, {
+            kind: 'error',
+            code: 'INVALID_FRAME',
+            message: 'hook_event only allowed as first frame',
+          });
+          ctx.socket.destroy();
+          return;
+        }
         const ok = await verifyToken(db, msg.session_id, msg.shim_token);
         if (!ok) {
           sendFrame(ctx, { kind: 'error', code: 'AUTH', message: 'invalid session_id or token' });
