@@ -9,7 +9,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w @rederjs/core && npm run build --workspaces --if-present",
     "watch": "tsc -b packages/core packages/cli packages/daemon packages/shim packages/adapter-telegram packages/adapter-web --watch",
     "dev": "npm run watch",
     "dev:web": "npm run dev:web -w @rederjs/adapter-web",
