@@ -35,6 +35,14 @@ export const ShimToDaemon = z.discriminatedUnion('kind', [
     kind: z.literal('admin_pair_request'),
     code: z.string().min(1),
   }),
+  z.object({
+    kind: z.literal('hook_event'),
+    session_id: z.string().min(1),
+    shim_token: z.string().min(1),
+    hook: z.enum(['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd']),
+    timestamp: z.string().min(1),
+    payload: z.record(z.string(), z.unknown()).optional(),
+  }),
   z.object({ kind: z.literal('ping') }),
 ]);
 
