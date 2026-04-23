@@ -92,4 +92,39 @@ describe('SessionActivityTracker', () => {
     expect(snap.lastHook).toBe('UserPromptSubmit');
     expect(snap.lastHookAt).toBe('2026-04-22T12:00:00Z');
   });
+
+  it('returns to unknown on shim reconnect after prior Stop', () => {
+    tracker.onShimConnected('s1');
+    tracker.onHookEvent({ sessionId: 's1', hook: 'UserPromptSubmit', timestamp: '2026-04-22T12:00:00Z' });
+    tracker.onHookEvent({ sessionId: 's1', hook: 'Stop', timestamp: '2026-04-22T12:01:00Z' });
+    expect(tracker.get('s1')?.state).toBe('idle');
+    tracker.onShimDisconnected('s1');
+    expect(tracker.get('s1')?.state).toBe('offline');
+    tracker.onShimConnected('s1');
+    // Must be unknown again — we haven't seen any hook from the new Claude process.
+    expect(tracker.get('s1')?.state).toBe('unknown');
+  });
+
+  it('SessionStart resets the working flag just like UserPromptSubmit', () => {
+    tracker.onShimConnected('s1');
+    tracker.onHookEvent({ sessionId: 's1', hook: 'UserPromptSubmit', timestamp: '2026-04-22T12:00:00Z' });
+    tracker.onHookEvent({ sessionId: 's1', hook: 'Stop', timestamp: '2026-04-22T12:01:00Z' });
+    expect(tracker.get('s1')?.state).toBe('idle');
+    tracker.onHookEvent({ sessionId: 's1', hook: 'SessionStart', timestamp: '2026-04-22T12:02:00Z' });
+    expect(tracker.get('s1')?.state).toBe('working');
+  });
+
+  it('keeps per-session state isolated', () => {
+    tracker.onShimConnected('a');
+    tracker.onShimConnected('b');
+    tracker.onHookEvent({ sessionId: 'a', hook: 'UserPromptSubmit', timestamp: '2026-04-22T12:00:00Z' });
+    // 'a' is working, 'b' has only seen shim connect
+    expect(tracker.get('a')?.state).toBe('working');
+    expect(tracker.get('b')?.state).toBe('unknown');
+    tracker.onHookEvent({ sessionId: 'b', hook: 'UserPromptSubmit', timestamp: '2026-04-22T12:00:01Z' });
+    tracker.onHookEvent({ sessionId: 'b', hook: 'Stop', timestamp: '2026-04-22T12:00:02Z' });
+    // 'b' reached idle, 'a' still working
+    expect(tracker.get('b')?.state).toBe('idle');
+    expect(tracker.get('a')?.state).toBe('working');
+  });
 });

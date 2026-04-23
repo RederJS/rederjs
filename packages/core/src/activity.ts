@@ -65,6 +65,10 @@ export class SessionActivityTracker {
   onShimDisconnected(sessionId: string): void {
     const s = this.ensure(sessionId);
     s.shimConnected = false;
+    s.hasSeenHook = false;
+    s.seenStopSinceLastPrompt = false;
+    // Preserve lastHook/lastHookAt as historical metadata — callers may still
+    // want to know "the last hook we ever saw for this session".
     this.recompute(sessionId, s);
   }
 
@@ -78,8 +82,9 @@ export class SessionActivityTracker {
     } else if (evt.hook === 'Stop') {
       s.seenStopSinceLastPrompt = true;
     } else if (evt.hook === 'SessionEnd') {
-      // Treat as implicit disconnect for state purposes but keep shim flag
-      // alone — the ipc layer is authoritative for connectivity.
+      // Same as Stop for state purposes — the prompt cycle is complete. The
+      // ipc layer is authoritative for "is the shim still connected"; the
+      // tracker shouldn't mutate shimConnected in response to a hook event.
       s.seenStopSinceLastPrompt = true;
     }
     this.recompute(evt.sessionId, s);
