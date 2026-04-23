@@ -1,5 +1,13 @@
-import { existsSync, readFileSync, writeFileSync, chmodSync, mkdirSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  chmodSync,
+  mkdirSync,
+  unlinkSync,
+  renameSync,
+} from 'node:fs';
+import { join, dirname } from 'node:path';
 
 const HOOKED_EVENTS = ['SessionStart', 'UserPromptSubmit', 'Stop'] as const;
 type HookedEvent = (typeof HOOKED_EVENTS)[number];
@@ -46,15 +54,17 @@ function loadSettings(path: string): SettingsShape {
 }
 
 function saveSettings(path: string, doc: SettingsShape): void {
-  mkdirSync(join(path, '..'), { recursive: true });
-  writeFileSync(path, JSON.stringify(doc, null, 2) + '\n', { mode: 0o600 });
-  chmodSync(path, 0o600);
+  mkdirSync(dirname(path), { recursive: true });
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, JSON.stringify(doc, null, 2) + '\n', { mode: 0o600 });
+  chmodSync(tmp, 0o600);
+  renameSync(tmp, path);
 }
 
 function buildCommand(p: HookInstallParams, event: HookedEvent): string {
-  // Safe quoting: the command is rendered into JSON which Claude Code then
-  // runs via a shell. Escape double quotes in paths defensively.
-  const q = (s: string): string => `"${s.replace(/"/g, '\\"')}"`;
+  // POSIX-safe single-quote quoting: wrap in '...' and escape literal '
+  // as '\'' (close quote, escaped quote, reopen quote).
+  const q = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
   return [
     q(p.hookCommand),
     '--session-id',
