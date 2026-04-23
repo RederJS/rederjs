@@ -1,5 +1,5 @@
 import type { SessionSummary } from '../api';
-import { deriveStatus, shortId } from '../derive';
+import { sessionStatus, shortId } from '../derive';
 import type { StatusVariant } from '../types';
 import { Avatar } from './Avatar';
 import { Icons } from './Icon';
@@ -11,7 +11,7 @@ interface PanelHeaderProps {
 }
 
 export function PanelHeader({ session, statusVariant, onClose }: PanelHeaderProps): JSX.Element {
-  const status = deriveStatus(session);
+  const status = sessionStatus(session);
   return (
     <div
       className="flex items-center gap-3 border-b border-line px-4 py-3"

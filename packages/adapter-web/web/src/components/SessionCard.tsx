@@ -1,5 +1,5 @@
 import type { SessionSummary } from '../api';
-import { deriveStatus, shortId } from '../derive';
+import { sessionStatus, shortId } from '../derive';
 import { formatLast, formatTokens, formatUptime } from '../format';
 import type { CardVariant, StatusVariant } from '../types';
 import { Avatar } from './Avatar';
@@ -23,7 +23,7 @@ export function SessionCard({
   statusVariant,
   onClick,
 }: SessionCardProps): JSX.Element {
-  const status = deriveStatus(session);
+  const status = sessionStatus(session);
   const lastIso = session.last_inbound_at || session.last_outbound_at || session.last_seen_at;
 
   if (variant === 'compact') {
@@ -115,7 +115,7 @@ export function SessionCard({
         {preview ?? (session.workspace_dir || 'No activity yet')}
       </div>
 
-      {status === 'busy' && <div className="scanbar" />}
+      {status === 'working' && <div className="scanbar" />}
 
       <div className="mt-auto grid grid-cols-3 gap-x-2 gap-y-1 border-t border-dashed border-line pt-2.5 font-mono text-[10.5px] text-fg-3 @max-[170px]/card:grid-cols-1 @max-[140px]/card:hidden">
         <MetaCell label="Up" value={formatUptime(null)} />

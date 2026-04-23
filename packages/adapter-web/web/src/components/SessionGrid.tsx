@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import type { SessionSummary } from '../api';
-import { deriveStatus } from '../derive';
+import { sessionStatus } from '../derive';
 import type { CardVariant, SortKey, Status, StatusVariant } from '../types';
 import { SessionCard } from './SessionCard';
 import { cn } from '../cn';
@@ -23,10 +23,11 @@ interface SessionGridProps {
 }
 
 const STATUS_ORDER: Record<Status, number> = {
-  waiting: 0,
-  idle: 1,
-  busy: 2,
-  offline: 3,
+  'awaiting-user': 0,
+  unknown: 1,
+  offline: 2,
+  idle: 3,
+  working: 4,
 };
 
 export function SessionGrid(props: SessionGridProps): JSX.Element {
@@ -47,15 +48,21 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
   } = props;
 
   const counts = useMemo(() => {
-    const out: Record<Status, number> = { waiting: 0, busy: 0, idle: 0, offline: 0 };
-    for (const s of sessions) out[deriveStatus(s)]++;
+    const out: Record<Status, number> = {
+      working: 0,
+      'awaiting-user': 0,
+      idle: 0,
+      unknown: 0,
+      offline: 0,
+    };
+    for (const s of sessions) out[sessionStatus(s)]++;
     return out;
   }, [sessions]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = sessions.filter((s) => {
-      if (statusFilter !== 'all' && deriveStatus(s) !== statusFilter) return false;
+      if (statusFilter !== 'all' && sessionStatus(s) !== statusFilter) return false;
       if (q) {
         const preview = (previews.get(s.session_id) ?? '').toLowerCase();
         const haystack = `${s.display_name} ${s.session_id} ${s.workspace_dir ?? ''} ${preview}`.toLowerCase();
@@ -65,7 +72,7 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
     });
     list.sort((a, b) => {
       if (sort === 'priority') {
-        const d = STATUS_ORDER[deriveStatus(a)] - STATUS_ORDER[deriveStatus(b)];
+        const d = STATUS_ORDER[sessionStatus(a)] - STATUS_ORDER[sessionStatus(b)];
         if (d !== 0) return d;
         return a.display_name.localeCompare(b.display_name);
       }
@@ -94,10 +101,10 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
           <Chip active={statusFilter === 'all'} onClick={() => onStatusFilterChange('all')}>
             all <span className="text-fg-4">{sessions.length}</span>
           </Chip>
-          {(['waiting', 'busy', 'idle', 'offline'] as const).map((s) => (
+          {(['awaiting-user', 'idle', 'unknown', 'working', 'offline'] as const).map((s) => (
             <Chip key={s} active={statusFilter === s} onClick={() => onStatusFilterChange(s)}>
               <span className="size-1.5 rounded-full" style={{ background: `var(--st-${s})` }} />
-              {s} <span className="text-fg-4">{counts[s]}</span>
+              {s === 'awaiting-user' ? 'needs you' : s} <span className="text-fg-4">{counts[s]}</span>
             </Chip>
           ))}
         </div>

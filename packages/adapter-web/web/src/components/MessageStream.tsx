@@ -98,7 +98,7 @@ export function MessageStream({
         />
       ))}
 
-      {status === 'busy' && (
+      {status === 'working' && (
         <div className="activity-line self-center rounded-md px-2 py-0.5 font-mono text-[10.5px] text-fg-4">
           session is currently running — new messages queue until the next checkpoint
         </div>

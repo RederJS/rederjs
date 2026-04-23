@@ -12,6 +12,11 @@
     --st-busy: #e0b341;
     --st-idle: #7cd38c;
     --st-offline: #6a6e78;
+
+    /* new 5-state activity status (alias onto legacy values so visuals match) */
+    --st-working: var(--st-busy, #e0b341);
+    --st-awaiting-user: var(--st-waiting, #4f8cff);
+    --st-unknown: var(--st-offline, #6a6e78);
   }
 
   :root,
@@ -111,15 +116,21 @@
   }
 
   /* status rings by data-status attribute */
-  [data-status='waiting'] > .avatar-ring {
-    border: 1.5px solid var(--st-waiting);
+  [data-status='waiting'] > .avatar-ring,
+  [data-status='awaiting-user'] > .avatar-ring {
+    border: 1.5px solid var(--st-awaiting-user);
     animation: pulse-ring 1.6s ease-out infinite;
   }
-  [data-status='busy'] > .avatar-ring {
-    border: 1.5px solid var(--st-busy);
+  [data-status='busy'] > .avatar-ring,
+  [data-status='working'] > .avatar-ring {
+    border: 1.5px solid var(--st-working);
   }
   [data-status='idle'] > .avatar-ring {
     border: 1.5px dashed var(--st-idle);
+  }
+  [data-status='unknown'] > .avatar-ring {
+    border: 1.5px dashed var(--line-2);
+    opacity: 0.5;
   }
   [data-status='offline'] > .avatar-ring {
     border: 1.5px dashed var(--line-2);
@@ -182,31 +193,41 @@
     height: 6px;
     border-radius: 50%;
   }
-  .spill[data-s='waiting'] .d {
-    background: var(--st-waiting);
-    box-shadow: 0 0 6px var(--st-waiting);
+  .spill[data-s='waiting'] .d,
+  .spill[data-s='awaiting-user'] .d {
+    background: var(--st-awaiting-user);
+    box-shadow: 0 0 6px var(--st-awaiting-user);
     animation: dot-blink 1.2s infinite;
   }
-  .spill[data-s='busy'] .d {
-    background: var(--st-busy);
+  .spill[data-s='busy'] .d,
+  .spill[data-s='working'] .d {
+    background: var(--st-working);
     animation: dot-blink 0.6s infinite;
   }
   .spill[data-s='idle'] .d {
     background: var(--st-idle);
   }
+  .spill[data-s='unknown'] .d {
+    background: var(--st-unknown);
+  }
   .spill[data-s='offline'] .d {
     background: var(--st-offline);
   }
-  .spill[data-s='waiting'] {
-    color: var(--st-waiting);
-    border-color: color-mix(in oklab, var(--st-waiting) 40%, var(--line));
+  .spill[data-s='waiting'],
+  .spill[data-s='awaiting-user'] {
+    color: var(--st-awaiting-user);
+    border-color: color-mix(in oklab, var(--st-awaiting-user) 40%, var(--line));
   }
-  .spill[data-s='busy'] {
-    color: var(--st-busy);
-    border-color: color-mix(in oklab, var(--st-busy) 40%, var(--line));
+  .spill[data-s='busy'],
+  .spill[data-s='working'] {
+    color: var(--st-working);
+    border-color: color-mix(in oklab, var(--st-working) 40%, var(--line));
   }
   .spill[data-s='idle'] {
     color: var(--st-idle);
+  }
+  .spill[data-s='unknown'] {
+    color: var(--fg-4);
   }
   .spill[data-s='offline'] {
     color: var(--fg-4);

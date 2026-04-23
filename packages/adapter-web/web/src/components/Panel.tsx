@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { listMessages, resolvePermission, sendMessage, type SessionSummary, type TranscriptMessage } from '../api';
-import { deriveStatus } from '../derive';
+import { sessionStatus } from '../derive';
 import { useEventStream } from '../sse';
 import type { BubbleVariant, ComposerVariant, PendingPermission, StatusVariant } from '../types';
 import { Composer } from './Composer';
@@ -86,7 +86,7 @@ export function Panel({ session, statusVariant, bubbleVariant, composerVariant, 
     [sessionId],
   );
 
-  const status = useMemo(() => deriveStatus(session), [session]);
+  const status = useMemo(() => sessionStatus(session), [session]);
 
   const onQuickReply = useCallback(
     async (msg: TranscriptMessage, value: string, label: string): Promise<void> => {
