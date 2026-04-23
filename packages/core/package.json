@@ -14,6 +14,7 @@
     "./logger": { "types": "./dist/logger.d.ts", "default": "./dist/logger.js" },
     "./config": { "types": "./dist/config.d.ts", "default": "./dist/config.js" },
     "./audit": { "types": "./dist/audit.d.ts", "default": "./dist/audit.js" },
+    "./activity": { "types": "./dist/activity.d.ts", "default": "./dist/activity.js" },
     "./adapter": { "types": "./dist/adapter.d.ts", "default": "./dist/adapter.js" },
     "./router": { "types": "./dist/router.d.ts", "default": "./dist/router.js" },
     "./permissions": { "types": "./dist/permissions.d.ts", "default": "./dist/permissions.js" },
