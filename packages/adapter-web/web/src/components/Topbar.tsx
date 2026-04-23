@@ -44,7 +44,7 @@ export function Topbar({
           <>
             <span className="text-fg-4">/</span>
             <span>
-              waiting <span className="text-fg-2">{waitingCount}</span>
+              needs you <span className="text-fg-2">{waitingCount}</span>
             </span>
           </>
         )}
