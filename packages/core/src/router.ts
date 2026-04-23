@@ -30,6 +30,7 @@ import type {
 } from './ipc/server.js';
 import type { AuditLog } from './audit.js';
 import { PermissionManager, type PermissionManagerOptions } from './permissions.js';
+import { SessionActivityTracker } from './activity.js';
 import {
   lookupPairCode,
   consumePairCode,
@@ -92,6 +93,18 @@ export function createRouter(opts: RouterOptions): Router {
     },
   };
 
+  const activity = new SessionActivityTracker();
+  activity.on('changed', (snap) => {
+    const payload: RouterEventMap['session.activity_changed'] = {
+      sessionId: snap.sessionId,
+      state: snap.state,
+      since: snap.since,
+      ...(snap.lastHook !== undefined ? { lastHook: snap.lastHook } : {}),
+      ...(snap.lastHookAt !== undefined ? { lastHookAt: snap.lastHookAt } : {}),
+    };
+    emit('session.activity_changed', payload);
+  });
+
   const permissions = new PermissionManager({
     db,
     adapters: {
@@ -119,6 +132,7 @@ export function createRouter(opts: RouterOptions): Router {
       });
     },
     onResolved: (info) => {
+      activity.onPermissionResolved(info.sessionId, info.requestId);
       emit('permission.resolved', info);
     },
   });
@@ -127,11 +141,21 @@ export function createRouter(opts: RouterOptions): Router {
 
   ipcServer.on('shim_connected', (sessionId) => {
     emit('session.state_changed', { sessionId, state: 'connected' });
+    activity.onShimConnected(sessionId);
     void flushPendingForSession(sessionId);
   });
 
   ipcServer.on('shim_disconnected', (sessionId) => {
     emit('session.state_changed', { sessionId, state: 'disconnected' });
+    activity.onShimDisconnected(sessionId);
+  });
+
+  ipcServer.on('hook_event', (evt) => {
+    activity.onHookEvent({
+      sessionId: evt.session_id,
+      hook: evt.hook,
+      timestamp: evt.timestamp,
+    });
   });
 
   ipcServer.on('channel_ack', (evt: ChannelAckEvent) => {
@@ -154,6 +178,7 @@ export function createRouter(opts: RouterOptions): Router {
       inputPreview: evt.input_preview,
       expiresAt,
     });
+    activity.onPermissionRequested(evt.session_id, evt.request_id);
     void permissions.handleRequest(evt);
   });
 
@@ -489,6 +514,20 @@ export function createRouter(opts: RouterOptions): Router {
         sessionId: input.sessionId,
         ...(input.metadata ? { metadata: input.metadata } : {}),
       });
+    },
+
+    notifyUnread(sessionId, unread) {
+      activity.onUnreadChanged(sessionId, unread);
+    },
+
+    listActivity() {
+      return activity.list().map((snap) => ({
+        sessionId: snap.sessionId,
+        state: snap.state,
+        since: snap.since,
+        ...(snap.lastHook !== undefined ? { lastHook: snap.lastHook } : {}),
+        ...(snap.lastHookAt !== undefined ? { lastHookAt: snap.lastHookAt } : {}),
+      }));
     },
 
     events,

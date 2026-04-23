@@ -240,4 +240,53 @@ describe('router events', () => {
     });
     conn.socket.end();
   });
+
+  it('emits session.activity_changed transitioning through hooks', async () => {
+    const seen: Array<{ state: string }> = [];
+    router.events.on('session.activity_changed', (p) => seen.push({ state: p.state }));
+
+    const conn = await connect(socketPath);
+    await authenticate(conn, 'sess', token);
+
+    // shim_connected with no hooks => unknown.
+    await new Promise((r) => setTimeout(r, 30));
+    expect(seen.some((e) => e.state === 'unknown')).toBe(true);
+
+    // Fire UserPromptSubmit via a separate one-shot hook_event socket.
+    const submit = await new Promise<Socket>((resolve, reject) => {
+      const s = createConnection({ path: socketPath });
+      s.once('connect', () => resolve(s));
+      s.once('error', reject);
+    });
+    submit.write(
+      encode({
+        kind: 'hook_event',
+        session_id: 'sess',
+        shim_token: token,
+        hook: 'UserPromptSubmit',
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 300));
+    expect(seen.some((e) => e.state === 'working')).toBe(true);
+
+    // Stop with no unread and no pending permission => idle.
+    const stop = await new Promise<Socket>((resolve, reject) => {
+      const s = createConnection({ path: socketPath });
+      s.once('connect', () => resolve(s));
+      s.once('error', reject);
+    });
+    stop.write(
+      encode({
+        kind: 'hook_event',
+        session_id: 'sess',
+        shim_token: token,
+        hook: 'Stop',
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 300));
+    expect(seen.some((e) => e.state === 'idle')).toBe(true);
+    conn.socket.end();
+  });
 });
