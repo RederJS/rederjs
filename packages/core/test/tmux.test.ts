@@ -119,6 +119,8 @@ describe('tmux.startSession', () => {
       '-c',
       workspace,
       'claude',
+      '--dangerously-load-development-channels',
+      'server:reder',
     ]);
   });
 
@@ -132,7 +134,13 @@ describe('tmux.startSession', () => {
     });
     const args = calls[1]?.args ?? [];
     const claudeIdx = args.indexOf('claude');
-    expect(args.slice(claudeIdx)).toEqual(['claude', '--permission-mode', 'plan']);
+    expect(args.slice(claudeIdx)).toEqual([
+      'claude',
+      '--permission-mode',
+      'plan',
+      '--dangerously-load-development-channels',
+      'server:reder',
+    ]);
   });
 
   it('injects --permission-mode auto (classifier mode)', () => {

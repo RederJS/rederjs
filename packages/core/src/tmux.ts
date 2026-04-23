@@ -104,7 +104,11 @@ export interface StartSessionOptions extends TmuxRunnerOption {
   logger?: Logger;
 }
 
-export const DEFAULT_CLAUDE_COMMAND: readonly string[] = ['claude'];
+export const DEFAULT_CLAUDE_COMMAND: readonly string[] = [
+  'claude',
+  '--dangerously-load-development-channels',
+  'server:reder',
+];
 
 function buildDefaultCommand(mode: PermissionMode | undefined): readonly string[] {
   if (mode === undefined || mode === 'default') return DEFAULT_CLAUDE_COMMAND;
@@ -169,6 +173,33 @@ export function startSession(opts: StartSessionOptions): StartSessionResult {
     { session_id, dir, command: command.join(' '), component: 'core.tmux' },
     'started tmux session',
   );
+
+  // Claude 2.1.118+ shows a "WARNING: Loading development channels" confirmation
+  // dialog when --dangerously-load-development-channels is passed. It requires
+  // the user to press Enter (or Esc to cancel) before Claude starts listening
+  // for channel events. Auto-confirm it a few seconds after spawn so
+  // daemon-auto-started sessions don't sit at the dialog forever. If Claude
+  // has already moved past the dialog (or a future version doesn't show it),
+  // a stray Enter in the empty prompt is harmless.
+  const needsAutoConfirm = command.includes('--dangerously-load-development-channels');
+  if (needsAutoConfirm) {
+    // Claude takes a few seconds to render the dialog. Send Enter at 6s, 10s,
+    // and 15s to cover variability in startup time. If Claude is already past
+    // the dialog, a stray Enter submits an empty prompt which Claude ignores.
+    for (const delayMs of [6000, 10000, 15000]) {
+      setTimeout(() => {
+        try {
+          run(['send-keys', '-t', session_id, 'Enter']);
+        } catch (err) {
+          opts.logger?.debug(
+            { session_id, err, component: 'core.tmux' },
+            'dev-channels auto-confirm send-keys failed (non-fatal)',
+          );
+        }
+      }, delayMs);
+    }
+  }
+
   return { started: true };
 }
 
