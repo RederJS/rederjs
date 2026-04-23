@@ -12,7 +12,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/index.js dist/hook-cli.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
