@@ -113,6 +113,8 @@ export interface RouterHandle {
   notifyUnread(sessionId: string, unread: number): void;
   /** Current activity snapshots for every session the router knows about. */
   listActivity(): SessionActivityChangedPayload[];
+  /** Current activity snapshot for a single session, or undefined if untracked. */
+  getActivity(sessionId: string): SessionActivityChangedPayload | undefined;
   readonly events: RouterEvents;
 }
 

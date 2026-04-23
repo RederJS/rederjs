@@ -180,11 +180,12 @@ describe('adapter-web http surface', () => {
     const res = await fetch(`${baseUrl}/api/sessions`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const body = (await res.json()) as { sessions: Array<{ activity_state: string }> };
+    const body = (await res.json()) as { sessions: Array<{ session_id: string; activity_state: string }> };
     expect(res.status).toBe(200);
-    for (const s of body.sessions) {
-      expect(['working', 'awaiting-user', 'idle', 'unknown', 'offline']).toContain(s.activity_state);
-    }
+    // Fixture has no tmux and no shim connection, so every session is offline.
+    const demo = body.sessions.find((s) => s.session_id === 'demo');
+    expect(demo).toBeDefined();
+    expect(demo!.activity_state).toBe('offline');
   });
 
   it('POST /api/sessions/:id/start errors when workspace_dir is missing on disk', async () => {

@@ -82,7 +82,6 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
           activity_state: deriveOverall(act, {
             tmuxRunning,
             shimConnected: deps.isSessionConnected(cfg.session_id),
-            unread,
           }),
           activity_since: act?.since ?? null,
           last_hook: act?.lastHook ?? null,
@@ -103,7 +102,7 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
     const activity = getSessionActivity(deps.db, cfg.session_id);
     const tmuxRunning = isRunning(cfg.session_id);
     const unread = await readUnread(deps.storage, cfg.session_id);
-    const act = deps.router.listActivity().find((a) => a.sessionId === cfg.session_id);
+    const act = deps.router.getActivity(cfg.session_id);
     res.json({
       session_id: cfg.session_id,
       display_name: cfg.display_name,
@@ -119,7 +118,6 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
       activity_state: deriveOverall(act, {
         tmuxRunning,
         shimConnected: deps.isSessionConnected(cfg.session_id),
-        unread,
       }),
       activity_since: act?.since ?? null,
       last_hook: act?.lastHook ?? null,
@@ -209,12 +207,14 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
 
 function deriveOverall(
   act: SessionActivityChangedPayload | undefined,
-  ctx: { tmuxRunning: boolean; shimConnected: boolean; unread: number },
+  ctx: { tmuxRunning: boolean; shimConnected: boolean },
 ): 'working' | 'awaiting-user' | 'idle' | 'unknown' | 'offline' {
-  // Tmux is still considered load-bearing for "offline". The tracker may
-  // say "unknown" if the shim is connected but no hooks have fired — but
-  // if the underlying tmux session has died entirely, the UI should show
-  // offline regardless.
+  // Tmux liveness is owned here (in the adapter) rather than in the router's
+  // SessionActivityTracker, because the adapter already polls tmux status for
+  // each session on every request. A future refinement could feed tmux state
+  // into the tracker via a notifyTmuxRunning() signal; until then, other
+  // adapters using router.listActivity()/getActivity() should layer their own
+  // tmux check on top if they need "offline" for dead tmux sessions.
   if (!ctx.tmuxRunning) return 'offline';
   if (!ctx.shimConnected) return 'offline';
   return act?.state ?? 'unknown';

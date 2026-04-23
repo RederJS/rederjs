@@ -14,6 +14,7 @@ import {
   type PermissionRequestedPayload,
   type PermissionResolvedPayload,
   type SessionStateChangedPayload,
+  type SessionActivityChangedPayload,
 } from '@rederjs/core/adapter';
 import { WebAdapterConfigSchema, type WebAdapterConfig } from './config.js';
 import { createSseRegistry, type SseRegistry } from './sse.js';
@@ -278,7 +279,7 @@ export class WebAdapter extends Adapter {
         data: p,
       });
     };
-    const onActivity = (p: import('@rederjs/core/adapter').SessionActivityChangedPayload): void => {
+    const onActivity = (p: SessionActivityChangedPayload): void => {
       this.sse.broadcast({
         event: 'session.activity_changed',
         data: p,

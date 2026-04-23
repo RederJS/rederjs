@@ -531,6 +531,18 @@ export function createRouter(opts: RouterOptions): Router {
       }));
     },
 
+    getActivity(sessionId) {
+      const snap = activity.get(sessionId);
+      if (!snap) return undefined;
+      return {
+        sessionId: snap.sessionId,
+        state: snap.state,
+        since: snap.since,
+        ...(snap.lastHook !== undefined ? { lastHook: snap.lastHook } : {}),
+        ...(snap.lastHookAt !== undefined ? { lastHookAt: snap.lastHookAt } : {}),
+      };
+    },
+
     events,
 
     async stop(): Promise<void> {
