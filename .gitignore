@@ -14,3 +14,5 @@ coverage/
 *.tsbuildinfo
 # Local design-exploration scratch (see docs/design/ if anything graduates)
 design/
+# Superpowers workflow artifacts (specs graduate to docs/design/; plans stay local)
+docs/superpowers/
