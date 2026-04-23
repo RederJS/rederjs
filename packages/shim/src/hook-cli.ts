@@ -6,6 +6,17 @@ import { encode } from '@rederjs/core/ipc/codec';
 const HOOK_NAMES = ['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd'] as const;
 type HookName = (typeof HOOK_NAMES)[number];
 
+// Claude Code usually closes stdin promptly; this bounds hangs without losing complete payloads.
+const STDIN_TIMEOUT_MS = 250;
+// Covers Unix-socket connect + single-frame round-trip well below Claude's per-hook budget.
+const SOCKET_TIMEOUT_MS = 1500;
+
+function debug(msg: string): void {
+  if (process.env.REDER_HOOK_DEBUG) {
+    try { process.stderr.write(`reder-hook: ${msg}\n`); } catch { /* ignore */ }
+  }
+}
+
 function die(msg: string): never {
   process.stderr.write(`reder-hook: ${msg}\n`);
   process.exit(2);
@@ -60,7 +71,7 @@ async function main(): Promise<void> {
   if (!values.token) die('missing --token');
   if (!isHookName(values.hook as string | undefined)) die('invalid or missing --hook');
 
-  const payload = await readStdinJson(250);
+  const payload = await readStdinJson(STDIN_TIMEOUT_MS);
 
   const frame = encode({
     kind: 'hook_event',
@@ -77,7 +88,7 @@ async function main(): Promise<void> {
       try { socket.destroy(); } catch { /* ignore */ }
       resolve();
     };
-    const timer = setTimeout(finish, 1500);
+    const timer = setTimeout(finish, SOCKET_TIMEOUT_MS);
     socket.once('connect', () => {
       socket.write(frame, () => {
         try { socket.end(); } catch { /* ignore */ }
@@ -87,8 +98,9 @@ async function main(): Promise<void> {
       clearTimeout(timer);
       finish();
     });
-    socket.once('error', () => {
+    socket.once('error', (err) => {
       // Daemon not running — exit silently to avoid breaking Claude hooks.
+      debug(`socket error: ${(err as Error).message}`);
       clearTimeout(timer);
       finish();
     });
@@ -97,7 +109,8 @@ async function main(): Promise<void> {
   process.exit(0);
 }
 
-main().catch(() => {
+main().catch((err) => {
   // Swallow unexpected errors — hooks must not fail the user's Claude session.
+  debug(`fatal: ${(err as Error).stack ?? String(err)}`);
   process.exit(0);
 });

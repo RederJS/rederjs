@@ -78,8 +78,9 @@ describe('reder-hook', () => {
     expect(code).toBe(0);
   });
 
-  it('exits non-zero when required args are missing', async () => {
-    const { code } = await runHook(['--hook', 'Stop'], '{}');
-    expect(code).not.toBe(0);
+  it('exits 2 with a stderr message when required args are missing', async () => {
+    const { code, stderr } = await runHook(['--hook', 'Stop'], '{}');
+    expect(code).toBe(2);
+    expect(stderr).toMatch(/missing --session-id/);
   });
 });
