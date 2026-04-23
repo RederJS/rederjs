@@ -7,6 +7,8 @@ import {
   listRunning,
   startSession,
   tmuxHealth,
+  getPaneCommand,
+  killSession,
   InvalidTmuxName,
   type TmuxRunner,
 } from '../src/tmux.js';
@@ -228,6 +230,52 @@ describe('tmux.startSession', () => {
     const cIdx = newSessionArgs.indexOf('-c');
     expect(newSessionArgs[cIdx + 1]).not.toBe('~');
     expect(newSessionArgs[cIdx + 1]).toMatch(/^\//);
+  });
+});
+
+describe('tmux.getPaneCommand', () => {
+  it('returns the first pane command when tmux exits 0', () => {
+    const { runner, calls } = makeRunner([{ status: 0, stdout: 'claude\n' }]);
+    expect(getPaneCommand('sommelai', { runner })).toBe('claude');
+    expect(calls[0]?.args).toEqual(['list-panes', '-F', '#{pane_current_command}', '-t', 'sommelai']);
+  });
+
+  it('returns null when tmux exits nonzero (session missing)', () => {
+    const { runner } = makeRunner([{ status: 1, stderr: 'no server' }]);
+    expect(getPaneCommand('nope', { runner })).toBeNull();
+  });
+
+  it('returns null when stdout is empty/whitespace', () => {
+    const { runner } = makeRunner([{ status: 0, stdout: '   \n\n' }]);
+    expect(getPaneCommand('empty', { runner })).toBeNull();
+  });
+
+  it('returns the first non-empty line when multiple panes', () => {
+    const { runner } = makeRunner([{ status: 0, stdout: 'bash\nclaude\n' }]);
+    expect(getPaneCommand('multi', { runner })).toBe('bash');
+  });
+
+  it('rejects invalid names', () => {
+    const { runner } = makeRunner([]);
+    expect(() => getPaneCommand('bad name!', { runner })).toThrow(InvalidTmuxName);
+  });
+});
+
+describe('tmux.killSession', () => {
+  it('returns true when tmux exits 0', () => {
+    const { runner, calls } = makeRunner([{ status: 0 }]);
+    expect(killSession('sommelai', { runner })).toBe(true);
+    expect(calls[0]?.args).toEqual(['kill-session', '-t', 'sommelai']);
+  });
+
+  it('returns false when tmux exits nonzero', () => {
+    const { runner } = makeRunner([{ status: 1, stderr: "can't find session" }]);
+    expect(killSession('nope', { runner })).toBe(false);
+  });
+
+  it('rejects invalid names', () => {
+    const { runner } = makeRunner([]);
+    expect(() => killSession('bad name!', { runner })).toThrow(InvalidTmuxName);
   });
 });
 

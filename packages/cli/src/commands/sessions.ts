@@ -1,5 +1,11 @@
 import { loadConfigContext } from '../config-loader.js';
-import { isRunning, listRunning, startSession, type PermissionMode } from '@rederjs/core/tmux';
+import {
+  isRunning,
+  killSession,
+  listRunning,
+  startSession,
+  type PermissionMode,
+} from '@rederjs/core/tmux';
 
 export interface SessionListEntry {
   session_id: string;
@@ -131,6 +137,64 @@ export function runSessionsUp(opts: { configPath?: string } = {}): SessionsUpRes
 export function formatSessionsUp(r: SessionsUpResult): string {
   if (r.results.length === 0) return 'No sessions with workspace_dir configured.';
   return r.results.map(formatSessionStart).join('\n');
+}
+
+export interface SessionRestartResult {
+  session_id: string;
+  killed: boolean;
+  started: boolean;
+  reason?: string;
+  error?: string;
+}
+
+/**
+ * Kill the tmux session (if any) and start it fresh. Used to recover sessions
+ * where tmux is alive but its pane stopped running `claude`.
+ */
+export function runSessionRestart(opts: {
+  sessionId: string;
+  configPath?: string;
+}): SessionRestartResult {
+  const ctx = loadConfigContext(opts.configPath);
+  const s = ctx.config.sessions.find((x) => x.session_id === opts.sessionId);
+  if (!s) {
+    return {
+      session_id: opts.sessionId,
+      killed: false,
+      started: false,
+      reason: 'not_in_config',
+      error: `session '${opts.sessionId}' not in config.sessions[]`,
+    };
+  }
+  if (!s.workspace_dir) {
+    return {
+      session_id: opts.sessionId,
+      killed: false,
+      started: false,
+      reason: 'no_workspace_dir',
+      error: `session '${opts.sessionId}' has no workspace_dir; cannot restart tmux`,
+    };
+  }
+  const wasRunning = isRunning(s.session_id);
+  const killed = wasRunning ? killSession(s.session_id) : false;
+  const result = startSession({
+    session_id: s.session_id,
+    workspace_dir: s.workspace_dir,
+    permission_mode: s.permission_mode,
+  });
+  return {
+    session_id: s.session_id,
+    killed,
+    started: result.started,
+    ...(result.reason !== undefined ? { reason: result.reason } : {}),
+    ...(result.error !== undefined ? { error: result.error } : {}),
+  };
+}
+
+export function formatSessionRestart(r: SessionRestartResult): string {
+  if (!r.started) return `✗ ${r.session_id}: ${r.error ?? r.reason ?? 'failed'}`;
+  if (r.killed) return `✓ restarted ${r.session_id} (killed stale tmux first)`;
+  return `✓ started ${r.session_id}`;
 }
 
 // Re-exported helper for other CLI commands / tests.

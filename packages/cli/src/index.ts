@@ -14,6 +14,8 @@ import {
   formatSessionsList,
   runSessionStart,
   formatSessionStart,
+  runSessionRestart,
+  formatSessionRestart,
   runSessionsUp,
   formatSessionsUp,
 } from './commands/sessions.js';
@@ -210,6 +212,20 @@ sessions
       if (jsonMode()) process.stdout.write(JSON.stringify(r) + '\n');
       else process.stdout.write(formatSessionStart(r) + '\n');
       process.exit(r.started || r.reason === 'already_running' ? 0 : 1);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+sessions
+  .command('restart <session-id>')
+  .description("kill the session's tmux (if any) and start it fresh")
+  .action((sessionId: string) => {
+    try {
+      const r = runSessionRestart({ sessionId, ...buildCfgOpts() });
+      if (jsonMode()) process.stdout.write(JSON.stringify(r) + '\n');
+      else process.stdout.write(formatSessionRestart(r) + '\n');
+      process.exit(r.started ? 0 : 1);
     } catch (err) {
       fail(err);
     }

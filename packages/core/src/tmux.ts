@@ -44,6 +44,34 @@ export function isRunning(name: string, opts: TmuxRunnerOption = {}): boolean {
   return result.status === 0;
 }
 
+/**
+ * Return the current command running in the first pane of a tmux session,
+ * or null if the session doesn't exist. Useful for detecting "tmux alive
+ * but its process (e.g. `claude`) has since exited" — where `isRunning`
+ * returns true but the session is effectively stale.
+ */
+export function getPaneCommand(name: string, opts: TmuxRunnerOption = {}): string | null {
+  assertValidName(name);
+  const run = opts.runner ?? defaultRunner;
+  const result = run(['list-panes', '-F', '#{pane_current_command}', '-t', name]);
+  if (result.status !== 0) return null;
+  const out = result.stdout?.toString('utf8') ?? '';
+  const first = out.split('\n').map((s) => s.trim()).find((s) => s.length > 0);
+  return first ?? null;
+}
+
+/**
+ * Kill a tmux session by name. Returns true if tmux exited 0 (session was
+ * killed or didn't exist), false on error. `force: true` suppresses
+ * "session not found" stderr noise from the caller's perspective.
+ */
+export function killSession(name: string, opts: TmuxRunnerOption = {}): boolean {
+  assertValidName(name);
+  const run = opts.runner ?? defaultRunner;
+  const result = run(['kill-session', '-t', name]);
+  return result.status === 0;
+}
+
 export function listRunning(opts: TmuxRunnerOption = {}): string[] {
   const run = opts.runner ?? defaultRunner;
   const result = run(['list-sessions', '-F', '#{session_name}']);

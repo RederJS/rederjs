@@ -10,7 +10,7 @@ import { createIpcServer, type IpcServer } from '@rederjs/core/ipc/server';
 import { createRouter, type Router } from '@rederjs/core/router';
 import { createAuditLog, type AuditLog } from '@rederjs/core/audit';
 import { startHealthEndpoint, type HealthEndpoint, type HealthSnapshot } from '@rederjs/core/health';
-import { startSession as startTmuxSession } from '@rederjs/core/tmux';
+import { startSession as startTmuxSession, getPaneCommand } from '@rederjs/core/tmux';
 import type { Adapter } from '@rederjs/core/adapter';
 import { createAdapterHost, type AdapterHost, loadAdapter } from './adapter-host.js';
 import { runSessionRepair } from 'rederjs/commands/sessions-repair';
@@ -184,6 +184,25 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
       },
       result.started ? 'auto-started tmux session' : 'tmux auto-start skipped',
     );
+
+    // A tmux session can outlive its `claude` process (manual ctrl+D, crash,
+    // etc.). `isRunning` only checks that the session exists, so auto-start
+    // silently skips stale sessions. Detect and warn.
+    if (result.reason === 'already_running') {
+      const paneCmd = getPaneCommand(s.session_id);
+      if (paneCmd !== null && paneCmd !== 'claude') {
+        logger.warn(
+          {
+            session_id: s.session_id,
+            workspace_dir: s.workspace_dir,
+            pane_current_command: paneCmd,
+            component: 'daemon.bootstrap',
+          },
+          `tmux session '${s.session_id}' is running but pane is '${paneCmd}' (not claude). ` +
+            `Run \`reder sessions restart ${s.session_id}\` to relaunch.`,
+        );
+      }
+    }
   }
 
   // Warn about sessions that are auto-started but missing their Claude hook config.
