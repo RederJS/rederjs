@@ -227,6 +227,67 @@ function rowToOutbound(row: {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Local-origin (tmux transcript) messages
+// ---------------------------------------------------------------------------
+
+export interface LocalInboundInsert {
+  session_id: string;
+  content: string;
+  uuid: string;
+  received_at: string;
+}
+
+export function insertLocalInbound(db: Db, msg: LocalInboundInsert): InboundInsertResult {
+  const existing = db
+    .prepare('SELECT message_id FROM inbound_messages WHERE adapter = ? AND idempotency_key = ?')
+    .get('local', msg.uuid) as { message_id: string } | undefined;
+  if (existing) return { message_id: existing.message_id, inserted: false };
+
+  const message_id = randomUUID();
+  db.prepare(
+    `INSERT INTO inbound_messages
+       (message_id, session_id, adapter, sender_id, correlation_id,
+        content, meta_json, files_json, idempotency_key, received_at, state)
+     VALUES (?, ?, 'local', 'tmux', NULL, ?, '{}', '[]', ?, ?, 'acknowledged')`,
+  ).run(message_id, msg.session_id, msg.content, msg.uuid, msg.received_at);
+  return { message_id, inserted: true };
+}
+
+export interface LocalOutboundInsert {
+  session_id: string;
+  content: string;
+  uuid: string;
+  created_at: string;
+}
+
+export interface LocalOutboundInsertResult {
+  message_id: string;
+  inserted: boolean;
+}
+
+export function insertLocalOutbound(
+  db: Db,
+  msg: LocalOutboundInsert,
+): LocalOutboundInsertResult {
+  const existing = db
+    .prepare(
+      `SELECT message_id FROM outbound_messages
+         WHERE adapter = 'local' AND correlation_id = ? AND session_id = ?`,
+    )
+    .get(msg.uuid, msg.session_id) as { message_id: string } | undefined;
+  if (existing) return { message_id: existing.message_id, inserted: false };
+
+  const message_id = randomUUID();
+  db.prepare(
+    `INSERT INTO outbound_messages
+       (message_id, session_id, adapter, recipient, correlation_id,
+        content, meta_json, files_json, created_at, sent_at, state, attempt_count)
+     VALUES (?, ?, 'local', 'tmux', ?, ?, '{}', '[]', ?, ?, 'sent', 0)`,
+  ).run(message_id, msg.session_id, msg.uuid, msg.content, msg.created_at, msg.created_at);
+  return { message_id, inserted: true };
+}
+
 export function listPendingOutbound(db: Db, adapter: string, limit: number): OutboundRow[] {
   const rows = db
     .prepare(
