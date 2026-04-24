@@ -42,6 +42,7 @@ import {
   createPairCode as createPairCodeRecord,
   isPaired as isPairedDb,
   upsertBinding as upsertBindingDb,
+  listAllBindingsForSession,
 } from './pairing.js';
 import type { Config } from './config.js';
 
@@ -254,12 +255,47 @@ export function createRouter(opts: RouterOptions): Router {
           files: [],
           createdAt: entry.timestamp,
         });
+        fanOutAssistantReply(sessionId, entry.text);
       }
     } catch (err) {
       logger.warn(
         { err, session_id: sessionId, path: transcriptPath, component: 'core.router' },
         'failed to capture transcript',
       );
+    }
+  }
+
+  function fanOutAssistantReply(sessionId: string, content: string): void {
+    // Best-effort: deliver the tmux-originated reply to every paired non-local
+    // binding for this session (Telegram, future adapters). We don't persist a
+    // per-recipient outbound_messages row — the canonical `local` row already
+    // represents the turn in the dashboard, and a duplicate would show up as a
+    // second "claude" bubble per paired user. Delivery errors are logged and
+    // swallowed so the main capture path stays unaffected.
+    const bindings = listAllBindingsForSession(db, sessionId).filter((b) => b.adapter !== 'local');
+    for (const b of bindings) {
+      const reg = adapters.get(b.adapter);
+      if (!reg) continue;
+      const outbound: OutboundMessage = {
+        sessionId,
+        adapter: b.adapter,
+        recipient: b.senderId,
+        content,
+        meta: {},
+        files: [],
+      };
+      void reg.adapter.sendOutbound(outbound).catch((err) => {
+        logger.warn(
+          {
+            err,
+            session_id: sessionId,
+            adapter: b.adapter,
+            recipient: b.senderId,
+            component: 'core.router',
+          },
+          'fan-out send threw',
+        );
+      });
     }
   }
 

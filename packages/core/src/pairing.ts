@@ -206,6 +206,31 @@ export function isPaired(db: Db, adapter: string, senderId: string, sessionId: s
   return getBinding(db, adapter, senderId, sessionId) !== null;
 }
 
+export function listAllBindingsForSession(db: Db, sessionId: string): Binding[] {
+  const rows = db
+    .prepare(
+      `SELECT binding_id, session_id, adapter, sender_id, created_at, metadata
+         FROM bindings WHERE session_id = ?
+         ORDER BY adapter, created_at`,
+    )
+    .all(sessionId) as Array<{
+    binding_id: string;
+    session_id: string;
+    adapter: string;
+    sender_id: string;
+    created_at: string;
+    metadata: string | null;
+  }>;
+  return rows.map((r) => ({
+    bindingId: r.binding_id,
+    sessionId: r.session_id,
+    adapter: r.adapter,
+    senderId: r.sender_id,
+    createdAt: r.created_at,
+    metadata: r.metadata ? (JSON.parse(r.metadata) as Record<string, unknown>) : null,
+  }));
+}
+
 export function listBindingsForSender(db: Db, adapter: string, senderId: string): Binding[] {
   const rows = db
     .prepare(
