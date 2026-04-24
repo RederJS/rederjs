@@ -9,7 +9,7 @@ interface RawEntry {
   message?: { role?: unknown; content?: unknown } | undefined;
 }
 
-const CHANNEL_MARKER = '<channel source="reder">';
+export const CHANNEL_MARKER = '<channel source="reder">';
 const REDER_REPLY_TOOL = 'mcp__reder__reply';
 
 export function classifyTranscriptLine(raw: string): ClassifiedEntry | null {

@@ -222,6 +222,27 @@ describe('router transcript capture', () => {
     expect(inboundCount).toBe(1);
   });
 
+  it('ignores UserPromptSubmit payloads that wrap adapter-relayed content', async () => {
+    // When a web/telegram prompt reaches Claude via MCP, UserPromptSubmit
+    // fires with a prompt wrapped in <channel source="reder"> — the adapter's
+    // own inbound row is already canonical; we must not write a duplicate.
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'UserPromptSubmit',
+      timestamp: '2026-04-24T12:00:02Z',
+      payload: {
+        transcript_path: tPath,
+        prompt: '<channel source="reder">hi from web</channel>',
+      },
+    });
+    await tick();
+
+    const inbound = db.raw
+      .prepare("SELECT content FROM inbound_messages WHERE adapter='local'")
+      .all();
+    expect(inbound).toHaveLength(0);
+  });
+
   it('does not route adapter-less local inbound as a reply recipient', async () => {
     // After a tmux-captured prompt lands in inbound_messages with adapter='local',
     // a subsequent reply_tool_call without in_reply_to must not resolve the

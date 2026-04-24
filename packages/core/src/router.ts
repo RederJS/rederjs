@@ -24,6 +24,7 @@ import {
   insertLocalOutbound,
 } from './storage/outbox.js';
 import { consumeTranscript } from './transcript-tail.js';
+import { CHANNEL_MARKER } from './transcript-parser.js';
 import type {
   IpcServer,
   ReplyToolCallEvent,
@@ -173,6 +174,11 @@ export function createRouter(opts: RouterOptions): Router {
   });
 
   function captureUserPrompt(sessionId: string, prompt: string, timestamp: string): void {
+    // UserPromptSubmit also fires for adapter-relayed content (web/telegram
+    // prompts reach Claude through the MCP notification channel). Those carry
+    // the <channel source="reder"> wrapper — skip them so the adapter's own
+    // inbound row stays canonical.
+    if (prompt.includes(CHANNEL_MARKER)) return;
     // UserPromptSubmit fires before Claude Code writes the prompt to the
     // transcript JSONL, so we take the text straight from the hook payload.
     // The subsequent Stop-time tail skips user entries to avoid duplicating.
