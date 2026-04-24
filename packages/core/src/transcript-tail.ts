@@ -1,0 +1,77 @@
+import { openSync, closeSync, readSync, statSync } from 'node:fs';
+import type { Database as Db } from 'better-sqlite3';
+import { classifyTranscriptLine, type ClassifiedEntry } from './transcript-parser.js';
+
+export interface ConsumeInput {
+  sessionId: string;
+  transcriptPath: string;
+}
+
+const READ_CHUNK = 64 * 1024;
+
+export async function consumeTranscript(db: Db, input: ConsumeInput): Promise<ClassifiedEntry[]> {
+  const { sessionId, transcriptPath } = input;
+
+  let size: number;
+  try {
+    size = statSync(transcriptPath).size;
+  } catch {
+    return [];
+  }
+
+  const stored = db
+    .prepare('SELECT byte_offset FROM transcript_offsets WHERE session_id = ?')
+    .get(sessionId) as { byte_offset: number } | undefined;
+
+  let start = stored?.byte_offset ?? 0;
+  if (start > size) start = 0;
+
+  if (start === size) {
+    upsertOffset(db, sessionId, transcriptPath, size);
+    return [];
+  }
+
+  const fd = openSync(transcriptPath, 'r');
+  try {
+    let buf = Buffer.alloc(0);
+    let pos = start;
+    while (pos < size) {
+      const chunk = Buffer.alloc(Math.min(READ_CHUNK, size - pos));
+      const read = readSync(fd, chunk, 0, chunk.length, pos);
+      if (read <= 0) break;
+      const slice = chunk.subarray(0, read);
+      buf = buf.length === 0 ? slice : Buffer.concat([buf, slice]);
+      pos += read;
+    }
+
+    const lastNewline = buf.lastIndexOf(0x0a);
+    if (lastNewline < 0) {
+      return [];
+    }
+    const consumable = buf.subarray(0, lastNewline + 1).toString('utf8');
+    const newOffset = start + lastNewline + 1;
+
+    const out: ClassifiedEntry[] = [];
+    for (const line of consumable.split('\n')) {
+      if (line.length === 0) continue;
+      const entry = classifyTranscriptLine(line);
+      if (entry) out.push(entry);
+    }
+
+    upsertOffset(db, sessionId, transcriptPath, newOffset);
+    return out;
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function upsertOffset(db: Db, sessionId: string, path: string, offset: number): void {
+  db.prepare(
+    `INSERT INTO transcript_offsets (session_id, transcript_path, byte_offset, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(session_id) DO UPDATE SET
+       transcript_path = excluded.transcript_path,
+       byte_offset = excluded.byte_offset,
+       updated_at = excluded.updated_at`,
+  ).run(sessionId, path, offset, new Date().toISOString());
+}
