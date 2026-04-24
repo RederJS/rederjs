@@ -10,7 +10,6 @@ interface RawEntry {
 }
 
 export const CHANNEL_MARKER = '<channel source="reder">';
-const REDER_REPLY_TOOL = 'mcp__reder__reply';
 
 export function classifyTranscriptLine(raw: string): ClassifiedEntry | null {
   const trimmed = raw.trim();

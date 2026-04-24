@@ -266,10 +266,7 @@ export interface LocalOutboundInsertResult {
   inserted: boolean;
 }
 
-export function insertLocalOutbound(
-  db: Db,
-  msg: LocalOutboundInsert,
-): LocalOutboundInsertResult {
+export function insertLocalOutbound(db: Db, msg: LocalOutboundInsert): LocalOutboundInsertResult {
   const existing = db
     .prepare(
       `SELECT message_id FROM outbound_messages

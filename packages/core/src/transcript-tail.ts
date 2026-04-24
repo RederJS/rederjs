@@ -33,16 +33,18 @@ export async function consumeTranscript(db: Db, input: ConsumeInput): Promise<Cl
 
   const fd = openSync(transcriptPath, 'r');
   try {
-    let buf = Buffer.alloc(0);
+    const chunks: Buffer[] = [];
+    let totalLength = 0;
     let pos = start;
     while (pos < size) {
       const chunk = Buffer.alloc(Math.min(READ_CHUNK, size - pos));
       const read = readSync(fd, chunk, 0, chunk.length, pos);
       if (read <= 0) break;
-      const slice = chunk.subarray(0, read);
-      buf = buf.length === 0 ? slice : Buffer.concat([buf, slice]);
+      chunks.push(chunk.subarray(0, read));
+      totalLength += read;
       pos += read;
     }
+    const buf = Buffer.concat(chunks, totalLength);
 
     const lastNewline = buf.lastIndexOf(0x0a);
     if (lastNewline < 0) {

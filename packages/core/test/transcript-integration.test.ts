@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, appendFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
@@ -82,7 +82,11 @@ async function tick(): Promise<void> {
 }
 
 describe('router transcript capture', () => {
-  async function fireTurn(prompt: string, reply: string, t = '2026-04-24T12:00:02Z'): Promise<void> {
+  async function fireTurn(
+    prompt: string,
+    reply: string,
+    t = '2026-04-24T12:00:02Z',
+  ): Promise<void> {
     emit('hook_event', {
       session_id: 's1',
       hook: 'UserPromptSubmit',
@@ -124,14 +128,14 @@ describe('router transcript capture', () => {
     await tick();
 
     const inboundCount = (
-      db.raw
-        .prepare("SELECT COUNT(*) AS c FROM inbound_messages WHERE adapter='local'")
-        .get() as { c: number }
+      db.raw.prepare("SELECT COUNT(*) AS c FROM inbound_messages WHERE adapter='local'").get() as {
+        c: number;
+      }
     ).c;
     const outboundCount = (
-      db.raw
-        .prepare("SELECT COUNT(*) AS c FROM outbound_messages WHERE adapter='local'")
-        .get() as { c: number }
+      db.raw.prepare("SELECT COUNT(*) AS c FROM outbound_messages WHERE adapter='local'").get() as {
+        c: number;
+      }
     ).c;
     expect(inboundCount).toBe(1);
     expect(outboundCount).toBe(1);
@@ -215,11 +219,29 @@ describe('router transcript capture', () => {
     // User prompt stays at a single row — the Stop-time tail must skip
     // the user JSONL entry, since it was already captured from payload.
     const inboundCount = (
-      db.raw
-        .prepare("SELECT COUNT(*) AS c FROM inbound_messages WHERE adapter='local'")
-        .get() as { c: number }
+      db.raw.prepare("SELECT COUNT(*) AS c FROM inbound_messages WHERE adapter='local'").get() as {
+        c: number;
+      }
     ).c;
     expect(inboundCount).toBe(1);
+  });
+
+  it('falls back to transcript user entry when UserPromptSubmit did not capture', async () => {
+    // Simulates a missed/truncated UserPromptSubmit: no eager insert happens,
+    // so the Stop-time tail must still surface the prompt from the JSONL.
+    writeFileSync(tPath, USER('u1', 'long prompt') + ASSISTANT('a1', 'reply'));
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'Stop',
+      timestamp: '2026-04-24T12:00:03Z',
+      payload: { transcript_path: tPath },
+    });
+    await tick();
+
+    const inbound = db.raw
+      .prepare("SELECT content FROM inbound_messages WHERE adapter='local'")
+      .all() as Array<{ content: string }>;
+    expect(inbound.map((r) => r.content)).toEqual(['long prompt']);
   });
 
   it('ignores UserPromptSubmit payloads that wrap adapter-relayed content', async () => {

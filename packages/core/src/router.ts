@@ -173,15 +173,19 @@ export function createRouter(opts: RouterOptions): Router {
     }
   });
 
+  // Tracks the most recent UserPromptSubmit prompt text per session so the
+  // Stop-time transcript tail can match and skip that exact user entry.
+  // When this map lacks an entry for a session (e.g. payload.prompt was
+  // truncated by the shim's MAX_STDIN_BYTES cap or the hook didn't fire), the
+  // transcript tail falls back to inserting the user entry itself.
+  const eagerPromptBySession = new Map<string, string>();
+
   function captureUserPrompt(sessionId: string, prompt: string, timestamp: string): void {
     // UserPromptSubmit also fires for adapter-relayed content (web/telegram
     // prompts reach Claude through the MCP notification channel). Those carry
     // the <channel source="reder"> wrapper — skip them so the adapter's own
     // inbound row stays canonical.
     if (prompt.includes(CHANNEL_MARKER)) return;
-    // UserPromptSubmit fires before Claude Code writes the prompt to the
-    // transcript JSONL, so we take the text straight from the hook payload.
-    // The subsequent Stop-time tail skips user entries to avoid duplicating.
     const { message_id, inserted } = insertLocalInbound(db, {
       session_id: sessionId,
       content: prompt,
@@ -189,6 +193,7 @@ export function createRouter(opts: RouterOptions): Router {
       received_at: timestamp,
     });
     if (!inserted) return;
+    eagerPromptBySession.set(sessionId, prompt);
     emit('inbound.persisted', {
       messageId: message_id,
       sessionId,
@@ -205,9 +210,33 @@ export function createRouter(opts: RouterOptions): Router {
     try {
       const entries = await consumeTranscript(db, { sessionId, transcriptPath });
       for (const entry of entries) {
-        // User prompts are captured eagerly from the UserPromptSubmit hook's
-        // payload.prompt; skip the transcript's copy to avoid duplicates.
-        if (entry.kind === 'local-user') continue;
+        if (entry.kind === 'local-user') {
+          // Skip if UserPromptSubmit already captured this exact prompt
+          // eagerly; fall back to inserting from the transcript if the eager
+          // path missed it (e.g. truncated hook payload).
+          if (eagerPromptBySession.get(sessionId) === entry.text) {
+            eagerPromptBySession.delete(sessionId);
+            continue;
+          }
+          const { message_id, inserted } = insertLocalInbound(db, {
+            session_id: sessionId,
+            content: entry.text,
+            uuid: entry.uuid,
+            received_at: entry.timestamp,
+          });
+          if (!inserted) continue;
+          emit('inbound.persisted', {
+            messageId: message_id,
+            sessionId,
+            adapter: 'local',
+            senderId: 'tmux',
+            content: entry.text,
+            meta: {},
+            files: [],
+            receivedAt: entry.timestamp,
+          });
+          continue;
+        }
         const { message_id, inserted } = insertLocalOutbound(db, {
           session_id: sessionId,
           content: entry.text,
