@@ -160,8 +160,12 @@ export function createRouter(opts: RouterOptions): Router {
       hook: evt.hook,
       timestamp: evt.timestamp,
     });
-    if (evt.hook === 'Stop' && typeof evt.payload?.['transcript_path'] === 'string') {
-      void captureTranscript(evt.session_id, evt.payload['transcript_path']);
+    const transcriptPath = evt.payload?.['transcript_path'];
+    if (
+      typeof transcriptPath === 'string' &&
+      (evt.hook === 'UserPromptSubmit' || evt.hook === 'Stop')
+    ) {
+      void captureTranscript(evt.session_id, transcriptPath);
     }
   });
 

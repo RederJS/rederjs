@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
@@ -176,6 +176,43 @@ describe('router transcript capture', () => {
     });
     await tick();
     expect(counted).toBe(0);
+  });
+
+  it('captures the user prompt on UserPromptSubmit, before the reply exists', async () => {
+    writeFileSync(tPath, USER('u1', 'hello'));
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'UserPromptSubmit',
+      timestamp: '2026-04-24T12:00:02Z',
+      payload: { transcript_path: tPath },
+    });
+    await tick();
+
+    const inbound = db.raw
+      .prepare("SELECT content FROM inbound_messages WHERE adapter='local'")
+      .all() as Array<{ content: string }>;
+    expect(inbound.map((r) => r.content)).toEqual(['hello']);
+
+    // Subsequent Stop with the assistant line appended picks up only the new entry.
+    appendFileSync(tPath, ASSISTANT('a1', 'hi'));
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'Stop',
+      timestamp: '2026-04-24T12:00:03Z',
+      payload: { transcript_path: tPath },
+    });
+    await tick();
+
+    const outbound = db.raw
+      .prepare("SELECT content FROM outbound_messages WHERE adapter='local'")
+      .all() as Array<{ content: string }>;
+    expect(outbound.map((r) => r.content)).toEqual(['hi']);
+    const inboundCount = (
+      db.raw
+        .prepare("SELECT COUNT(*) AS c FROM inbound_messages WHERE adapter='local'")
+        .get() as { c: number }
+    ).c;
+    expect(inboundCount).toBe(1);
   });
 
   it('does not route adapter-less local inbound as a reply recipient', async () => {
