@@ -118,6 +118,55 @@ describe('router transcript capture', () => {
     expect(inboundCount).toBe(1);
   });
 
+  it('emits router events so SSE subscribers refresh live', async () => {
+    writeFileSync(tPath, USER('u1', 'hello') + ASSISTANT('a1', 'hi'));
+    const received: Array<{ event: string; messageId: string; adapter: string }> = [];
+    router.events.on('inbound.persisted', (p) =>
+      received.push({ event: 'inbound.persisted', messageId: p.messageId, adapter: p.adapter }),
+    );
+    router.events.on('outbound.persisted', (p) =>
+      received.push({ event: 'outbound.persisted', messageId: p.messageId, adapter: p.adapter }),
+    );
+
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'Stop',
+      timestamp: '2026-04-24T12:00:02Z',
+      payload: { transcript_path: tPath },
+    });
+    await tick();
+
+    expect(received.map((r) => ({ event: r.event, adapter: r.adapter }))).toEqual([
+      { event: 'inbound.persisted', adapter: 'local' },
+      { event: 'outbound.persisted', adapter: 'local' },
+    ]);
+  });
+
+  it('does not re-emit on idempotent replay', async () => {
+    writeFileSync(tPath, USER('u1', 'hello') + ASSISTANT('a1', 'hi'));
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'Stop',
+      timestamp: '2026-04-24T12:00:02Z',
+      payload: { transcript_path: tPath },
+    });
+    await tick();
+
+    let counted = 0;
+    router.events.on('inbound.persisted', () => counted++);
+    router.events.on('outbound.persisted', () => counted++);
+
+    // Same transcript, same offset — nothing new should fire.
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'Stop',
+      timestamp: '2026-04-24T12:00:03Z',
+      payload: { transcript_path: tPath },
+    });
+    await tick();
+    expect(counted).toBe(0);
+  });
+
   it('ignores adapter-relayed prompts that appear in the transcript', async () => {
     const relayed =
       JSON.stringify({

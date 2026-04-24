@@ -170,19 +170,43 @@ export function createRouter(opts: RouterOptions): Router {
       const entries = await consumeTranscript(db, { sessionId, transcriptPath });
       for (const entry of entries) {
         if (entry.kind === 'local-user') {
-          insertLocalInbound(db, {
+          const { message_id, inserted } = insertLocalInbound(db, {
             session_id: sessionId,
             content: entry.text,
             uuid: entry.uuid,
             received_at: entry.timestamp,
           });
+          if (inserted) {
+            emit('inbound.persisted', {
+              messageId: message_id,
+              sessionId,
+              adapter: 'local',
+              senderId: 'tmux',
+              content: entry.text,
+              meta: {},
+              files: [],
+              receivedAt: entry.timestamp,
+            });
+          }
         } else {
-          insertLocalOutbound(db, {
+          const { message_id, inserted } = insertLocalOutbound(db, {
             session_id: sessionId,
             content: entry.text,
             uuid: entry.uuid,
             created_at: entry.timestamp,
           });
+          if (inserted) {
+            emit('outbound.persisted', {
+              messageId: message_id,
+              sessionId,
+              adapter: 'local',
+              recipient: 'tmux',
+              content: entry.text,
+              meta: {},
+              files: [],
+              createdAt: entry.timestamp,
+            });
+          }
         }
       }
     } catch (err) {
