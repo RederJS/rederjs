@@ -77,14 +77,12 @@ export class SessionActivityTracker {
     s.lastHook = evt.hook;
     s.lastHookAt = evt.timestamp;
     s.hasSeenHook = true;
-    if (evt.hook === 'UserPromptSubmit' || evt.hook === 'SessionStart') {
+    if (evt.hook === 'UserPromptSubmit') {
       s.seenStopSinceLastPrompt = false;
-    } else if (evt.hook === 'Stop') {
-      s.seenStopSinceLastPrompt = true;
-    } else if (evt.hook === 'SessionEnd') {
-      // Same as Stop for state purposes — the prompt cycle is complete. The
-      // ipc layer is authoritative for "is the shim still connected"; the
-      // tracker shouldn't mutate shimConnected in response to a hook event.
+    } else if (evt.hook === 'Stop' || evt.hook === 'SessionEnd' || evt.hook === 'SessionStart') {
+      // SessionStart fires on startup/resume/clear — Claude just came up and is
+      // idle waiting for input, not working. Treating it like Stop makes a
+      // freshly-restarted session derive to `idle`, not `working`.
       s.seenStopSinceLastPrompt = true;
     }
     this.recompute(evt.sessionId, s);

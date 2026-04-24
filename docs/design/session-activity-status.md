@@ -31,7 +31,7 @@ Claude Code's hook system is the right source. Hooks fire at exact lifecycle mom
 
 Three hooks are captured:
 
-- `SessionStart` → Claude is now active
+- `SessionStart` → Claude has just come up; no prompt in flight (idle-equivalent)
 - `UserPromptSubmit` → a prompt has been submitted; Claude is working
 - `Stop` → Claude has finished responding to the current prompt
 
@@ -69,7 +69,8 @@ The router maintains per-session activity state, derived from hook events + exis
 
 ### Transitions
 
-- `SessionStart`, `UserPromptSubmit` → **working**
+- `UserPromptSubmit` → **working**
+- `SessionStart` → treated like `Stop`: Claude just launched (startup/resume/clear) and is waiting for input. Derives to **idle** (or **awaiting-user** if there's an unread outbound or pending permission).
 - `Stop` → **awaiting-user** if (unread outbound OR pending permission), else **idle**
 - `permission.requested` while working → stays **working** (the request is part of active work); while idle/awaiting → **awaiting-user**
 - `permission.resolved` → recompute from current signals

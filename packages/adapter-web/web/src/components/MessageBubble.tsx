@@ -50,12 +50,15 @@ export function MessageBubble({
   onQuickReply,
   fileCount = 0,
 }: MessageBubbleProps): JSX.Element {
-  const mine = msg.direction === 'inbound' && msg.adapter === 'web';
-  const whoLabel = mine
-    ? 'you'
-    : msg.direction === 'outbound'
-      ? 'claude'
-      : `${msg.adapter}:${msg.party}`;
+  const mine = msg.direction === 'inbound' && (msg.adapter === 'web' || msg.adapter === 'local');
+  const whoLabel =
+    msg.direction === 'inbound' && msg.adapter === 'local'
+      ? 'tmux'
+      : mine
+        ? 'you'
+        : msg.direction === 'outbound'
+          ? 'claude'
+          : `${msg.adapter}:${msg.party}`;
 
   const bubbleStyles =
     bubbleVariant === 'terminal'

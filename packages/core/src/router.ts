@@ -20,7 +20,11 @@ import {
   markOutboundFailed,
   incrementOutboundAttempt,
   listPendingInboundForSession,
+  insertLocalInbound,
+  insertLocalOutbound,
 } from './storage/outbox.js';
+import { consumeTranscript } from './transcript-tail.js';
+import { CHANNEL_MARKER } from './transcript-parser.js';
 import type {
   IpcServer,
   ReplyToolCallEvent,
@@ -157,7 +161,107 @@ export function createRouter(opts: RouterOptions): Router {
       hook: evt.hook,
       timestamp: evt.timestamp,
     });
+    if (evt.hook === 'UserPromptSubmit') {
+      const prompt = evt.payload?.['prompt'];
+      if (typeof prompt === 'string' && prompt.length > 0) {
+        captureUserPrompt(evt.session_id, prompt, evt.timestamp);
+      }
+      return;
+    }
+    if (evt.hook === 'Stop' && typeof evt.payload?.['transcript_path'] === 'string') {
+      void captureTranscript(evt.session_id, evt.payload['transcript_path']);
+    }
   });
+
+  // Tracks the most recent UserPromptSubmit prompt text per session so the
+  // Stop-time transcript tail can match and skip that exact user entry.
+  // When this map lacks an entry for a session (e.g. payload.prompt was
+  // truncated by the shim's MAX_STDIN_BYTES cap or the hook didn't fire), the
+  // transcript tail falls back to inserting the user entry itself.
+  const eagerPromptBySession = new Map<string, string>();
+
+  function captureUserPrompt(sessionId: string, prompt: string, timestamp: string): void {
+    // UserPromptSubmit also fires for adapter-relayed content (web/telegram
+    // prompts reach Claude through the MCP notification channel). Those carry
+    // the <channel source="reder"> wrapper — skip them so the adapter's own
+    // inbound row stays canonical.
+    if (prompt.includes(CHANNEL_MARKER)) return;
+    const { message_id, inserted } = insertLocalInbound(db, {
+      session_id: sessionId,
+      content: prompt,
+      uuid: `ups:${timestamp}`,
+      received_at: timestamp,
+    });
+    if (!inserted) return;
+    eagerPromptBySession.set(sessionId, prompt);
+    emit('inbound.persisted', {
+      messageId: message_id,
+      sessionId,
+      adapter: 'local',
+      senderId: 'tmux',
+      content: prompt,
+      meta: {},
+      files: [],
+      receivedAt: timestamp,
+    });
+  }
+
+  async function captureTranscript(sessionId: string, transcriptPath: string): Promise<void> {
+    try {
+      const entries = await consumeTranscript(db, { sessionId, transcriptPath });
+      for (const entry of entries) {
+        if (entry.kind === 'local-user') {
+          // Skip if UserPromptSubmit already captured this exact prompt
+          // eagerly; fall back to inserting from the transcript if the eager
+          // path missed it (e.g. truncated hook payload).
+          if (eagerPromptBySession.get(sessionId) === entry.text) {
+            eagerPromptBySession.delete(sessionId);
+            continue;
+          }
+          const { message_id, inserted } = insertLocalInbound(db, {
+            session_id: sessionId,
+            content: entry.text,
+            uuid: entry.uuid,
+            received_at: entry.timestamp,
+          });
+          if (!inserted) continue;
+          emit('inbound.persisted', {
+            messageId: message_id,
+            sessionId,
+            adapter: 'local',
+            senderId: 'tmux',
+            content: entry.text,
+            meta: {},
+            files: [],
+            receivedAt: entry.timestamp,
+          });
+          continue;
+        }
+        const { message_id, inserted } = insertLocalOutbound(db, {
+          session_id: sessionId,
+          content: entry.text,
+          uuid: entry.uuid,
+          created_at: entry.timestamp,
+        });
+        if (!inserted) continue;
+        emit('outbound.persisted', {
+          messageId: message_id,
+          sessionId,
+          adapter: 'local',
+          recipient: 'tmux',
+          content: entry.text,
+          meta: {},
+          files: [],
+          createdAt: entry.timestamp,
+        });
+      }
+    } catch (err) {
+      logger.warn(
+        { err, session_id: sessionId, path: transcriptPath, component: 'core.router' },
+        'failed to capture transcript',
+      );
+    }
+  }
 
   ipcServer.on('channel_ack', (evt: ChannelAckEvent) => {
     markInboundAcknowledged(db, evt.message_id);
@@ -234,10 +338,12 @@ export function createRouter(opts: RouterOptions): Router {
     const last = lastInboundBySession.get(sessionId);
     if (last) return { adapter: last.adapter, recipient: last.senderId };
 
+    // Exclude adapter='local' (tmux transcript capture): those rows exist only
+    // to render the transcript — there is no adapter to route a reply to.
     const row = db
       .prepare(
         `SELECT adapter, sender_id FROM inbound_messages
-          WHERE session_id = ?
+          WHERE session_id = ? AND adapter != 'local'
           ORDER BY received_at DESC, message_id DESC
           LIMIT 1`,
       )
