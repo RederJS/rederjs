@@ -11,8 +11,14 @@ import type { IpcServer } from '../src/ipc/server.js';
 
 type Emit = (event: string, ...args: unknown[]) => boolean;
 
-function fakeIpcServer(): { server: IpcServer; emit: Emit } {
+interface SentFrame {
+  sessionId: string;
+  msg: { kind: string } & Record<string, unknown>;
+}
+
+function fakeIpcServer(): { server: IpcServer; emit: Emit; sent: SentFrame[] } {
   const ee = new EventEmitter();
+  const sent: SentFrame[] = [];
   const server: IpcServer = {
     socketPath: '/tmp/fake',
     on: ((event: string, listener: (...a: unknown[]) => void) => {
@@ -21,11 +27,14 @@ function fakeIpcServer(): { server: IpcServer; emit: Emit } {
     off: ((event: string, listener: (...a: unknown[]) => void) => {
       ee.off(event, listener);
     }) as IpcServer['off'],
-    sendToSession: () => true,
+    sendToSession: (sessionId, msg) => {
+      sent.push({ sessionId, msg: msg as SentFrame['msg'] });
+      return true;
+    },
     isSessionConnected: () => true,
     close: async () => {},
   };
-  return { server, emit: ee.emit.bind(ee) as Emit };
+  return { server, emit: ee.emit.bind(ee) as Emit, sent };
 }
 
 let dir: string;
@@ -33,13 +42,15 @@ let db: DatabaseHandle;
 let tPath: string;
 let router: Router;
 let emit: Emit;
+let sent: SentFrame[];
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'tx-'));
   db = openDatabase(':memory:');
   tPath = join(dir, 'session.jsonl');
-  const { server, emit: e } = fakeIpcServer();
+  const { server, emit: e, sent: s } = fakeIpcServer();
   emit = e;
+  sent = s;
   const logger = createLogger({ level: 'error', destination: { write: () => {} } });
   const audit = createAuditLog(dir);
   router = createRouter({ db: db.raw, ipcServer: server, logger, audit });
@@ -165,6 +176,34 @@ describe('router transcript capture', () => {
     });
     await tick();
     expect(counted).toBe(0);
+  });
+
+  it('does not route adapter-less local inbound as a reply recipient', async () => {
+    // After a tmux-captured prompt lands in inbound_messages with adapter='local',
+    // a subsequent reply_tool_call without in_reply_to must not resolve the
+    // recipient to 'local' (no adapter is registered under that name).
+    writeFileSync(tPath, USER('u1', 'hi'));
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'Stop',
+      timestamp: '2026-04-24T12:00:02Z',
+      payload: { transcript_path: tPath },
+    });
+    await tick();
+
+    emit('reply_tool_call', {
+      session_id: 's1',
+      request_id: 'r1',
+      content: 'claude reply',
+      meta: {},
+      files: [],
+    });
+    await tick();
+
+    const results = sent.filter((f) => f.msg.kind === 'reply_tool_result');
+    expect(results).toHaveLength(1);
+    expect(results[0]?.msg['success']).toBe(false);
+    expect(results[0]?.msg['error']).toBe('no recipient bound to session');
   });
 
   it('ignores adapter-relayed prompts that appear in the transcript', async () => {

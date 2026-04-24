@@ -292,10 +292,12 @@ export function createRouter(opts: RouterOptions): Router {
     const last = lastInboundBySession.get(sessionId);
     if (last) return { adapter: last.adapter, recipient: last.senderId };
 
+    // Exclude adapter='local' (tmux transcript capture): those rows exist only
+    // to render the transcript — there is no adapter to route a reply to.
     const row = db
       .prepare(
         `SELECT adapter, sender_id FROM inbound_messages
-          WHERE session_id = ?
+          WHERE session_id = ? AND adapter != 'local'
           ORDER BY received_at DESC, message_id DESC
           LIMIT 1`,
       )
