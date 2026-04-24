@@ -8,6 +8,33 @@ import { createRouter, type Router } from '../src/router.js';
 import { createAuditLog } from '../src/audit.js';
 import { createLogger } from '../src/logger.js';
 import type { IpcServer } from '../src/ipc/server.js';
+import { createBinding } from '../src/pairing.js';
+import { createSession } from '../src/sessions.js';
+import { FakeAdapter } from './fixtures/fake-adapter.js';
+import {
+  Adapter,
+  type AdapterContext,
+  type OutboundMessage,
+  type PermissionPrompt,
+  type SendResult,
+} from '../src/adapter.js';
+
+class ThrowingAdapter extends Adapter {
+  override readonly name: string;
+  public attempts = 0;
+  constructor(name: string) {
+    super();
+    this.name = name;
+  }
+  override async start(_ctx: AdapterContext): Promise<void> {}
+  override async stop(): Promise<void> {}
+  override async sendOutbound(_msg: OutboundMessage): Promise<SendResult> {
+    this.attempts++;
+    throw new Error('boom');
+  }
+  override async sendPermissionPrompt(_prompt: PermissionPrompt): Promise<void> {}
+  override async cancelPermissionPrompt(_requestId: string): Promise<void> {}
+}
 
 type Emit = (event: string, ...args: unknown[]) => boolean;
 
@@ -44,10 +71,12 @@ let router: Router;
 let emit: Emit;
 let sent: SentFrame[];
 
-beforeEach(() => {
+beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'tx-'));
   db = openDatabase(':memory:');
   tPath = join(dir, 'session.jsonl');
+  await createSession(db.raw, 's1', 'session 1');
+  await createSession(db.raw, 's-other', 'session other');
   const { server, emit: e, sent: s } = fakeIpcServer();
   emit = e;
   sent = s;
@@ -321,5 +350,134 @@ describe('router transcript capture', () => {
       .all() as Array<{ content: string }>;
     expect(inbound).toHaveLength(0);
     expect(outbound).toHaveLength(1);
+  });
+
+  it('fans tmux-originated assistant replies out to every paired non-local binding', async () => {
+    const telegram = new FakeAdapter('telegram');
+    const slack = new FakeAdapter('slack');
+    router.registerAdapter('telegram', { adapter: telegram });
+    router.registerAdapter('slack', { adapter: slack });
+    createBinding(db.raw, { sessionId: 's1', adapter: 'telegram', senderId: 'tg-user-1' });
+    createBinding(db.raw, { sessionId: 's1', adapter: 'telegram', senderId: 'tg-user-2' });
+    createBinding(db.raw, { sessionId: 's1', adapter: 'slack', senderId: 'slack-user' });
+    // Binding for another session should not receive anything.
+    createBinding(db.raw, { sessionId: 's-other', adapter: 'telegram', senderId: 'tg-user-3' });
+
+    writeFileSync(tPath, ASSISTANT('a1', 'broadcasting'));
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'Stop',
+      timestamp: '2026-04-24T12:00:03Z',
+      payload: { transcript_path: tPath },
+    });
+    await tick();
+    await tick();
+
+    const telegramRecipients = telegram.sent.map((m) => m.recipient).sort();
+    expect(telegramRecipients).toEqual(['tg-user-1', 'tg-user-2']);
+    expect(telegram.sent.map((m) => m.content)).toEqual(['broadcasting', 'broadcasting']);
+    expect(slack.sent.map((m) => ({ recipient: m.recipient, content: m.content }))).toEqual([
+      { recipient: 'slack-user', content: 'broadcasting' },
+    ]);
+
+    // Dashboard still sees only the canonical `local` row — no per-binding
+    // duplicates in outbound_messages.
+    const localOutboundCount = (
+      db.raw.prepare("SELECT COUNT(*) AS c FROM outbound_messages WHERE adapter='local'").get() as {
+        c: number;
+      }
+    ).c;
+    expect(localOutboundCount).toBe(1);
+    const nonLocalOutboundCount = (
+      db.raw
+        .prepare("SELECT COUNT(*) AS c FROM outbound_messages WHERE adapter!='local'")
+        .get() as {
+        c: number;
+      }
+    ).c;
+    expect(nonLocalOutboundCount).toBe(0);
+  });
+
+  it('does not fan out when no non-local bindings exist', async () => {
+    const telegram = new FakeAdapter('telegram');
+    router.registerAdapter('telegram', { adapter: telegram });
+
+    writeFileSync(tPath, ASSISTANT('a1', 'hi'));
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'Stop',
+      timestamp: '2026-04-24T12:00:03Z',
+      payload: { transcript_path: tPath },
+    });
+    await tick();
+
+    expect(telegram.sent).toHaveLength(0);
+  });
+
+  it('does not fan out user prompts, only assistant replies', async () => {
+    const telegram = new FakeAdapter('telegram');
+    router.registerAdapter('telegram', { adapter: telegram });
+    createBinding(db.raw, { sessionId: 's1', adapter: 'telegram', senderId: 'tg-user-1' });
+
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'UserPromptSubmit',
+      timestamp: '2026-04-24T12:00:02Z',
+      payload: { transcript_path: tPath, prompt: 'tmux prompt' },
+    });
+    await tick();
+
+    expect(telegram.sent).toHaveLength(0);
+  });
+
+  it('swallows fan-out SendResult failures (resolved success:false)', async () => {
+    const telegram = new FakeAdapter('telegram');
+    telegram.nextSendBehavior = 'terminal';
+    router.registerAdapter('telegram', { adapter: telegram });
+    createBinding(db.raw, { sessionId: 's1', adapter: 'telegram', senderId: 'tg-user' });
+
+    writeFileSync(tPath, ASSISTANT('a1', 'reply'));
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'Stop',
+      timestamp: '2026-04-24T12:00:03Z',
+      payload: { transcript_path: tPath },
+    });
+    await tick();
+    await tick();
+
+    // FakeAdapter recorded the attempt and returned a resolved failure.
+    expect(telegram.sent).toHaveLength(1);
+    expect(telegram.sendResults).toEqual([
+      { success: false, retriable: false, error: 'terminal error' },
+    ]);
+    // Local row still written despite the fan-out failure.
+    const local = db.raw
+      .prepare("SELECT content FROM outbound_messages WHERE adapter='local'")
+      .all() as Array<{ content: string }>;
+    expect(local.map((r) => r.content)).toEqual(['reply']);
+  });
+
+  it('swallows fan-out sendOutbound rejections (promise rejects)', async () => {
+    const throwing = new ThrowingAdapter('telegram');
+    router.registerAdapter('telegram', { adapter: throwing });
+    createBinding(db.raw, { sessionId: 's1', adapter: 'telegram', senderId: 'tg-user' });
+
+    writeFileSync(tPath, ASSISTANT('a1', 'reply'));
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'Stop',
+      timestamp: '2026-04-24T12:00:03Z',
+      payload: { transcript_path: tPath },
+    });
+    await tick();
+    await tick();
+
+    expect(throwing.attempts).toBe(1);
+    // Local row still written despite the adapter throwing.
+    const local = db.raw
+      .prepare("SELECT content FROM outbound_messages WHERE adapter='local'")
+      .all() as Array<{ content: string }>;
+    expect(local.map((r) => r.content)).toEqual(['reply']);
   });
 });
