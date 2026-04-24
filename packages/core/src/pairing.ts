@@ -211,7 +211,7 @@ export function listAllBindingsForSession(db: Db, sessionId: string): Binding[] 
     .prepare(
       `SELECT binding_id, session_id, adapter, sender_id, created_at, metadata
          FROM bindings WHERE session_id = ?
-         ORDER BY adapter, created_at`,
+         ORDER BY adapter, created_at, binding_id`,
     )
     .all(sessionId) as Array<{
     binding_id: string;

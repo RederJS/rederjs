@@ -284,18 +284,35 @@ export function createRouter(opts: RouterOptions): Router {
         meta: {},
         files: [],
       };
-      void reg.adapter.sendOutbound(outbound).catch((err) => {
-        logger.warn(
-          {
-            err,
-            session_id: sessionId,
-            adapter: b.adapter,
-            recipient: b.senderId,
-            component: 'core.router',
-          },
-          'fan-out send threw',
-        );
-      });
+      void reg.adapter
+        .sendOutbound(outbound)
+        .then((result) => {
+          if (!result.success) {
+            logger.warn(
+              {
+                session_id: sessionId,
+                adapter: b.adapter,
+                recipient: b.senderId,
+                retriable: result.retriable,
+                error: result.error,
+                component: 'core.router',
+              },
+              'fan-out send failed',
+            );
+          }
+        })
+        .catch((err) => {
+          logger.warn(
+            {
+              err,
+              session_id: sessionId,
+              adapter: b.adapter,
+              recipient: b.senderId,
+              component: 'core.router',
+            },
+            'fan-out send threw',
+          );
+        });
     }
   }
 
