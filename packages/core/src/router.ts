@@ -20,7 +20,10 @@ import {
   markOutboundFailed,
   incrementOutboundAttempt,
   listPendingInboundForSession,
+  insertLocalInbound,
+  insertLocalOutbound,
 } from './storage/outbox.js';
+import { consumeTranscript } from './transcript-tail.js';
 import type {
   IpcServer,
   ReplyToolCallEvent,
@@ -157,7 +160,38 @@ export function createRouter(opts: RouterOptions): Router {
       hook: evt.hook,
       timestamp: evt.timestamp,
     });
+    if (evt.hook === 'Stop' && typeof evt.payload?.['transcript_path'] === 'string') {
+      void captureTranscript(evt.session_id, evt.payload['transcript_path']);
+    }
   });
+
+  async function captureTranscript(sessionId: string, transcriptPath: string): Promise<void> {
+    try {
+      const entries = await consumeTranscript(db, { sessionId, transcriptPath });
+      for (const entry of entries) {
+        if (entry.kind === 'local-user') {
+          insertLocalInbound(db, {
+            session_id: sessionId,
+            content: entry.text,
+            uuid: entry.uuid,
+            received_at: entry.timestamp,
+          });
+        } else {
+          insertLocalOutbound(db, {
+            session_id: sessionId,
+            content: entry.text,
+            uuid: entry.uuid,
+            created_at: entry.timestamp,
+          });
+        }
+      }
+    } catch (err) {
+      logger.warn(
+        { err, session_id: sessionId, path: transcriptPath, component: 'core.router' },
+        'failed to capture transcript',
+      );
+    }
+  }
 
   ipcServer.on('channel_ack', (evt: ChannelAckEvent) => {
     markInboundAcknowledged(db, evt.message_id);
