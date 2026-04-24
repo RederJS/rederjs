@@ -82,16 +82,26 @@ async function tick(): Promise<void> {
 }
 
 describe('router transcript capture', () => {
-  it('persists tmux prompt and reply on Stop hook', async () => {
-    writeFileSync(tPath, USER('u1', 'hello') + ASSISTANT('a1', 'hi there'));
-
+  async function fireTurn(prompt: string, reply: string, t = '2026-04-24T12:00:02Z'): Promise<void> {
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'UserPromptSubmit',
+      timestamp: t,
+      payload: { transcript_path: tPath, prompt },
+    });
+    await tick();
+    writeFileSync(tPath, USER('u1', prompt) + ASSISTANT('a1', reply));
     emit('hook_event', {
       session_id: 's1',
       hook: 'Stop',
-      timestamp: '2026-04-24T12:00:02Z',
+      timestamp: t,
       payload: { transcript_path: tPath },
     });
     await tick();
+  }
+
+  it('persists tmux prompt and reply across the hook pair', async () => {
+    await fireTurn('hello', 'hi there');
 
     const inbound = db.raw
       .prepare("SELECT content FROM inbound_messages WHERE adapter='local'")
@@ -104,15 +114,7 @@ describe('router transcript capture', () => {
   });
 
   it('does not double-persist when Stop fires twice with no new content', async () => {
-    writeFileSync(tPath, USER('u1', 'hello') + ASSISTANT('a1', 'hi'));
-
-    emit('hook_event', {
-      session_id: 's1',
-      hook: 'Stop',
-      timestamp: '2026-04-24T12:00:02Z',
-      payload: { transcript_path: tPath },
-    });
-    await tick();
+    await fireTurn('hello', 'hi');
     emit('hook_event', {
       session_id: 's1',
       hook: 'Stop',
@@ -126,11 +128,16 @@ describe('router transcript capture', () => {
         .prepare("SELECT COUNT(*) AS c FROM inbound_messages WHERE adapter='local'")
         .get() as { c: number }
     ).c;
+    const outboundCount = (
+      db.raw
+        .prepare("SELECT COUNT(*) AS c FROM outbound_messages WHERE adapter='local'")
+        .get() as { c: number }
+    ).c;
     expect(inboundCount).toBe(1);
+    expect(outboundCount).toBe(1);
   });
 
   it('emits router events so SSE subscribers refresh live', async () => {
-    writeFileSync(tPath, USER('u1', 'hello') + ASSISTANT('a1', 'hi'));
     const received: Array<{ event: string; messageId: string; adapter: string }> = [];
     router.events.on('inbound.persisted', (p) =>
       received.push({ event: 'inbound.persisted', messageId: p.messageId, adapter: p.adapter }),
@@ -139,13 +146,7 @@ describe('router transcript capture', () => {
       received.push({ event: 'outbound.persisted', messageId: p.messageId, adapter: p.adapter }),
     );
 
-    emit('hook_event', {
-      session_id: 's1',
-      hook: 'Stop',
-      timestamp: '2026-04-24T12:00:02Z',
-      payload: { transcript_path: tPath },
-    });
-    await tick();
+    await fireTurn('hello', 'hi');
 
     expect(received.map((r) => ({ event: r.event, adapter: r.adapter }))).toEqual([
       { event: 'inbound.persisted', adapter: 'local' },
@@ -154,37 +155,40 @@ describe('router transcript capture', () => {
   });
 
   it('does not re-emit on idempotent replay', async () => {
-    writeFileSync(tPath, USER('u1', 'hello') + ASSISTANT('a1', 'hi'));
-    emit('hook_event', {
-      session_id: 's1',
-      hook: 'Stop',
-      timestamp: '2026-04-24T12:00:02Z',
-      payload: { transcript_path: tPath },
-    });
-    await tick();
+    await fireTurn('hello', 'hi');
 
     let counted = 0;
     router.events.on('inbound.persisted', () => counted++);
     router.events.on('outbound.persisted', () => counted++);
 
-    // Same transcript, same offset — nothing new should fire.
+    // Same hook pair, same offsets — nothing new should fire.
+    emit('hook_event', {
+      session_id: 's1',
+      hook: 'UserPromptSubmit',
+      timestamp: '2026-04-24T12:00:02Z',
+      payload: { transcript_path: tPath, prompt: 'hello' },
+    });
+    await tick();
     emit('hook_event', {
       session_id: 's1',
       hook: 'Stop',
-      timestamp: '2026-04-24T12:00:03Z',
+      timestamp: '2026-04-24T12:00:02Z',
       payload: { transcript_path: tPath },
     });
     await tick();
     expect(counted).toBe(0);
   });
 
-  it('captures the user prompt on UserPromptSubmit, before the reply exists', async () => {
-    writeFileSync(tPath, USER('u1', 'hello'));
+  it('captures the user prompt from UserPromptSubmit payload (transcript not yet written)', async () => {
+    // Claude Code writes the JSONL entry *after* the UserPromptSubmit hook
+    // fires — so the transcript is empty at that moment. We rely on
+    // payload.prompt for the eager insert.
+    writeFileSync(tPath, '');
     emit('hook_event', {
       session_id: 's1',
       hook: 'UserPromptSubmit',
       timestamp: '2026-04-24T12:00:02Z',
-      payload: { transcript_path: tPath },
+      payload: { transcript_path: tPath, prompt: 'hello' },
     });
     await tick();
 
@@ -193,8 +197,9 @@ describe('router transcript capture', () => {
       .all() as Array<{ content: string }>;
     expect(inbound.map((r) => r.content)).toEqual(['hello']);
 
-    // Subsequent Stop with the assistant line appended picks up only the new entry.
-    appendFileSync(tPath, ASSISTANT('a1', 'hi'));
+    // Now the JSONL catches up: Claude writes the user line then the
+    // assistant line, and Stop fires.
+    writeFileSync(tPath, USER('u1', 'hello') + ASSISTANT('a1', 'hi'));
     emit('hook_event', {
       session_id: 's1',
       hook: 'Stop',
@@ -207,6 +212,8 @@ describe('router transcript capture', () => {
       .prepare("SELECT content FROM outbound_messages WHERE adapter='local'")
       .all() as Array<{ content: string }>;
     expect(outbound.map((r) => r.content)).toEqual(['hi']);
+    // User prompt stays at a single row — the Stop-time tail must skip
+    // the user JSONL entry, since it was already captured from payload.
     const inboundCount = (
       db.raw
         .prepare("SELECT COUNT(*) AS c FROM inbound_messages WHERE adapter='local'")
@@ -219,12 +226,11 @@ describe('router transcript capture', () => {
     // After a tmux-captured prompt lands in inbound_messages with adapter='local',
     // a subsequent reply_tool_call without in_reply_to must not resolve the
     // recipient to 'local' (no adapter is registered under that name).
-    writeFileSync(tPath, USER('u1', 'hi'));
     emit('hook_event', {
       session_id: 's1',
-      hook: 'Stop',
+      hook: 'UserPromptSubmit',
       timestamp: '2026-04-24T12:00:02Z',
-      payload: { transcript_path: tPath },
+      payload: { transcript_path: tPath, prompt: 'hi' },
     });
     await tick();
 

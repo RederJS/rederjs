@@ -160,58 +160,65 @@ export function createRouter(opts: RouterOptions): Router {
       hook: evt.hook,
       timestamp: evt.timestamp,
     });
-    const transcriptPath = evt.payload?.['transcript_path'];
-    if (
-      typeof transcriptPath === 'string' &&
-      (evt.hook === 'UserPromptSubmit' || evt.hook === 'Stop')
-    ) {
-      void captureTranscript(evt.session_id, transcriptPath);
+    if (evt.hook === 'UserPromptSubmit') {
+      const prompt = evt.payload?.['prompt'];
+      if (typeof prompt === 'string' && prompt.length > 0) {
+        captureUserPrompt(evt.session_id, prompt, evt.timestamp);
+      }
+      return;
+    }
+    if (evt.hook === 'Stop' && typeof evt.payload?.['transcript_path'] === 'string') {
+      void captureTranscript(evt.session_id, evt.payload['transcript_path']);
     }
   });
+
+  function captureUserPrompt(sessionId: string, prompt: string, timestamp: string): void {
+    // UserPromptSubmit fires before Claude Code writes the prompt to the
+    // transcript JSONL, so we take the text straight from the hook payload.
+    // The subsequent Stop-time tail skips user entries to avoid duplicating.
+    const { message_id, inserted } = insertLocalInbound(db, {
+      session_id: sessionId,
+      content: prompt,
+      uuid: `ups:${timestamp}`,
+      received_at: timestamp,
+    });
+    if (!inserted) return;
+    emit('inbound.persisted', {
+      messageId: message_id,
+      sessionId,
+      adapter: 'local',
+      senderId: 'tmux',
+      content: prompt,
+      meta: {},
+      files: [],
+      receivedAt: timestamp,
+    });
+  }
 
   async function captureTranscript(sessionId: string, transcriptPath: string): Promise<void> {
     try {
       const entries = await consumeTranscript(db, { sessionId, transcriptPath });
       for (const entry of entries) {
-        if (entry.kind === 'local-user') {
-          const { message_id, inserted } = insertLocalInbound(db, {
-            session_id: sessionId,
-            content: entry.text,
-            uuid: entry.uuid,
-            received_at: entry.timestamp,
-          });
-          if (inserted) {
-            emit('inbound.persisted', {
-              messageId: message_id,
-              sessionId,
-              adapter: 'local',
-              senderId: 'tmux',
-              content: entry.text,
-              meta: {},
-              files: [],
-              receivedAt: entry.timestamp,
-            });
-          }
-        } else {
-          const { message_id, inserted } = insertLocalOutbound(db, {
-            session_id: sessionId,
-            content: entry.text,
-            uuid: entry.uuid,
-            created_at: entry.timestamp,
-          });
-          if (inserted) {
-            emit('outbound.persisted', {
-              messageId: message_id,
-              sessionId,
-              adapter: 'local',
-              recipient: 'tmux',
-              content: entry.text,
-              meta: {},
-              files: [],
-              createdAt: entry.timestamp,
-            });
-          }
-        }
+        // User prompts are captured eagerly from the UserPromptSubmit hook's
+        // payload.prompt; skip the transcript's copy to avoid duplicates.
+        if (entry.kind === 'local-user') continue;
+        const { message_id, inserted } = insertLocalOutbound(db, {
+          session_id: sessionId,
+          content: entry.text,
+          uuid: entry.uuid,
+          created_at: entry.timestamp,
+        });
+        if (!inserted) continue;
+        emit('outbound.persisted', {
+          messageId: message_id,
+          sessionId,
+          adapter: 'local',
+          recipient: 'tmux',
+          content: entry.text,
+          meta: {},
+          files: [],
+          createdAt: entry.timestamp,
+        });
       }
     } catch (err) {
       logger.warn(
