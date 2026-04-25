@@ -231,6 +231,7 @@ describe('adapter-web http surface', () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
     const body = (await res.json()) as {
       cpu_percent: number;
       cpu_per_core: number[];

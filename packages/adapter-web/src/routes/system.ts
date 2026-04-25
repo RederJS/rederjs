@@ -97,6 +97,7 @@ export function createSystemRouter(): ReturnType<typeof expressRouter> {
       mem_percent: total > 0 ? (used / total) * 100 : 0,
       uptime_seconds: process.uptime(),
     };
+    res.set('Cache-Control', 'no-store');
     res.json(snap);
   });
   return r;
