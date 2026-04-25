@@ -16,9 +16,9 @@ function formatPercent(percent: number): string {
   return `${percent.toFixed(0)}%`;
 }
 
-function formatRss(bytes: number): string {
+function formatBytes(bytes: number): string {
   const mb = bytes / (1024 * 1024);
-  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
   return `${mb.toFixed(0)} MB`;
 }
 
@@ -51,7 +51,13 @@ export function Topbar({
           host <span className="text-fg-2">{host}</span>
         </span>
         <span className="text-fg-4">/</span>
-        <span title="rederd CPU usage as a percentage of one core (sampled every 3s)">
+        <span
+          title={
+            stats
+              ? `system CPU averaged across ${stats.cpu_per_core.length} core${stats.cpu_per_core.length === 1 ? '' : 's'}: ${stats.cpu_per_core.map((c) => `${c.toFixed(0)}%`).join(' ')}`
+              : 'system CPU usage (sampled every 3s)'
+          }
+        >
           cpu{' '}
           <span className="text-fg-2 tabular-nums">
             {stats ? formatPercent(stats.cpu_percent) : '—'}
@@ -61,8 +67,8 @@ export function Topbar({
         <span
           title={
             stats
-              ? `rederd resident memory: ${formatRss(stats.rss_bytes)} of system total`
-              : 'rederd resident memory'
+              ? `system memory: ${formatBytes(stats.mem_used_bytes)} of ${formatBytes(stats.mem_total_bytes)} used`
+              : 'system memory usage'
           }
         >
           mem{' '}

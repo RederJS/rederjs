@@ -81,10 +81,11 @@ export async function repairSession(sessionId: string): Promise<void> {
 }
 
 export interface SystemStats {
-  rss_bytes: number;
-  heap_used_bytes: number;
-  mem_percent: number;
   cpu_percent: number;
+  cpu_per_core: number[];
+  mem_used_bytes: number;
+  mem_total_bytes: number;
+  mem_percent: number;
   uptime_seconds: number;
 }
 
