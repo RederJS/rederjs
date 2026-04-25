@@ -223,4 +223,40 @@ describe('adapter-web http surface', () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it('GET /api/system/stats returns system-wide cpu and memory metrics', async () => {
+    const unauth = await fetch(`${baseUrl}/api/system/stats`);
+    expect(unauth.status).toBe(401);
+    const res = await fetch(`${baseUrl}/api/system/stats`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    const body = (await res.json()) as {
+      cpu_percent: number;
+      cpu_per_core: number[];
+      mem_used_bytes: number;
+      mem_total_bytes: number;
+      mem_percent: number;
+      uptime_seconds: number;
+    };
+    expect(typeof body.cpu_percent).toBe('number');
+    expect(body.cpu_percent).toBeGreaterThanOrEqual(0);
+    expect(body.cpu_percent).toBeLessThanOrEqual(100);
+    expect(Array.isArray(body.cpu_per_core)).toBe(true);
+    expect(body.cpu_per_core.length).toBeGreaterThan(0);
+    for (const v of body.cpu_per_core) {
+      expect(typeof v).toBe('number');
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(100);
+    }
+    expect(typeof body.mem_total_bytes).toBe('number');
+    expect(body.mem_total_bytes).toBeGreaterThan(0);
+    expect(body.mem_used_bytes).toBeGreaterThanOrEqual(0);
+    expect(body.mem_used_bytes).toBeLessThanOrEqual(body.mem_total_bytes);
+    expect(body.mem_percent).toBeGreaterThanOrEqual(0);
+    expect(body.mem_percent).toBeLessThanOrEqual(100);
+    expect(typeof body.uptime_seconds).toBe('number');
+    expect(body.uptime_seconds).toBeGreaterThan(0);
+  });
 });

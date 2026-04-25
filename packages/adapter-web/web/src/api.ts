@@ -80,6 +80,19 @@ export async function repairSession(sessionId: string): Promise<void> {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 }
 
+export interface SystemStats {
+  cpu_percent: number;
+  cpu_per_core: number[];
+  mem_used_bytes: number;
+  mem_total_bytes: number;
+  mem_percent: number;
+  uptime_seconds: number;
+}
+
+export async function getSystemStats(): Promise<SystemStats> {
+  return (await jsonOrThrow(await fetch('/api/system/stats'))) as SystemStats;
+}
+
 export async function resolvePermission(
   sessionId: string,
   requestId: string,

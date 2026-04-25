@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Panel } from './components/Panel';
-import { Rail } from './components/Rail';
 import { SessionGrid } from './components/SessionGrid';
 import { Topbar } from './components/Topbar';
 import { Tweaks } from './components/Tweaks';
 import { sessionStatus } from './derive';
 import { useSessionsState } from './hooks/useSessionsState';
+import { useSystemStats } from './hooks/useSystemStats';
 import { useTweaks } from './hooks/useTweaks';
 import { navigate, parseRoute, useHashRoute } from './router';
 import { startSession } from './api';
@@ -15,11 +15,11 @@ import { cn } from './cn';
 
 export function App(): JSX.Element {
   const { sessions, previews, loading, error } = useSessionsState();
+  const stats = useSystemStats();
   const { tweaks, setTweak } = useTweaks();
   const [tweaksOpen, setTweaksOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all');
   const [sort, setSort] = useState<SortKey>('priority');
-  const [search, setSearch] = useState('');
 
   const hash = useHashRoute();
   const route = parseRoute(hash);
@@ -78,19 +78,17 @@ export function App(): JSX.Element {
   };
 
   return (
-    <div className="app-bg relative grid h-screen" style={{ gridTemplateColumns: '56px 1fr' }}>
-      <Rail
-        theme={tweaks.theme}
-        onToggleTheme={() => setTweak('theme', tweaks.theme === 'dark' ? 'light' : 'dark')}
-        onOpenTweaks={() => setTweaksOpen((v) => !v)}
-      />
-
-      <main className="relative grid min-h-0 min-w-0" style={{ gridTemplateRows: 'auto 1fr' }}>
+    <div className="app-bg relative h-screen">
+      <main
+        className="relative grid h-full min-h-0 min-w-0"
+        style={{ gridTemplateRows: 'auto 1fr' }}
+      >
         <Topbar
-          sessionsCount={sessions.length}
           waitingCount={attentionCount}
-          search={search}
-          onSearchChange={setSearch}
+          stats={stats}
+          theme={tweaks.theme}
+          onToggleTheme={() => setTweak('theme', tweaks.theme === 'dark' ? 'light' : 'dark')}
+          onOpenTweaks={() => setTweaksOpen((v) => !v)}
           onNewSession={() => void handleNewSession()}
         />
 
@@ -116,7 +114,6 @@ export function App(): JSX.Element {
               onSortChange={setSort}
               cols={tweaks.cols}
               onColsChange={(n) => setTweak('cols', n)}
-              search={search}
               selectedId={selectedId}
               onSelect={openSession}
               cardVariant={tweaks.card}

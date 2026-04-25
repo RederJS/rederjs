@@ -15,7 +15,6 @@ interface SessionGridProps {
   onSortChange: (s: SortKey) => void;
   cols: number;
   onColsChange: (n: number) => void;
-  search: string;
   selectedId: string | null;
   onSelect: (sessionId: string) => void;
   cardVariant: CardVariant;
@@ -40,7 +39,6 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
     onSortChange,
     cols,
     onColsChange,
-    search,
     selectedId,
     onSelect,
     cardVariant,
@@ -60,17 +58,9 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
   }, [sessions]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const list = sessions.filter((s) => {
-      if (statusFilter !== 'all' && sessionStatus(s) !== statusFilter) return false;
-      if (q) {
-        const preview = (previews.get(s.session_id) ?? '').toLowerCase();
-        const haystack =
-          `${s.display_name} ${s.session_id} ${s.workspace_dir ?? ''} ${preview}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
+    const list = sessions.filter(
+      (s) => statusFilter === 'all' || sessionStatus(s) === statusFilter,
+    );
     list.sort((a, b) => {
       if (sort === 'priority') {
         const d = STATUS_ORDER[sessionStatus(a)] - STATUS_ORDER[sessionStatus(b)];
@@ -85,7 +75,7 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
       return a.display_name.localeCompare(b.display_name);
     });
     return list;
-  }, [sessions, previews, statusFilter, search, sort]);
+  }, [sessions, statusFilter, sort]);
 
   const gridStyle: CSSProperties = { ['--cols' as any]: cols };
 
