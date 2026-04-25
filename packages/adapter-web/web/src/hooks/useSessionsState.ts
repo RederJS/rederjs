@@ -25,7 +25,7 @@ export function useSessionsState(): SessionsState {
       const runners = list.map(async (s) => {
         try {
           const msgs = await listMessages(s.session_id, { limit: 5 });
-          const latest = msgs.find((m) => m.direction === 'outbound' && m.content);
+          const latest = msgs.find((m) => m.content);
           if (latest) {
             const single = latest.content.replace(/\n+/g, ' ').trim();
             map.set(s.session_id, single);
@@ -57,7 +57,7 @@ export function useSessionsState(): SessionsState {
   const refreshPreview = useCallback(async (sessionId: string): Promise<void> => {
     try {
       const msgs = await listMessages(sessionId, { limit: 5 });
-      const latest = msgs.find((m) => m.direction === 'outbound' && m.content);
+      const latest = msgs.find((m) => m.content);
       if (latest) {
         const single = latest.content.replace(/\n+/g, ' ').trim();
         setPreviews((prev) => {
@@ -86,7 +86,7 @@ export function useSessionsState(): SessionsState {
       name === 'session.activity_changed'
     ) {
       void refresh();
-      if (name === 'outbound' || name === 'outbound.persisted') {
+      if (name === 'inbound' || name === 'outbound' || name === 'outbound.persisted') {
         const payload = data as { sessionId?: string } | undefined;
         if (payload?.sessionId) void refreshPreview(payload.sessionId);
       }
