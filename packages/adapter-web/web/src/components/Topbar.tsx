@@ -1,19 +1,33 @@
-import type { ChangeEvent } from 'react';
 import { Icons } from './Icon';
+import type { SystemStats } from '../api';
+import type { Theme } from '../types';
 
 interface TopbarProps {
-  sessionsCount: number;
   waitingCount: number;
-  search: string;
-  onSearchChange: (value: string) => void;
+  stats: SystemStats | null;
+  theme: Theme;
+  onToggleTheme: () => void;
+  onOpenTweaks: () => void;
   onNewSession?: () => void;
 }
 
+function formatRss(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+  return `${mb.toFixed(0)} MB`;
+}
+
+function formatCpu(percent: number): string {
+  if (percent < 1) return `${percent.toFixed(1)}%`;
+  return `${percent.toFixed(0)}%`;
+}
+
 export function Topbar({
-  sessionsCount,
   waitingCount,
-  search,
-  onSearchChange,
+  stats,
+  theme,
+  onToggleTheme,
+  onOpenTweaks,
   onNewSession,
 }: TopbarProps): JSX.Element {
   const host =
@@ -36,10 +50,6 @@ export function Topbar({
         <span>
           host <span className="text-fg-2">{host}</span>
         </span>
-        <span className="text-fg-4">/</span>
-        <span>
-          sessions <span className="text-fg-2">{sessionsCount}</span>
-        </span>
         {waitingCount > 0 && (
           <>
             <span className="text-fg-4">/</span>
@@ -52,19 +62,42 @@ export function Topbar({
 
       <div className="flex-1" />
 
-      <label className="flex w-[280px] items-center gap-2 rounded-lg border border-line bg-bg-2 px-2.5 py-1.5 font-mono text-xs text-fg-3">
-        <Icons.search size={14} />
-        <input
-          type="text"
-          value={search}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => onSearchChange(e.target.value)}
-          placeholder="search sessions…"
-          className="flex-1 border-0 bg-transparent text-fg outline-none placeholder:text-fg-4"
-        />
-        <kbd className="rounded border border-line-2 bg-bg-1 px-1.5 py-0.5 text-[10px] text-fg-3">
-          ⌘K
-        </kbd>
-      </label>
+      <div
+        className="flex items-center gap-3 font-mono text-xs text-fg-3"
+        title="rederd resident memory and CPU usage (sampled every 3s)"
+      >
+        <span className="flex items-center gap-1.5">
+          <Icons.cpu size={14} />
+          <span className="text-fg-2 tabular-nums">
+            {stats ? formatCpu(stats.cpu_percent) : '—'}
+          </span>
+        </span>
+        <span className="text-fg-4">/</span>
+        <span className="flex items-center gap-1.5">
+          mem
+          <span className="text-fg-2 tabular-nums">{stats ? formatRss(stats.rss_bytes) : '—'}</span>
+        </span>
+      </div>
+
+      <button
+        type="button"
+        onClick={onToggleTheme}
+        title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        className="grid size-9 place-items-center rounded-md border border-line bg-bg-2 text-fg-3 transition-colors hover:border-accent hover:text-accent"
+      >
+        {theme === 'dark' ? <Icons.sun size={16} /> : <Icons.moon size={16} />}
+      </button>
+
+      <button
+        type="button"
+        onClick={onOpenTweaks}
+        title="Tweaks"
+        aria-label="Tweaks"
+        className="grid size-9 place-items-center rounded-md border border-line bg-bg-2 text-fg-3 transition-colors hover:border-accent hover:text-accent"
+      >
+        <Icons.settings size={16} />
+      </button>
 
       <button
         type="button"

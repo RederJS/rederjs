@@ -9,6 +9,7 @@ import { authMiddleware, hostAllowlistMiddleware, type AuthOptions } from './aut
 import { createSessionsRouter, type SessionConfigEntry } from './routes/sessions.js';
 import { createPermissionsRouter } from './routes/permissions.js';
 import { createStreamRouter } from './routes/stream.js';
+import { createSystemRouter } from './routes/system.js';
 import type { SseRegistry } from './sse.js';
 
 export interface BuildAppOptions {
@@ -77,6 +78,7 @@ export function buildApp(opts: BuildAppOptions): Express {
     }),
   );
   api.use(createStreamRouter({ sse: opts.sse, sessions: opts.sessions }));
+  api.use(createSystemRouter());
 
   app.use('/api', api);
 
