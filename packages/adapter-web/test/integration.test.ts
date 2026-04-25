@@ -245,6 +245,11 @@ describe('adapter-web http surface', () => {
     expect(body.cpu_percent).toBeLessThanOrEqual(100);
     expect(Array.isArray(body.cpu_per_core)).toBe(true);
     expect(body.cpu_per_core.length).toBeGreaterThan(0);
+    for (const v of body.cpu_per_core) {
+      expect(typeof v).toBe('number');
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(100);
+    }
     expect(typeof body.mem_total_bytes).toBe('number');
     expect(body.mem_total_bytes).toBeGreaterThan(0);
     expect(body.mem_used_bytes).toBeGreaterThanOrEqual(0);
