@@ -48,8 +48,7 @@ export function createSystemRouter(): ReturnType<typeof expressRouter> {
       cpu_percent: sampleCpu(),
       uptime_seconds: process.uptime(),
     };
-    res.setHeader('content-type', 'application/json');
-    res.status(200).send(JSON.stringify(snap));
+    res.json(snap);
   });
   return r;
 }

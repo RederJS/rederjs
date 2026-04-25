@@ -58,10 +58,9 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
   }, [sessions]);
 
   const filtered = useMemo(() => {
-    const list = sessions.filter((s) => {
-      if (statusFilter !== 'all' && sessionStatus(s) !== statusFilter) return false;
-      return true;
-    });
+    const list = sessions.filter(
+      (s) => statusFilter === 'all' || sessionStatus(s) === statusFilter,
+    );
     list.sort((a, b) => {
       if (sort === 'priority') {
         const d = STATUS_ORDER[sessionStatus(a)] - STATUS_ORDER[sessionStatus(b)];

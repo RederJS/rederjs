@@ -223,4 +223,25 @@ describe('adapter-web http surface', () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it('GET /api/system/stats returns process metrics', async () => {
+    const unauth = await fetch(`${baseUrl}/api/system/stats`);
+    expect(unauth.status).toBe(401);
+    const res = await fetch(`${baseUrl}/api/system/stats`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      rss_bytes: number;
+      heap_used_bytes: number;
+      cpu_percent: number;
+      uptime_seconds: number;
+    };
+    expect(typeof body.rss_bytes).toBe('number');
+    expect(typeof body.heap_used_bytes).toBe('number');
+    expect(typeof body.cpu_percent).toBe('number');
+    expect(typeof body.uptime_seconds).toBe('number');
+    expect(body.rss_bytes).toBeGreaterThan(0);
+    expect(body.uptime_seconds).toBeGreaterThan(0);
+  });
 });

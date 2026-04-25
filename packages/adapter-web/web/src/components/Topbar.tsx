@@ -104,6 +104,7 @@ export function Topbar({
         onClick={onNewSession}
         className="flex items-center gap-1.5 rounded-md border border-line bg-bg-2 px-3 py-1.5 font-mono text-xs text-fg-2 transition-colors hover:border-accent hover:text-accent"
         title="New session"
+        aria-label="New session"
       >
         <Icons.plus size={14} />
         new session
