@@ -36,7 +36,7 @@ export function Topbar({
       : 'localhost';
 
   return (
-    <div className="topbar-bg relative z-[2] flex items-center gap-4 border-b border-line px-5 py-3.5">
+    <header className="topbar-bg relative z-[2] flex items-center gap-4 border-b border-line px-5 py-3.5">
       <div className="flex items-baseline gap-px font-mono text-[18px] font-bold tracking-[-0.02em]">
         <span>reder</span>
         <span
@@ -112,6 +112,6 @@ export function Topbar({
         <Icons.plus size={14} />
         new session
       </button>
-    </div>
+    </header>
   );
 }
