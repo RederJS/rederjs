@@ -234,14 +234,17 @@ describe('adapter-web http surface', () => {
     const body = (await res.json()) as {
       rss_bytes: number;
       heap_used_bytes: number;
+      mem_percent: number;
       cpu_percent: number;
       uptime_seconds: number;
     };
     expect(typeof body.rss_bytes).toBe('number');
     expect(typeof body.heap_used_bytes).toBe('number');
+    expect(typeof body.mem_percent).toBe('number');
     expect(typeof body.cpu_percent).toBe('number');
     expect(typeof body.uptime_seconds).toBe('number');
     expect(body.rss_bytes).toBeGreaterThan(0);
+    expect(body.mem_percent).toBeGreaterThan(0);
     expect(body.uptime_seconds).toBeGreaterThan(0);
   });
 });
