@@ -11,15 +11,15 @@ interface TopbarProps {
   onNewSession?: () => void;
 }
 
+function formatPercent(percent: number): string {
+  if (percent < 1) return `${percent.toFixed(1)}%`;
+  return `${percent.toFixed(0)}%`;
+}
+
 function formatRss(bytes: number): string {
   const mb = bytes / (1024 * 1024);
   if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
   return `${mb.toFixed(0)} MB`;
-}
-
-function formatCpu(percent: number): string {
-  if (percent < 1) return `${percent.toFixed(1)}%`;
-  return `${percent.toFixed(0)}%`;
 }
 
 export function Topbar({
@@ -50,6 +50,26 @@ export function Topbar({
         <span>
           host <span className="text-fg-2">{host}</span>
         </span>
+        <span className="text-fg-4">/</span>
+        <span title="rederd CPU usage as a percentage of one core (sampled every 3s)">
+          cpu{' '}
+          <span className="text-fg-2 tabular-nums">
+            {stats ? formatPercent(stats.cpu_percent) : '—'}
+          </span>
+        </span>
+        <span className="text-fg-4">/</span>
+        <span
+          title={
+            stats
+              ? `rederd resident memory: ${formatRss(stats.rss_bytes)} of system total`
+              : 'rederd resident memory'
+          }
+        >
+          mem{' '}
+          <span className="text-fg-2 tabular-nums">
+            {stats ? formatPercent(stats.mem_percent) : '—'}
+          </span>
+        </span>
         {waitingCount > 0 && (
           <>
             <span className="text-fg-4">/</span>
@@ -61,23 +81,6 @@ export function Topbar({
       </div>
 
       <div className="flex-1" />
-
-      <div
-        className="flex items-center gap-3 font-mono text-xs text-fg-3"
-        title="rederd resident memory and CPU usage (sampled every 3s)"
-      >
-        <span className="flex items-center gap-1.5">
-          <Icons.cpu size={14} />
-          <span className="text-fg-2 tabular-nums">
-            {stats ? formatCpu(stats.cpu_percent) : '—'}
-          </span>
-        </span>
-        <span className="text-fg-4">/</span>
-        <span className="flex items-center gap-1.5">
-          mem
-          <span className="text-fg-2 tabular-nums">{stats ? formatRss(stats.rss_bytes) : '—'}</span>
-        </span>
-      </div>
 
       <button
         type="button"

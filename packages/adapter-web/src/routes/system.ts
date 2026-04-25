@@ -1,3 +1,4 @@
+import { totalmem } from 'node:os';
 import { Router as expressRouter, type Request, type Response } from 'express';
 
 export interface SystemStatsSnapshot {
@@ -5,6 +6,8 @@ export interface SystemStatsSnapshot {
   rss_bytes: number;
   /** Heap used in bytes. */
   heap_used_bytes: number;
+  /** RSS as a percentage of total system memory. */
+  mem_percent: number;
   /** CPU usage as a percentage of one core over the sampling window. */
   cpu_percent: number;
   /** Process uptime in seconds. */
@@ -42,9 +45,11 @@ export function createSystemRouter(): ReturnType<typeof expressRouter> {
   const sampleCpu = makeCpuMeter();
   r.get('/system/stats', (_req: Request, res: Response) => {
     const mem = process.memoryUsage();
+    const total = totalmem();
     const snap: SystemStatsSnapshot = {
       rss_bytes: mem.rss,
       heap_used_bytes: mem.heapUsed,
+      mem_percent: total > 0 ? (mem.rss / total) * 100 : 0,
       cpu_percent: sampleCpu(),
       uptime_seconds: process.uptime(),
     };
