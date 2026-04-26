@@ -41,7 +41,7 @@ export function MessageStream({
     const el = scrollRef.current;
     if (!el) return;
     const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-    stuckToBottomRef.current = distance < STICKY_THRESHOLD_PX;
+    stuckToBottomRef.current = distance <= STICKY_THRESHOLD_PX;
   }, []);
 
   useLayoutEffect(() => {
@@ -49,7 +49,7 @@ export function MessageStream({
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages, permissions.length]);
+  }, [messages, permissions]);
 
   const latestButtonedId = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
