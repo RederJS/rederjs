@@ -49,7 +49,7 @@ export function MessageStream({
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages, permissions]);
+  }, [messages, permissions.length]);
 
   const latestButtonedId = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
