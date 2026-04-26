@@ -1,10 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import type { TranscriptMessage } from '../api';
 import type { BubbleVariant, PendingPermission, Status } from '../types';
 import { MessageBubble, parseButtons } from './MessageBubble';
 import { PermissionCard } from './PermissionCard';
 import { dayKey, dayLabel } from '../format';
 import { cn } from '../cn';
+
+// "Near bottom" threshold in pixels — below this distance from the bottom we
+// treat the user as stuck to the latest message and auto-scroll on update.
+const STICKY_THRESHOLD_PX = 64;
 
 interface MessageStreamProps {
   messages: TranscriptMessage[];
@@ -28,12 +32,24 @@ export function MessageStream({
   answeredByMsgId,
 }: MessageStreamProps): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Whether the user is currently pinned to the bottom of the transcript.
+  // Stored in a ref so the auto-scroll effect can read it without re-running
+  // every time the user scrolls.
+  const stuckToBottomRef = useRef(true);
 
-  useEffect(() => {
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stuckToBottomRef.current = distance < STICKY_THRESHOLD_PX;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!stuckToBottomRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages.length, permissions.length]);
+  }, [messages, permissions.length]);
 
   const latestButtonedId = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -62,6 +78,7 @@ export function MessageStream({
   return (
     <div
       ref={scrollRef}
+      onScroll={handleScroll}
       data-bubble={bubbleVariant}
       className={cn('stream-bg flex flex-col gap-3.5 overflow-y-auto px-4 pt-5 pb-2.5 min-h-0')}
     >
