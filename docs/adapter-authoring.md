@@ -48,8 +48,64 @@ Reder gives you:
 1. **Persist inbound before acknowledgement.** Reder's router writes inbound to SQLite before attempting delivery. Your adapter should, similarly, only advance its transport-side offset (Telegram long-poll offset, Slack event ack, …) _after_ `router.ingestInbound` returns.
 2. **Deny-by-default senders.** Every inbound must pass `router.isPaired(...)` before reaching `router.ingestInbound`. If not paired, either initiate pairing (`createPairCode` + user DM) or drop the event.
 3. **Idempotency keys are mandatory for anything that might retry.** Pass `idempotencyKey` on InboundMessage (e.g. `"slack:TX123:M456"`). The router deduplicates by `(adapter, idempotency_key)`.
-4. **Text + meta only on the wire.** Files are referenced by absolute path in the `files` array and mirrored as path-valued keys in `meta` (e.g. `meta.image_path`). Claude Code reads the file via its `Read` tool.
+4. **Text + meta only on the wire.** Files are referenced by absolute path in the `files` array, and structured metadata for them rides on `meta.attachments` (a JSON-encoded array — see "Attachments" below). Claude Code reads each file via its `Read` tool.
 5. **Never shell out with user input.** This is not an adapter concern, but any adapter that needs to invoke a local tool must sanitise or use `execFile` (never `exec` with a string).
+
+## Attachments
+
+Inbound and outbound attachments use a single uniform convention. The core helper module `@rederjs/core/media` is the only place that touches the filesystem cache or sniffs MIME types — adapters call into it.
+
+### Cache layout
+
+```
+<dataDir>/media/sessions/<session_id>/<sha256>.<ext>
+```
+
+One directory per session. Cleanup is the responsibility of the future `reder sessions clear <id>` verb; adapters never delete blobs.
+
+### Inbound
+
+When your adapter receives a file:
+
+```ts
+import { cacheInboundBlob, encodeAttachmentsMeta } from '@rederjs/core/media';
+
+const ref = await cacheInboundBlob({
+  dataDir: ctx.dataDir,
+  sessionId,
+  bytes,                   // Buffer of the downloaded file
+  declaredMime: undefined, // optional hint; magic-bytes win
+  declaredName: filename,  // for the dashboard display
+});
+
+await ctx.router.ingestInbound({
+  adapter: 'my-adapter',
+  sessionId,
+  senderId,
+  content: caption ?? '',
+  meta: { attachments: encodeAttachmentsMeta([ref]) },
+  files: [ref.path],
+  idempotencyKey: `my-adapter:${someTransportId}:${ref.sha256}`,
+  receivedAt: new Date(),
+});
+```
+
+The router includes `meta.attachments` in the channel notification Claude receives. Claude reads files via its `Read` tool on the absolute path.
+
+### Outbound
+
+When Claude calls `mcp__reder__reply` with `files: [...]`, the **router** stages those files into the session cache before persisting. Your adapter's `sendOutbound(msg)` always receives:
+
+- `msg.files: string[]` — absolute paths under `<dataDir>/media/sessions/<id>/`
+- `msg.meta.attachments` — the JSON array described above
+
+You don't sniff or stage. You render or transmit.
+
+For path-based defense-in-depth, your adapter may re-check that every path in `msg.files` lives under `<dataDir>/media/sessions/<msg.sessionId>/` before reading bytes — see `@rederjs/adapter-telegram/src/outbound-media.ts` for the pattern.
+
+### Allowlist
+
+The seven types are: PNG, JPEG, GIF, WebP, PDF, Markdown, plain text. Per-file cap: 20 MB. The core helpers reject everything else with a typed `AttachmentError`.
 
 ## Shipping your adapter
 
