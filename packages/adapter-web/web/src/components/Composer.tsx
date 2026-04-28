@@ -3,21 +3,43 @@ import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Icons } from './Icon';
 import type { ComposerVariant } from '../types';
 import { cn } from '../cn';
+import { uploadMedia, type AttachmentRef, type UploadResult } from '../api';
+
+const ALLOWED_ACCEPT =
+  'image/png,image/jpeg,image/gif,image/webp,application/pdf,text/markdown,text/plain';
+const MAX_ATTACHMENTS = 5;
 
 interface ComposerProps {
   variant: ComposerVariant;
-  onSend: (content: string) => Promise<void> | void;
+  sessionId: string;
+  onSend: (content: string, attachments: AttachmentRef[]) => Promise<void> | void;
   disabled?: boolean;
   placeholder?: string;
 }
 
-export function Composer({ variant, onSend, disabled, placeholder }: ComposerProps): JSX.Element {
+interface QueuedAttachment {
+  localId: string;
+  status: 'uploading' | 'done' | 'error';
+  name: string;
+  size: number;
+  result?: UploadResult;
+  error?: string;
+}
+
+export function Composer({
+  variant,
+  sessionId,
+  onSend,
+  disabled,
+  placeholder,
+}: ComposerProps): JSX.Element {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [queue, setQueue] = useState<QueuedAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-resize the textarea up to max-height
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
@@ -25,15 +47,59 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
   }, [text]);
 
-  const canSend = text.trim().length > 0 && !sending && !disabled;
+  const uploading = queue.some((q) => q.status === 'uploading');
+  const successful = queue.filter((q) => q.status === 'done' && q.result);
+  const canAttach = queue.length < MAX_ATTACHMENTS && !disabled;
+  const canSend =
+    (text.trim().length > 0 || successful.length > 0) && !sending && !uploading && !disabled;
+
+  const onPickFiles = async (files: FileList | null): Promise<void> => {
+    if (!files) return;
+    const slots = MAX_ATTACHMENTS - queue.length;
+    const picked = Array.from(files).slice(0, slots);
+    for (const file of picked) {
+      const localId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setQueue((q) => [
+        ...q,
+        { localId, status: 'uploading', name: file.name, size: file.size },
+      ]);
+      try {
+        const result = await uploadMedia(sessionId, file);
+        setQueue((q) =>
+          q.map((x) => (x.localId === localId ? { ...x, status: 'done', result } : x)),
+        );
+      } catch (err) {
+        setQueue((q) =>
+          q.map((x) =>
+            x.localId === localId
+              ? { ...x, status: 'error', error: (err as Error).message }
+              : x,
+          ),
+        );
+      }
+    }
+  };
+
+  const removeQueued = (localId: string): void => {
+    setQueue((q) => q.filter((x) => x.localId !== localId));
+  };
 
   const submit = async (): Promise<void> => {
     if (!canSend) return;
+    const refs: AttachmentRef[] = successful.map((q) => ({
+      path: q.result!.path,
+      mime: q.result!.mime,
+      name: q.result!.name,
+      kind: q.result!.kind,
+      size: q.result!.size,
+      sha256: q.result!.sha256,
+    }));
     const content = text.trim();
     setSending(true);
     try {
-      await onSend(content);
+      await onSend(content, refs);
       setText('');
+      setQueue([]);
     } finally {
       setSending(false);
     }
@@ -50,15 +116,58 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
     }
   };
 
+  const onTextChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
+    if (!speaking) setText(e.target.value);
+  };
+
   const placeholderText = speaking
     ? 'listening — speak your message…'
     : (placeholder ?? 'Message the session…');
   const isMinimal = variant === 'minimal';
   const isSegmented = variant === 'segmented';
 
-  const onTextChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
-    if (!speaking) setText(e.target.value);
-  };
+  const chips =
+    queue.length > 0 ? (
+      <div className="flex flex-wrap gap-1.5 px-3 pt-2">
+        {queue.map((q) => (
+          <span
+            key={q.localId}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px]',
+              q.status === 'error' ? 'border-red-500 text-red-500' : 'border-line text-fg-2',
+            )}
+            title={q.error}
+          >
+            <Icons.paperclip size={11} />
+            <span className="max-w-[160px] truncate">{q.name}</span>
+            <span className="text-fg-4">{formatBytes(q.size)}</span>
+            {q.status === 'uploading' ? <span className="text-fg-4">…</span> : null}
+            <button
+              type="button"
+              onClick={() => removeQueued(q.localId)}
+              className="text-fg-3 hover:text-fg"
+              aria-label={`Remove ${q.name}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+    ) : null;
+
+  const hiddenInput = (
+    <input
+      ref={fileInputRef}
+      type="file"
+      multiple
+      accept={ALLOWED_ACCEPT}
+      style={{ display: 'none' }}
+      onChange={(e) => {
+        void onPickFiles(e.target.files);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }}
+    />
+  );
 
   if (isSegmented) {
     return (
@@ -66,6 +175,8 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
         className={cn('flex flex-col gap-2 border-t border-line p-3')}
         style={{ background: 'color-mix(in oklab, var(--bg) 60%, var(--bg-1))' }}
       >
+        {chips}
+        {hiddenInput}
         <div
           className={cn(
             'flex flex-col gap-0 rounded-[10px] border border-line bg-bg-2 transition',
@@ -84,7 +195,11 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
             className="min-h-[22px] max-h-[160px] resize-none border-0 bg-transparent px-3.5 py-3 text-[13.5px] leading-[1.5] text-fg outline-none placeholder:text-fg-4"
           />
           <div className="flex items-center gap-1 border-t border-line px-2 py-1.5 font-mono text-[11px]">
-            <ToolButton title="Attach file" disabled>
+            <ToolButton
+              title="Attach file"
+              disabled={!canAttach}
+              onClick={() => fileInputRef.current?.click()}
+            >
               <Icons.paperclip size={14} />
               attach
             </ToolButton>
@@ -102,19 +217,30 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
 
   if (isMinimal) {
     return (
-      <div className={cn('flex items-end gap-2 border-t border-line px-3 py-2')}>
-        <span className="pb-1.5 font-mono text-[13px] text-fg-4">$</span>
-        <textarea
-          ref={taRef}
-          rows={1}
-          value={text}
-          onChange={onTextChange}
-          onKeyDown={onKeyDown}
-          placeholder={placeholderText}
-          readOnly={speaking}
-          className="min-h-[22px] max-h-[160px] flex-1 resize-none border-0 bg-transparent px-1 py-1.5 font-mono text-[12.5px] text-fg outline-none placeholder:text-fg-4"
-        />
-        <SendButton canSend={canSend} sending={sending} onClick={() => void submit()} />
+      <div className={cn('flex flex-col gap-2 border-t border-line px-3 py-2')}>
+        {chips}
+        {hiddenInput}
+        <div className="flex items-end gap-2">
+          <span className="pb-1.5 font-mono text-[13px] text-fg-4">$</span>
+          <IBtn
+            title="Attach file"
+            disabled={!canAttach}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Icons.paperclip size={14} />
+          </IBtn>
+          <textarea
+            ref={taRef}
+            rows={1}
+            value={text}
+            onChange={onTextChange}
+            onKeyDown={onKeyDown}
+            placeholder={placeholderText}
+            readOnly={speaking}
+            className="min-h-[22px] max-h-[160px] flex-1 resize-none border-0 bg-transparent px-1 py-1.5 font-mono text-[12.5px] text-fg outline-none placeholder:text-fg-4"
+          />
+          <SendButton canSend={canSend} sending={sending} onClick={() => void submit()} />
+        </div>
       </div>
     );
   }
@@ -125,6 +251,8 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
       className="flex flex-col gap-2 border-t border-line p-3"
       style={{ background: 'color-mix(in oklab, var(--bg) 60%, var(--bg-1))' }}
     >
+      {chips}
+      {hiddenInput}
       <div
         className={cn(
           'flex items-end gap-2 rounded-[10px] border border-line bg-bg-2 px-2.5 py-2 transition',
@@ -133,7 +261,11 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
         )}
       >
         <div className="flex items-center gap-0.5">
-          <IBtn title="Attach file" disabled>
+          <IBtn
+            title="Attach file"
+            disabled={!canAttach}
+            onClick={() => fileInputRef.current?.click()}
+          >
             <Icons.paperclip size={14} />
           </IBtn>
           <IBtn
@@ -166,6 +298,12 @@ export function Composer({ variant, onSend, disabled, placeholder }: ComposerPro
   );
 }
 
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n}B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)}KB`;
+  return `${(n / 1024 / 1024).toFixed(1)}MB`;
+}
+
 function Kbd({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <kbd className="rounded-[3px] border border-line bg-bg-1 px-1 py-px text-[10px] text-fg-3">
@@ -190,7 +328,7 @@ function IBtn({
   return (
     <button
       type="button"
-      title={disabled ? `${title} (coming soon)` : title}
+      title={title}
       aria-label={title}
       disabled={disabled}
       onClick={onClick}
@@ -222,7 +360,7 @@ function ToolButton({
   return (
     <button
       type="button"
-      title={disabled ? `${title} (coming soon)` : title}
+      title={title}
       aria-label={title}
       disabled={disabled}
       onClick={onClick}

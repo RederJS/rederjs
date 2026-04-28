@@ -3,6 +3,7 @@ import {
   listMessages,
   resolvePermission,
   sendMessage,
+  type AttachmentRef,
   type SessionSummary,
   type TranscriptMessage,
 } from '../api';
@@ -78,8 +79,8 @@ export function Panel({
   });
 
   const onSend = useCallback(
-    async (content: string): Promise<void> => {
-      await sendMessage(sessionId, content);
+    async (content: string, attachments: AttachmentRef[]): Promise<void> => {
+      await sendMessage(sessionId, content, attachments);
       await refresh();
     },
     [sessionId, refresh],
@@ -187,7 +188,7 @@ export function Panel({
         onQuickReply={onQuickReply}
         answeredByMsgId={answeredByMsgId}
       />
-      <Composer variant={composerVariant} onSend={onSend} />
+      <Composer variant={composerVariant} sessionId={sessionId} onSend={onSend} />
     </div>
   );
 }
