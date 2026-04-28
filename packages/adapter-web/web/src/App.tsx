@@ -5,6 +5,7 @@ import { SessionGrid } from './components/SessionGrid';
 import { Topbar } from './components/Topbar';
 import { Tweaks } from './components/Tweaks';
 import { sessionStatus } from './derive';
+import { useIsMobile } from './hooks/useIsMobile';
 import { useSessionsState } from './hooks/useSessionsState';
 import { useSystemStats } from './hooks/useSystemStats';
 import { useTweaks } from './hooks/useTweaks';
@@ -17,6 +18,7 @@ export function App(): JSX.Element {
   const { sessions, previews, loading, error } = useSessionsState();
   const stats = useSystemStats();
   const { tweaks, setTweak } = useTweaks();
+  const isMobile = useIsMobile();
   const [tweaksOpen, setTweaksOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all');
   const [sort, setSort] = useState<SortKey>('priority');
@@ -41,7 +43,7 @@ export function App(): JSX.Element {
   );
 
   const panelOpen = !!selectedSession;
-  const panelVariant = tweaks.panel;
+  const panelVariant = isMobile ? 'takeover' : tweaks.panel;
 
   const contentStyle: CSSProperties = useMemo(() => {
     if (!panelOpen || panelVariant === 'overlay') {
@@ -78,7 +80,7 @@ export function App(): JSX.Element {
   };
 
   return (
-    <div className="app-bg relative h-screen">
+    <div className="app-bg relative h-[100dvh]">
       <main
         className="relative grid h-full min-h-0 min-w-0"
         style={{ gridTemplateRows: 'auto 1fr' }}
@@ -90,6 +92,7 @@ export function App(): JSX.Element {
           onToggleTheme={() => setTweak('theme', tweaks.theme === 'dark' ? 'light' : 'dark')}
           onOpenTweaks={() => setTweaksOpen((v) => !v)}
           onNewSession={() => void handleNewSession()}
+          onLogoClick={() => navigate('/')}
         />
 
         <div
@@ -132,19 +135,23 @@ export function App(): JSX.Element {
               >
                 <Panel
                   session={selectedSession}
+                  sessions={sessions}
                   statusVariant={tweaks.status}
                   bubbleVariant={tweaks.bubble}
                   composerVariant={tweaks.composer}
                   onClose={() => navigate('/')}
+                  onSwitchSession={openSession}
                 />
               </div>
             ) : (
               <Panel
                 session={selectedSession}
+                sessions={sessions}
                 statusVariant={tweaks.status}
                 bubbleVariant={tweaks.bubble}
                 composerVariant={tweaks.composer}
                 onClose={() => navigate('/')}
+                onSwitchSession={openSession}
               />
             ))}
         </div>

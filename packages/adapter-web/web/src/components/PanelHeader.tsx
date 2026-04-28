@@ -6,11 +6,19 @@ import { Icons } from './Icon';
 
 interface PanelHeaderProps {
   session: SessionSummary;
+  sessions: SessionSummary[];
   statusVariant: StatusVariant;
   onClose: () => void;
+  onSwitchSession: (sessionId: string) => void;
 }
 
-export function PanelHeader({ session, statusVariant, onClose }: PanelHeaderProps): JSX.Element {
+export function PanelHeader({
+  session,
+  sessions,
+  statusVariant,
+  onClose,
+  onSwitchSession,
+}: PanelHeaderProps): JSX.Element {
   const status = sessionStatus(session);
   return (
     <div
@@ -25,7 +33,7 @@ export function PanelHeader({ session, statusVariant, onClose }: PanelHeaderProp
           variant={statusVariant}
         />
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="relative min-w-0 flex-1">
         <div className="truncate text-sm font-semibold tracking-[-0.01em]">
           {session.display_name}
         </div>
@@ -35,16 +43,31 @@ export function PanelHeader({ session, statusVariant, onClose }: PanelHeaderProp
           </span>
           {session.workspace_dir && (
             <>
-              <span>•</span>
-              <span className="inline-flex items-center gap-1 truncate">
+              <span className="hidden md:inline">•</span>
+              <span className="hidden md:inline-flex items-center gap-1 truncate">
                 <Icons.folder size={12} />{' '}
                 <b className="truncate font-medium text-fg-2">{session.workspace_dir}</b>
               </span>
             </>
           )}
         </div>
+        <select
+          value={session.session_id}
+          onChange={(e) => {
+            const id = e.target.value;
+            if (id !== session.session_id) onSwitchSession(id);
+          }}
+          aria-label="Switch session"
+          className="md:hidden absolute inset-0 cursor-pointer opacity-0"
+        >
+          {sessions.map((s) => (
+            <option key={s.session_id} value={s.session_id}>
+              {s.display_name}
+            </option>
+          ))}
+        </select>
       </div>
-      <div className="flex gap-0.5">
+      <div className="hidden md:flex gap-0.5">
         <IconBtn title="Pin" disabled>
           <Icons.pin size={15} />
         </IconBtn>

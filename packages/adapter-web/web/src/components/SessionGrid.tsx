@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import type { SessionSummary } from '../api';
 import { sessionStatus } from '../derive';
+import { useIsMobile } from '../hooks/useIsMobile';
 import type { CardVariant, SortKey, Status, StatusVariant } from '../types';
 import { SessionCard } from './SessionCard';
 import { cn } from '../cn';
@@ -45,6 +46,8 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
     statusVariant,
   } = props;
 
+  const isMobile = useIsMobile();
+
   const counts = useMemo(() => {
     const out: Record<Status, number> = {
       working: 0,
@@ -77,10 +80,11 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
     return list;
   }, [sessions, statusFilter, sort]);
 
-  const gridStyle: CSSProperties = { ['--cols' as any]: cols };
+  const effectiveCols = isMobile ? 1 : cols;
+  const gridStyle: CSSProperties = { ['--cols' as any]: effectiveCols };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-col overflow-auto px-5 pb-10 pt-6">
+    <div className="flex min-h-0 min-w-0 flex-col overflow-auto px-3 pb-6 pt-4 md:px-5 md:pb-10 md:pt-6">
       <div className="mb-4 flex flex-wrap items-center gap-3.5 font-mono text-xs">
         <span className="font-semibold text-fg">
           {filtered.length}
@@ -88,7 +92,21 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
         </span>
         <span className="h-3.5 w-px bg-line" />
 
-        <div className="flex gap-1.5">
+        <select
+          value={statusFilter}
+          onChange={(e) => onStatusFilterChange(e.target.value as Status | 'all')}
+          className="md:hidden rounded-md border border-line bg-bg-1 px-2.5 py-1 text-fg-2 font-mono text-xs"
+          aria-label="Status filter"
+        >
+          <option value="all">all ({sessions.length})</option>
+          {(['awaiting-user', 'idle', 'unknown', 'working', 'offline'] as const).map((s) => (
+            <option key={s} value={s}>
+              {s === 'awaiting-user' ? 'needs you' : s} ({counts[s]})
+            </option>
+          ))}
+        </select>
+
+        <div className="hidden md:flex gap-1.5">
           <Chip active={statusFilter === 'all'} onClick={() => onStatusFilterChange('all')}>
             all <span className="text-fg-4">{sessions.length}</span>
           </Chip>
@@ -103,7 +121,7 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
 
         <div className="flex-1" />
 
-        <label className="flex items-center gap-2 rounded-md border border-line bg-bg-1 px-2.5 py-1 text-fg-3">
+        <label className="hidden md:flex items-center gap-2 rounded-md border border-line bg-bg-1 px-2.5 py-1 text-fg-3">
           cols
           <input
             type="range"
