@@ -21,9 +21,12 @@ import {
 import {
   cacheInboundBlob,
   encodeAttachmentsMeta,
+  decodeAttachmentsMeta,
   AttachmentError,
   PER_FILE_MAX_BYTES,
 } from '@rederjs/core/media';
+import { join } from 'node:path';
+import { sendOutboundWithFiles } from './outbound-media.js';
 
 export interface TelegramAdapterOptions {
   transportFactory?: (token: string) => TelegramTransport;
@@ -119,6 +122,33 @@ export class TelegramAdapter extends Adapter {
         success: false,
         retriable: false,
         error: `invalid recipient '${msg.recipient}' — expected numeric chat_id`,
+      };
+    }
+
+    // Files path: bypass markdown rendering, send native media.
+    if (msg.files.length > 0) {
+      const refs = decodeAttachmentsMeta(msg.meta['attachments']);
+      if (refs.length === 0) {
+        return {
+          success: false,
+          retriable: false,
+          error: 'message has files but no meta.attachments — staging regression',
+        };
+      }
+      const result = await sendOutboundWithFiles({
+        transport: runtime.transport,
+        chatId,
+        content: msg.content,
+        refs,
+        mediaCachePrefix: join(this.ctx.dataDir, 'media', 'sessions', msg.sessionId),
+      });
+      return {
+        success: result.success,
+        retriable: result.retriable,
+        ...(result.error !== undefined ? { error: result.error } : {}),
+        ...(result.firstMessageId !== undefined
+          ? { transportMessageId: String(result.firstMessageId) }
+          : {}),
       };
     }
 

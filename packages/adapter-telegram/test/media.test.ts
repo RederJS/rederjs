@@ -186,6 +186,43 @@ describe('TelegramAdapter media (per-session cache + meta.attachments)', () => {
   });
 });
 
+describe('TelegramAdapter outbound files', () => {
+  it('sendOutbound delegates to sendOutboundWithFiles when files present', async () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xab, 0xcd]);
+    fake.files.set('phX', { file_path: 'p.png', data: png });
+
+    // Stage a file via the inbound flow so we have a valid path under
+    // <dataDir>/media/sessions/booknerds/.
+    fake.enqueueUpdate({
+      update_id: 1,
+      message: {
+        message_id: 1,
+        chat: { id: 42, type: 'private' },
+        from: { id: 99 },
+        date: 1,
+        photo: [{ file_id: 'phX', width: 10, height: 10, file_size: 12345 }],
+        caption: 'incoming',
+      },
+    });
+    await waitFor(() => received.length > 0, 2000);
+    const stagedPath = received[0]!.files[0]!;
+    const stagedAttachmentsMeta = received[0]!.meta['attachments']!;
+
+    // Now ask the adapter to send the same path back outbound.
+    const result = await adapter.sendOutbound({
+      sessionId: 'booknerds',
+      adapter: 'telegram',
+      recipient: '42',
+      content: 'reply with image',
+      meta: { attachments: stagedAttachmentsMeta },
+      files: [stagedPath],
+    });
+    expect(result.success).toBe(true);
+    expect(fake.sentPhotos).toHaveLength(1);
+    expect(fake.sentPhotos[0]!.opts?.caption).toBe('reply with image');
+  });
+});
+
 async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<void> {
   const start = Date.now();
   while (!predicate()) {
