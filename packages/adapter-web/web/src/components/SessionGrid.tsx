@@ -134,7 +134,20 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
           <span className="min-w-[10px] text-center text-[11px] text-fg">{cols}</span>
         </label>
 
-        <div className="flex gap-px rounded-md border border-line p-0.5">
+        <select
+          value={sort}
+          onChange={(e) => onSortChange(e.target.value as SortKey)}
+          className="md:hidden rounded-md border border-line bg-bg-1 px-2.5 py-1 text-fg-2 font-mono text-xs"
+          aria-label="Sort"
+        >
+          {(['priority', 'recent', 'name'] as const).map((k) => (
+            <option key={k} value={k}>
+              sort: {k}
+            </option>
+          ))}
+        </select>
+
+        <div className="hidden md:flex gap-px rounded-md border border-line p-0.5">
           {(['priority', 'recent', 'name'] as const).map((k) => (
             <button
               key={k}
