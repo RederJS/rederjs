@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import type { SessionSummary } from '../api';
 import { sessionStatus } from '../derive';
-import { useIsMobile } from '../hooks/useIsMobile';
 import type { CardVariant, SortKey, Status, StatusVariant } from '../types';
 import { SessionCard } from './SessionCard';
 import { cn } from '../cn';
@@ -20,6 +19,7 @@ interface SessionGridProps {
   onSelect: (sessionId: string) => void;
   cardVariant: CardVariant;
   statusVariant: StatusVariant;
+  isMobile: boolean;
 }
 
 const STATUS_ORDER: Record<Status, number> = {
@@ -44,9 +44,8 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
     onSelect,
     cardVariant,
     statusVariant,
+    isMobile,
   } = props;
-
-  const isMobile = useIsMobile();
 
   const counts = useMemo(() => {
     const out: Record<Status, number> = {
