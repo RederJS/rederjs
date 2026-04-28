@@ -107,6 +107,39 @@
     backdrop-filter: blur(8px);
   }
 
+  /* main content grid: dashboard column + side-panel column.
+     Layout is driven by [data-panel] (variant) and [data-open] (whether a session
+     is selected). Mobile collapses every panel mode into "takeover" — the panel
+     fills the viewport and the dashboard column shrinks to zero. */
+  .content-grid {
+    grid-template-columns: 1fr 0px;
+  }
+  .content-grid[data-panel='push'][data-open] {
+    grid-template-columns: 1fr min(620px, 46vw);
+  }
+  .content-grid[data-panel='takeover'][data-open] {
+    grid-template-columns: 0 1fr;
+  }
+  /* overlay leaves the underlying grid alone; the panel is rendered absolutely. */
+  /* Mobile collapse: needs to match the variant-specific selectors above on
+     specificity (1 class + 2 attrs) and rely on source order to win. */
+  @media (max-width: 767px) {
+    .content-grid[data-panel][data-open] {
+      grid-template-columns: 0 1fr;
+    }
+  }
+
+  /* dashboard cards grid: --cols comes from the user's tweak.
+     Mobile collapses to a single column regardless of the tweak. */
+  .sessions-grid {
+    grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  }
+  @media (max-width: 767px) {
+    .sessions-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
   /* avatar-wrap: base positioning for status ring */
   .avatar-ring {
     position: absolute;

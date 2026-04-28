@@ -19,7 +19,6 @@ interface SessionGridProps {
   onSelect: (sessionId: string) => void;
   cardVariant: CardVariant;
   statusVariant: StatusVariant;
-  isMobile: boolean;
 }
 
 const STATUS_ORDER: Record<Status, number> = {
@@ -44,7 +43,6 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
     onSelect,
     cardVariant,
     statusVariant,
-    isMobile,
   } = props;
 
   const counts = useMemo(() => {
@@ -79,8 +77,7 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
     return list;
   }, [sessions, statusFilter, sort]);
 
-  const effectiveCols = isMobile ? 1 : cols;
-  const gridStyle: CSSProperties = { ['--cols' as any]: effectiveCols };
+  const gridStyle: CSSProperties = { ['--cols' as any]: cols };
 
   return (
     <div className="flex min-h-0 min-w-0 flex-col overflow-auto px-3 pb-6 pt-4 md:px-5 md:pb-10 md:pt-6">
@@ -170,8 +167,8 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
       ) : (
         <div
           data-card={cardVariant}
-          className="grid gap-3.5"
-          style={{ ...gridStyle, gridTemplateColumns: 'repeat(var(--cols, 3), minmax(0, 1fr))' }}
+          className="sessions-grid grid gap-3.5"
+          style={gridStyle}
         >
           {filtered.map((s) => (
             <SessionCard
