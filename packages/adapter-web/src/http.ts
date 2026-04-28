@@ -86,6 +86,7 @@ export function buildApp(opts: BuildAppOptions): Express {
       dataDir: opts.dataDir,
       logger: opts.logger,
       sessions: opts.sessions,
+      db: opts.db,
     }),
   );
 
