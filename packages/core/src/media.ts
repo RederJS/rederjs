@@ -104,3 +104,70 @@ export function isAllowedMime(mime: string): boolean {
 export function kindForMime(mime: string): AttachmentKind | undefined {
   return ALLOWED_MIMES[mime];
 }
+
+/**
+ * Sniff the MIME type of a buffer. Returns one of the seven allowlisted MIMEs
+ * or `undefined` if the bytes are unrecognized. The declared MIME and source
+ * filename are *hints only* — magic-byte detection wins.
+ *
+ * For text/markdown vs text/plain, we sniff "is it utf-8 text?" then choose
+ * by the filename extension (`.md` → markdown, anything else → plain).
+ */
+export function sniffMime(
+  buf: Buffer,
+  _declaredMime: string | undefined,
+  name: string | undefined,
+): string | undefined {
+  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return 'image/png';
+  }
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    buf.length >= 6 &&
+    buf[0] === 0x47 &&
+    buf[1] === 0x49 &&
+    buf[2] === 0x46 &&
+    buf[3] === 0x38 &&
+    (buf[4] === 0x37 || buf[4] === 0x39) &&
+    buf[5] === 0x61
+  ) {
+    return 'image/gif';
+  }
+  if (
+    buf.length >= 12 &&
+    buf.slice(0, 4).toString('ascii') === 'RIFF' &&
+    buf.slice(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  if (buf.length >= 5 && buf.slice(0, 5).toString('ascii') === '%PDF-') {
+    return 'application/pdf';
+  }
+  if (looksLikeText(buf)) {
+    const ext = (name ? extname(name) : '').toLowerCase();
+    if (ext === '.md') return 'text/markdown';
+    return 'text/plain';
+  }
+  return undefined;
+}
+
+function looksLikeText(buf: Buffer): boolean {
+  const sample = buf.slice(0, Math.min(buf.length, 1024));
+  if (sample.length === 0) return false;
+  for (const b of sample) {
+    if (b === 0) return false;
+  }
+  try {
+    const str = sample.toString('utf8');
+    let printable = 0;
+    for (const ch of str) {
+      const code = ch.codePointAt(0)!;
+      if (code === 0x09 || code === 0x0a || code === 0x0d || code >= 0x20) printable++;
+    }
+    return printable / str.length >= 0.95;
+  } catch {
+    return false;
+  }
+}
