@@ -29,6 +29,66 @@ export interface TranscriptMessage {
   state: string;
 }
 
+export interface AttachmentRef {
+  path: string;
+  mime: string;
+  name: string;
+  kind: 'image' | 'document';
+  size: number;
+  sha256: string;
+}
+
+export interface UploadResult {
+  sha256: string;
+  size: number;
+  mime: string;
+  name: string;
+  path: string;
+  kind: 'image' | 'document';
+}
+
+export async function uploadMedia(sessionId: string, file: File): Promise<UploadResult> {
+  const fd = new FormData();
+  fd.append('file', file, file.name);
+  const res = await fetch(`/api/sessions/${sessionId}/media`, {
+    method: 'POST',
+    body: fd,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`upload failed (${res.status}): ${text}`);
+  }
+  return (await res.json()) as UploadResult;
+}
+
+export function mediaUrl(sessionId: string, sha256: string): string {
+  return `/api/sessions/${sessionId}/media/${sha256}`;
+}
+
+export function decodeAttachmentsMeta(raw: string | undefined): AttachmentRef[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isAttachmentRef);
+  } catch {
+    return [];
+  }
+}
+
+function isAttachmentRef(v: unknown): v is AttachmentRef {
+  if (typeof v !== 'object' || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return (
+    typeof r['path'] === 'string' &&
+    typeof r['mime'] === 'string' &&
+    typeof r['name'] === 'string' &&
+    (r['kind'] === 'image' || r['kind'] === 'document') &&
+    typeof r['size'] === 'number' &&
+    typeof r['sha256'] === 'string'
+  );
+}
+
 async function jsonOrThrow(res: Response): Promise<unknown> {
   if (!res.ok) {
     const text = await res.text();
@@ -59,11 +119,20 @@ export async function listMessages(
   return r.messages;
 }
 
-export async function sendMessage(sessionId: string, content: string): Promise<void> {
+export async function sendMessage(
+  sessionId: string,
+  content: string,
+  attachments: AttachmentRef[] = [],
+): Promise<void> {
+  const body: { content: string; files?: string[]; meta?: Record<string, string> } = { content };
+  if (attachments.length > 0) {
+    body.files = attachments.map((a) => a.path);
+    body.meta = { attachments: JSON.stringify(attachments) };
+  }
   const res = await fetch(`/api/sessions/${sessionId}/messages`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 }

@@ -10,6 +10,7 @@ import { createSessionsRouter, type SessionConfigEntry } from './routes/sessions
 import { createPermissionsRouter } from './routes/permissions.js';
 import { createStreamRouter } from './routes/stream.js';
 import { createSystemRouter } from './routes/system.js';
+import { createMediaRouter } from './routes/media.js';
 import type { SseRegistry } from './sse.js';
 
 export interface BuildAppOptions {
@@ -27,6 +28,7 @@ export interface BuildAppOptions {
   /** Directory containing the built SPA (index.html + assets/). */
   staticDir?: string;
   exposeHealth: boolean;
+  dataDir: string;
 }
 
 export function buildApp(opts: BuildAppOptions): Express {
@@ -79,6 +81,14 @@ export function buildApp(opts: BuildAppOptions): Express {
   );
   api.use(createStreamRouter({ sse: opts.sse, sessions: opts.sessions }));
   api.use(createSystemRouter());
+  api.use(
+    createMediaRouter({
+      dataDir: opts.dataDir,
+      logger: opts.logger,
+      sessions: opts.sessions,
+      db: opts.db,
+    }),
+  );
 
   app.use('/api', api);
 

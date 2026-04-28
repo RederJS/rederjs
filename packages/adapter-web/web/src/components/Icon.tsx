@@ -74,6 +74,26 @@ export const Icons: Record<string, IconComponent> = {
       d="M21.4 11L12.2 20.2a5.6 5.6 0 01-7.9-7.9L13.6 3a3.7 3.7 0 015.3 5.2l-9.2 9.3a1.9 1.9 0 01-2.7-2.7l8.5-8.5"
     />
   ),
+  filePdf: (p) => (
+    <I {...p}>
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <path d="M14 2v6h6" />
+    </I>
+  ),
+  fileMd: (p) => (
+    <I {...p}>
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13l2 4 2-4 2 4 2-4" />
+    </I>
+  ),
+  fileTxt: (p) => (
+    <I {...p}>
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h8M8 17h6" />
+    </I>
+  ),
   mic: (p) => (
     <I {...p}>
       <rect x="9" y="2" width="6" height="12" rx="3" />

@@ -439,6 +439,8 @@ Third-party adapters run in the same process as `rederd` and therefore have the 
 
 **F6.5** — Hot reload on SIGHUP or `reder config reload`. Reloads do not drop in-flight messages.
 
+**F6.6** — Per-session attachment cache lives at `<dataDir>/media/sessions/<session_id>/<sha256>.<ext>`. MIME allowlist: PNG, JPEG, GIF, WebP, PDF, Markdown, plain text. Per-file cap: 20 MB. Cache is wiped only by the future `reder sessions clear <id>` verb — `reder sessions restart` is non-destructive. See `docs/adapter-authoring.md#attachments` for the adapter-side convention.
+
 ### 6.7 Logging
 
 **F7.1** — Structured JSON logs by default. Human-readable pretty format when stderr is a TTY or `--pretty` is passed.

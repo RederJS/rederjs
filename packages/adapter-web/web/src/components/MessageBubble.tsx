@@ -1,7 +1,9 @@
 import type { TranscriptMessage } from '../api';
 import type { BubbleVariant, QuickReply } from '../types';
+import { decodeAttachmentsMeta, mediaUrl, type AttachmentRef } from '../api';
 import { formatHHMM } from '../format';
 import { Markdown } from './Markdown';
+import { Icons } from './Icon';
 import { cn } from '../cn';
 
 interface MessageBubbleProps {
@@ -77,6 +79,9 @@ export function MessageBubble({
       ? { borderColor: 'color-mix(in oklab, var(--accent) 25%, var(--line))' }
       : undefined;
 
+  const attachments = decodeAttachmentsMeta(msg.meta?.attachments);
+  const showLegacyCount = attachments.length === 0 && fileCount > 0;
+
   return (
     <div
       className={cn(
@@ -97,7 +102,18 @@ export function MessageBubble({
         ) : (
           <span className="text-fg-4">(no content)</span>
         )}
-        {fileCount > 0 && (
+        {attachments.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {attachments.map((a) =>
+              a.kind === 'image' ? (
+                <ImageAttachment key={a.sha256} sessionId={msg.sessionId} ref_={a} />
+              ) : (
+                <DocAttachment key={a.sha256} sessionId={msg.sessionId} ref_={a} />
+              ),
+            )}
+          </div>
+        )}
+        {showLegacyCount && (
           <div className="mt-1.5 text-[11px] text-fg-3">
             {fileCount} attachment{fileCount === 1 ? '' : 's'}
           </div>
@@ -132,4 +148,58 @@ export function MessageBubble({
       ) : null}
     </div>
   );
+}
+
+function ImageAttachment({
+  sessionId,
+  ref_,
+}: {
+  sessionId: string;
+  ref_: AttachmentRef;
+}): JSX.Element {
+  const url = mediaUrl(sessionId, ref_.sha256);
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="block max-w-[300px]">
+      <img
+        src={url}
+        alt={ref_.name}
+        loading="lazy"
+        className="max-w-[300px] rounded-md border border-line"
+      />
+    </a>
+  );
+}
+
+function DocAttachment({
+  sessionId,
+  ref_,
+}: {
+  sessionId: string;
+  ref_: AttachmentRef;
+}): JSX.Element {
+  const url = mediaUrl(sessionId, ref_.sha256);
+  const Icon =
+    ref_.mime === 'application/pdf'
+      ? Icons.filePdf
+      : ref_.mime === 'text/markdown'
+        ? Icons.fileMd
+        : Icons.fileTxt;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-2 rounded-md border border-line bg-bg-2 px-2.5 py-1.5 text-[12px] text-fg hover:bg-bg-3"
+    >
+      <Icon size={14} />
+      <span className="max-w-[200px] truncate">{ref_.name}</span>
+      <span className="text-fg-4">{formatBytes(ref_.size)}</span>
+    </a>
+  );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }

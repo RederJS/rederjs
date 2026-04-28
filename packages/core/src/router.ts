@@ -45,6 +45,7 @@ import {
   listAllBindingsForSession,
 } from './pairing.js';
 import type { Config } from './config.js';
+import { stageOutboundFile, encodeAttachmentsMeta, type AttachmentRef } from './media.js';
 
 export interface RouterOptions {
   db: Db;
@@ -55,6 +56,12 @@ export interface RouterOptions {
   permissions?: Partial<PermissionManagerOptions>;
   outboundMaxAttempts?: number;
   outboundInitialBackoffMs?: number;
+  /**
+   * Daemon data directory. Required for outbound file staging into
+   * `<dataDir>/media/sessions/<sessionId>/`. When omitted, replies with
+   * non-empty `files` are rejected with a clear error.
+   */
+  dataDir?: string;
 }
 
 export interface AdapterRegistration {
@@ -452,6 +459,40 @@ export function createRouter(opts: RouterOptions): Router {
       });
       return;
     }
+    let stagedFiles: readonly string[] = evt.files;
+    let stagedMeta: Record<string, string> = evt.meta;
+    if (evt.files.length > 0) {
+      if (!opts.dataDir) {
+        ipcServer.sendToSession(evt.session_id, {
+          kind: 'reply_tool_result',
+          request_id: evt.request_id,
+          success: false,
+          error: 'router has no dataDir configured — cannot stage attachments',
+        });
+        return;
+      }
+      const refs: AttachmentRef[] = [];
+      for (const path of evt.files) {
+        try {
+          const ref = await stageOutboundFile({
+            dataDir: opts.dataDir,
+            sessionId: evt.session_id,
+            sourcePath: path,
+          });
+          refs.push(ref);
+        } catch (err) {
+          ipcServer.sendToSession(evt.session_id, {
+            kind: 'reply_tool_result',
+            request_id: evt.request_id,
+            success: false,
+            error: `attachment ${path}: ${(err as Error).message}`,
+          });
+          return;
+        }
+      }
+      stagedFiles = refs.map((r) => r.path);
+      stagedMeta = { ...evt.meta, attachments: encodeAttachmentsMeta(refs) };
+    }
     const messageId = randomUUID();
     const createdAt = new Date().toISOString();
     insertOutbound(db, {
@@ -460,8 +501,8 @@ export function createRouter(opts: RouterOptions): Router {
       adapter: resolved.adapter,
       recipient: resolved.recipient,
       content: evt.content,
-      meta: evt.meta,
-      files: evt.files,
+      meta: stagedMeta,
+      files: stagedFiles,
     });
     emit('outbound.persisted', {
       messageId,
@@ -469,8 +510,8 @@ export function createRouter(opts: RouterOptions): Router {
       adapter: resolved.adapter,
       recipient: resolved.recipient,
       content: evt.content,
-      meta: evt.meta,
-      files: evt.files,
+      meta: stagedMeta,
+      files: stagedFiles,
       createdAt,
     });
     const outbound: OutboundMessage = {
@@ -478,8 +519,8 @@ export function createRouter(opts: RouterOptions): Router {
       adapter: resolved.adapter,
       recipient: resolved.recipient,
       content: evt.content,
-      meta: evt.meta,
-      files: evt.files,
+      meta: stagedMeta,
+      files: stagedFiles,
       ...(evt.in_reply_to !== undefined ? { inReplyTo: evt.in_reply_to } : {}),
     };
     const result = await dispatchOutboundWithRetry(reg, outbound, messageId);
@@ -491,8 +532,8 @@ export function createRouter(opts: RouterOptions): Router {
         adapter: resolved.adapter,
         recipient: resolved.recipient,
         content: evt.content,
-        meta: evt.meta,
-        files: evt.files,
+        meta: stagedMeta,
+        files: stagedFiles,
         createdAt,
         sentAt: new Date().toISOString(),
         ...(result.transportMessageId !== undefined

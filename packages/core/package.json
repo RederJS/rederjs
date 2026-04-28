@@ -49,6 +49,10 @@
       "types": "./dist/adapter.d.ts",
       "default": "./dist/adapter.js"
     },
+    "./media": {
+      "types": "./dist/media.d.ts",
+      "default": "./dist/media.js"
+    },
     "./router": {
       "types": "./dist/router.d.ts",
       "default": "./dist/router.js"

@@ -33,6 +33,25 @@ export interface InlineKeyboardMarkup {
   inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
 }
 
+export interface InputMediaPhoto {
+  type: 'photo';
+  /** Local path; transport reads bytes and uploads. */
+  path: string;
+  caption?: string;
+  parse_mode?: ParseMode;
+}
+
+export interface SendPhotoOptions {
+  caption?: string;
+  parse_mode?: ParseMode;
+}
+
+export interface SendDocumentOptions {
+  caption?: string;
+  parse_mode?: ParseMode;
+  filename?: string;
+}
+
 export interface TelegramTransport {
   init(): Promise<{ botId: number; botUsername: string }>;
   getUpdates(params: {
@@ -59,4 +78,18 @@ export interface TelegramTransport {
   answerCallbackQuery(id: string, text?: string): Promise<void>;
   getFile(fileId: string): Promise<{ file_path: string }>;
   downloadFile(filePath: string): Promise<Buffer>;
+  sendPhoto(
+    chatId: number | string,
+    path: string,
+    opts?: SendPhotoOptions,
+  ): Promise<{ message_id: number }>;
+  sendDocument(
+    chatId: number | string,
+    path: string,
+    opts?: SendDocumentOptions,
+  ): Promise<{ message_id: number }>;
+  sendMediaGroup(
+    chatId: number | string,
+    media: readonly InputMediaPhoto[],
+  ): Promise<Array<{ message_id: number }>>;
 }

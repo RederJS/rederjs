@@ -53,6 +53,24 @@ describe('classifyTranscriptLine', () => {
     expect(classifyTranscriptLine(line)).toBeNull();
   });
 
+  it('skips user prompts containing the attributed channel form', () => {
+    const line = JSON.stringify({
+      type: 'user',
+      uuid: 'u-3a',
+      timestamp: '2026-04-24T12:00:02Z',
+      message: {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: '<channel source="reder" attachments="[{&quot;path&quot;:&quot;/x/y.png&quot;}]">hi</channel>',
+          },
+        ],
+      },
+    });
+    expect(classifyTranscriptLine(line)).toBeNull();
+  });
+
   it('classifies a plain assistant message as local-assistant', () => {
     const line = JSON.stringify({
       type: 'assistant',

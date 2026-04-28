@@ -18,8 +18,15 @@ import {
   parsePermissionCallback,
   type StoredPrompt,
 } from './permission-prompt.js';
-import { downloadAndCache, FileTooLargeError } from './media.js';
+import {
+  cacheInboundBlob,
+  encodeAttachmentsMeta,
+  decodeAttachmentsMeta,
+  AttachmentError,
+  PER_FILE_MAX_BYTES,
+} from '@rederjs/core/media';
 import { join } from 'node:path';
+import { sendOutboundWithFiles } from './outbound-media.js';
 
 export interface TelegramAdapterOptions {
   transportFactory?: (token: string) => TelegramTransport;
@@ -115,6 +122,33 @@ export class TelegramAdapter extends Adapter {
         success: false,
         retriable: false,
         error: `invalid recipient '${msg.recipient}' — expected numeric chat_id`,
+      };
+    }
+
+    // Files path: bypass markdown rendering, send native media.
+    if (msg.files.length > 0) {
+      const refs = decodeAttachmentsMeta(msg.meta['attachments']);
+      if (refs.length === 0) {
+        return {
+          success: false,
+          retriable: false,
+          error: 'message has files but no meta.attachments — staging regression',
+        };
+      }
+      const result = await sendOutboundWithFiles({
+        transport: runtime.transport,
+        chatId,
+        content: msg.content,
+        refs,
+        mediaCachePrefix: join(this.ctx.dataDir, 'media', 'sessions', msg.sessionId),
+      });
+      return {
+        success: result.success,
+        retriable: result.retriable,
+        ...(result.error !== undefined ? { error: result.error } : {}),
+        ...(result.firstMessageId !== undefined
+          ? { transportMessageId: String(result.firstMessageId) }
+          : {}),
       };
     }
 
@@ -576,54 +610,62 @@ export class TelegramAdapter extends Adapter {
     await this.gateInboundAndIngest(runtime, inbound);
   }
 
-  private mediaCacheDir(): string {
-    return join(this.ctx.dataDir, 'media', 'telegram');
-  }
-
   private async handlePhoto(
     runtime: BotRuntime,
     info: { chatId: number; senderId: string; fileId: string; caption: string | undefined },
   ): Promise<void> {
     if (!(await this.passesAccessGate(runtime, info.senderId, info.chatId))) return;
+    let bytes: Buffer;
     try {
-      const cached = await downloadAndCache({
-        transport: runtime.transport,
-        fileId: info.fileId,
-        cacheDir: this.mediaCacheDir(),
-        defaultExtension: '.jpg',
-      });
-      const content = info.caption ?? '';
-      await this.ctx.router.ingestInbound({
-        adapter: 'telegram',
+      const meta = await runtime.transport.getFile(info.fileId);
+      bytes = await runtime.transport.downloadFile(meta.file_path);
+    } catch (err) {
+      this.logger.warn({ err }, 'photo download failed');
+      return;
+    }
+    if (bytes.length > PER_FILE_MAX_BYTES) {
+      await this.replyTooLarge(runtime, info.chatId, bytes.length);
+      return;
+    }
+    let ref;
+    try {
+      ref = await cacheInboundBlob({
+        dataDir: this.ctx.dataDir,
         sessionId: runtime.sessionId,
-        senderId: info.senderId,
-        content,
-        meta: {
-          chat_id: String(info.chatId),
-          chat_type: 'private',
-          image_path: cached.path,
-          attachment_kind: 'image',
-          attachment_mime: 'image/jpeg',
-          attachment_sha256: cached.sha256,
-        },
-        files: [cached.path],
-        idempotencyKey: `telegram:${info.chatId}:photo:${cached.sha256}`,
-        receivedAt: new Date(),
+        bytes,
+        declaredMime: undefined,
+        declaredName: undefined,
       });
     } catch (err) {
-      if (err instanceof FileTooLargeError) {
+      if (err instanceof AttachmentError && err.code === 'mime_unrecognized') {
         try {
           await runtime.transport.sendMessage(
             info.chatId,
-            `Image too large: ${Math.round(err.size / 1024 / 1024)} MB (limit 20 MB).`,
+            "Sorry, I couldn't recognize that image. Send PNG, JPEG, GIF, or WebP.",
           );
         } catch {
           // best-effort
         }
         return;
       }
-      this.logger.warn({ err }, 'photo download failed');
+      this.logger.warn({ err }, 'photo cache failed');
+      return;
     }
+    const content = info.caption ?? '';
+    await this.ctx.router.ingestInbound({
+      adapter: 'telegram',
+      sessionId: runtime.sessionId,
+      senderId: info.senderId,
+      content,
+      meta: {
+        chat_id: String(info.chatId),
+        chat_type: 'private',
+        attachments: encodeAttachmentsMeta([ref]),
+      },
+      files: [ref.path],
+      idempotencyKey: `telegram:${info.chatId}:photo:${ref.sha256}`,
+      receivedAt: new Date(),
+    });
   }
 
   private async handleDocument(
@@ -639,56 +681,73 @@ export class TelegramAdapter extends Adapter {
     },
   ): Promise<void> {
     if (!(await this.passesAccessGate(runtime, info.senderId, info.chatId))) return;
-    if (info.size !== undefined && info.size > 20 * 1024 * 1024) {
-      try {
-        await runtime.transport.sendMessage(
-          info.chatId,
-          `File too large: ${Math.round(info.size / 1024 / 1024)} MB (limit 20 MB).`,
-        );
-      } catch {
-        // best-effort
-      }
+    if (info.size !== undefined && info.size > PER_FILE_MAX_BYTES) {
+      await this.replyTooLarge(runtime, info.chatId, info.size);
       return;
     }
+    let bytes: Buffer;
     try {
-      const cached = await downloadAndCache({
-        transport: runtime.transport,
-        fileId: info.fileId,
-        cacheDir: this.mediaCacheDir(),
-        ...(info.filename ? { defaultExtension: '.' + info.filename.split('.').pop() } : {}),
-      });
-      const content = info.caption ?? '';
-      await this.ctx.router.ingestInbound({
-        adapter: 'telegram',
+      const meta = await runtime.transport.getFile(info.fileId);
+      bytes = await runtime.transport.downloadFile(meta.file_path);
+    } catch (err) {
+      this.logger.warn({ err }, 'document download failed');
+      return;
+    }
+    let ref;
+    try {
+      ref = await cacheInboundBlob({
+        dataDir: this.ctx.dataDir,
         sessionId: runtime.sessionId,
-        senderId: info.senderId,
-        content,
-        meta: {
-          chat_id: String(info.chatId),
-          chat_type: 'private',
-          file_path: cached.path,
-          attachment_kind: 'file',
-          ...(info.filename ? { attachment_name: info.filename } : {}),
-          ...(info.mimeType ? { attachment_mime: info.mimeType } : {}),
-          attachment_sha256: cached.sha256,
-        },
-        files: [cached.path],
-        idempotencyKey: `telegram:${info.chatId}:doc:${cached.sha256}`,
-        receivedAt: new Date(),
+        bytes,
+        declaredMime: info.mimeType,
+        declaredName: info.filename,
       });
     } catch (err) {
-      if (err instanceof FileTooLargeError) {
-        try {
-          await runtime.transport.sendMessage(
-            info.chatId,
-            `File too large: ${Math.round(err.size / 1024 / 1024)} MB (limit 20 MB).`,
-          );
-        } catch {
-          // best-effort
+      if (err instanceof AttachmentError) {
+        if (err.code === 'mime_not_allowed' || err.code === 'mime_unrecognized') {
+          try {
+            await runtime.transport.sendMessage(
+              info.chatId,
+              'Sorry, that file type is not supported. Send PNG/JPEG/GIF/WebP, PDF, Markdown, or plain text.',
+            );
+          } catch {
+            // best-effort
+          }
+          return;
         }
-        return;
+        if (err.code === 'too_large') {
+          await this.replyTooLarge(runtime, info.chatId, bytes.length);
+          return;
+        }
       }
-      this.logger.warn({ err }, 'document download failed');
+      this.logger.warn({ err }, 'document cache failed');
+      return;
+    }
+    const content = info.caption ?? '';
+    await this.ctx.router.ingestInbound({
+      adapter: 'telegram',
+      sessionId: runtime.sessionId,
+      senderId: info.senderId,
+      content,
+      meta: {
+        chat_id: String(info.chatId),
+        chat_type: 'private',
+        attachments: encodeAttachmentsMeta([ref]),
+      },
+      files: [ref.path],
+      idempotencyKey: `telegram:${info.chatId}:doc:${ref.sha256}`,
+      receivedAt: new Date(),
+    });
+  }
+
+  private async replyTooLarge(runtime: BotRuntime, chatId: number, size: number): Promise<void> {
+    try {
+      await runtime.transport.sendMessage(
+        chatId,
+        `File too large: ${Math.round(size / 1024 / 1024)} MB (limit 20 MB).`,
+      );
+    } catch {
+      // best-effort
     }
   }
 
