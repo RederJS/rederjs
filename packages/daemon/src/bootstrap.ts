@@ -98,6 +98,7 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
       timeoutSeconds: config.security.permission_timeout_seconds,
       defaultOnTimeout: config.security.permission_default_on_timeout,
     },
+    dataDir,
   });
 
   const daemonVersion = opts.daemonVersion ?? '0.1.0';
