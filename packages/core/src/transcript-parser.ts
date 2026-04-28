@@ -9,7 +9,7 @@ interface RawEntry {
   message?: { role?: unknown; content?: unknown } | undefined;
 }
 
-export const CHANNEL_MARKER = '<channel source="reder">';
+export const CHANNEL_MARKER = '<channel source="reder"';
 
 export function classifyTranscriptLine(raw: string): ClassifiedEntry | null {
   const trimmed = raw.trim();
