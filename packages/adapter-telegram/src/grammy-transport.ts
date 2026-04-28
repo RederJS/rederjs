@@ -1,5 +1,5 @@
-import { Bot } from 'grammy';
-import type { SendMessageOptions, TelegramTransport, TelegramUpdate } from './transport.js';
+import { Bot, InputFile } from 'grammy';
+import type { SendMessageOptions, TelegramTransport, TelegramUpdate, SendPhotoOptions, SendDocumentOptions, InputMediaPhoto } from './transport.js';
 
 export interface GrammyTransportOptions {
   token: string;
@@ -63,6 +63,38 @@ export function createGrammyTransport(opts: GrammyTransportOptions): TelegramTra
       const res = await fetch(url);
       if (!res.ok) throw new Error(`file download ${url}: ${res.status} ${res.statusText}`);
       return Buffer.from(await res.arrayBuffer());
+    },
+    async sendPhoto(chatId, path, opts) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const o: Record<string, any> = {};
+      if (opts?.caption) o['caption'] = opts.caption;
+      if (opts?.parse_mode) o['parse_mode'] = opts.parse_mode;
+      const result = await bot.api.sendPhoto(chatId as number, new InputFile(path), o);
+      return { message_id: result.message_id };
+    },
+    async sendDocument(chatId, path, opts) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const o: Record<string, any> = {};
+      if (opts?.caption) o['caption'] = opts.caption;
+      if (opts?.parse_mode) o['parse_mode'] = opts.parse_mode;
+      const file = opts?.filename ? new InputFile(path, opts.filename) : new InputFile(path);
+      const result = await bot.api.sendDocument(chatId as number, file, o);
+      return { message_id: result.message_id };
+    },
+    async sendMediaGroup(chatId, media) {
+      const items = media.map((m) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const item: Record<string, any> = {
+          type: 'photo',
+          media: new InputFile(m.path),
+        };
+        if (m.caption) item['caption'] = m.caption;
+        if (m.parse_mode) item['parse_mode'] = m.parse_mode;
+        return item;
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const results = await bot.api.sendMediaGroup(chatId as number, items as any);
+      return results.map((r) => ({ message_id: r.message_id }));
     },
   };
 }

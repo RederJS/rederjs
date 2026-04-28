@@ -3,6 +3,9 @@ import type {
   TelegramTransport,
   TelegramUpdate,
   InlineKeyboardMarkup,
+  SendPhotoOptions,
+  SendDocumentOptions,
+  InputMediaPhoto,
 } from '../src/transport.js';
 
 export interface SentMessage {
@@ -36,6 +39,23 @@ export class FakeTelegramTransport implements TelegramTransport {
   public failures: Array<{ kind: 'send' | 'getUpdates'; error: Error; remaining: number }> = [];
   public simulatedDownUntil: number | null = null;
   public files: Map<string, { file_path: string; data: Buffer }> = new Map();
+  public sentPhotos: Array<{
+    chatId: number | string;
+    path: string;
+    opts?: SendPhotoOptions;
+    message_id: number;
+  }> = [];
+  public sentDocuments: Array<{
+    chatId: number | string;
+    path: string;
+    opts?: SendDocumentOptions;
+    message_id: number;
+  }> = [];
+  public sentGroups: Array<{
+    chatId: number | string;
+    media: readonly InputMediaPhoto[];
+    message_ids: number[];
+  }> = [];
 
   constructor(private readonly opts: FakeTransportOptions = {}) {}
 
@@ -168,6 +188,56 @@ export class FakeTelegramTransport implements TelegramTransport {
       if (f.file_path === filePath) return f.data;
     }
     throw new Error(`fake transport: unknown file_path ${filePath}`);
+  }
+
+  async sendPhoto(
+    chatId: number | string,
+    path: string,
+    opts?: SendPhotoOptions,
+  ): Promise<{ message_id: number }> {
+    const failure = this.failures.find((f) => f.kind === 'send' && f.remaining > 0);
+    if (failure) {
+      failure.remaining--;
+      throw failure.error;
+    }
+    const message_id = this.nextMessageId++;
+    this.sentPhotos.push({
+      chatId,
+      path,
+      message_id,
+      ...(opts !== undefined ? { opts } : {}),
+    });
+    return { message_id };
+  }
+
+  async sendDocument(
+    chatId: number | string,
+    path: string,
+    opts?: SendDocumentOptions,
+  ): Promise<{ message_id: number }> {
+    const failure = this.failures.find((f) => f.kind === 'send' && f.remaining > 0);
+    if (failure) {
+      failure.remaining--;
+      throw failure.error;
+    }
+    const message_id = this.nextMessageId++;
+    this.sentDocuments.push({
+      chatId,
+      path,
+      message_id,
+      ...(opts !== undefined ? { opts } : {}),
+    });
+    return { message_id };
+  }
+
+  async sendMediaGroup(
+    chatId: number | string,
+    media: readonly InputMediaPhoto[],
+  ): Promise<Array<{ message_id: number }>> {
+    const ids: number[] = [];
+    for (let i = 0; i < media.length; i++) ids.push(this.nextMessageId++);
+    this.sentGroups.push({ chatId, media, message_ids: ids });
+    return ids.map((message_id) => ({ message_id }));
   }
 
   get lastOffset(): number {
