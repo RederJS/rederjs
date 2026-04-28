@@ -4,12 +4,13 @@ import {
   encodeAttachmentsMeta,
   decodeAttachmentsMeta,
   cacheInboundBlob,
+  stageOutboundFile,
   AttachmentError,
   mediaDirFor,
   PER_FILE_MAX_BYTES,
 } from '../src/media.js';
 import type { AttachmentRef } from '../src/media.js';
-import { mkdtempSync, rmSync, statSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -230,5 +231,56 @@ describe('cacheInboundBlob', () => {
     expect(a.path).not.toBe(b.path);
     expect(existsSync(a.path)).toBe(true);
     expect(existsSync(b.path)).toBe(true);
+  });
+});
+
+describe('stageOutboundFile', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'reder-stage-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('copies a foreign path into the session media dir', async () => {
+    const src = join(dir, 'tmp.png');
+    writeFileSync(src, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2]));
+    const ref = await stageOutboundFile({
+      dataDir: dir,
+      sessionId: 's1',
+      sourcePath: src,
+    });
+    expect(ref.path.startsWith(mediaDirFor(dir, 's1'))).toBe(true);
+    expect(existsSync(ref.path)).toBe(true);
+    expect(ref.mime).toBe('image/png');
+    expect(ref.name).toBe('tmp.png');
+  });
+
+  it('is idempotent when the source is already in the session cache', async () => {
+    const src = join(dir, 'tmp.pdf');
+    writeFileSync(src, Buffer.from('%PDF-1.4\n%X\n'));
+    const a = await stageOutboundFile({ dataDir: dir, sessionId: 's1', sourcePath: src });
+    const b = await stageOutboundFile({
+      dataDir: dir,
+      sessionId: 's1',
+      sourcePath: a.path,
+    });
+    expect(a.path).toBe(b.path);
+    expect(a.sha256).toBe(b.sha256);
+  });
+
+  it('rejects a missing source path', async () => {
+    await expect(
+      stageOutboundFile({ dataDir: dir, sessionId: 's1', sourcePath: '/nope/missing.png' }),
+    ).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('rejects oversized files without copying', async () => {
+    const src = join(dir, 'huge.pdf');
+    writeFileSync(src, Buffer.alloc(PER_FILE_MAX_BYTES + 1, 0x90));
+    await expect(
+      stageOutboundFile({ dataDir: dir, sessionId: 's1', sourcePath: src }),
+    ).rejects.toMatchObject({ code: 'too_large' });
   });
 });

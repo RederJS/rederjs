@@ -265,3 +265,45 @@ export async function cacheInboundBlob(input: CacheInboundBlobInput): Promise<At
     sha256,
   };
 }
+
+export interface StageOutboundFileInput {
+  readonly dataDir: string;
+  readonly sessionId: string;
+  readonly sourcePath: string;
+}
+
+export async function stageOutboundFile(
+  input: StageOutboundFileInput,
+): Promise<AttachmentRef> {
+  let stat;
+  try {
+    stat = statSync(input.sourcePath);
+  } catch {
+    throw new AttachmentError('not_found', `source path does not exist: ${input.sourcePath}`);
+  }
+  if (!stat.isFile()) {
+    throw new AttachmentError('not_found', `not a regular file: ${input.sourcePath}`);
+  }
+  if (stat.size > PER_FILE_MAX_BYTES) {
+    throw new AttachmentError(
+      'too_large',
+      `file is ${stat.size} bytes (max ${PER_FILE_MAX_BYTES})`,
+    );
+  }
+  let bytes: Buffer;
+  try {
+    bytes = readFileSync(input.sourcePath);
+  } catch (err) {
+    throw new AttachmentError('read_failed', `read failed: ${(err as Error).message}`);
+  }
+  // Reuse cacheInboundBlob — it does the sniff, allowlist, hash, write.
+  // The original filename is the basename of the source path.
+  const name = input.sourcePath.split('/').pop() ?? input.sourcePath;
+  return cacheInboundBlob({
+    dataDir: input.dataDir,
+    sessionId: input.sessionId,
+    bytes,
+    declaredMime: undefined,
+    declaredName: name,
+  });
+}
