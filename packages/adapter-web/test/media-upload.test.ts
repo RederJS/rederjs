@@ -122,8 +122,14 @@ describe('POST /api/sessions/:id/media', () => {
 
   it('rejects 21 MB upload with 413', async () => {
     const big = Buffer.alloc(21 * 1024 * 1024);
-    big[0] = 0x89; big[1] = 0x50; big[2] = 0x4e; big[3] = 0x47;
-    big[4] = 0x0d; big[5] = 0x0a; big[6] = 0x1a; big[7] = 0x0a;
+    big[0] = 0x89;
+    big[1] = 0x50;
+    big[2] = 0x4e;
+    big[3] = 0x47;
+    big[4] = 0x0d;
+    big[5] = 0x0a;
+    big[6] = 0x1a;
+    big[7] = 0x0a;
     const res = await uploadPng('big.png', big);
     expect(res.status).toBe(413);
   });

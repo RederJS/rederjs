@@ -708,7 +708,7 @@ export class TelegramAdapter extends Adapter {
           try {
             await runtime.transport.sendMessage(
               info.chatId,
-              "Sorry, that file type is not supported. Send PNG/JPEG/GIF/WebP, PDF, Markdown, or plain text.",
+              'Sorry, that file type is not supported. Send PNG/JPEG/GIF/WebP, PDF, Markdown, or plain text.',
             );
           } catch {
             // best-effort

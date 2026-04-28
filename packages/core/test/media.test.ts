@@ -5,7 +5,6 @@ import {
   decodeAttachmentsMeta,
   cacheInboundBlob,
   stageOutboundFile,
-  AttachmentError,
   mediaDirFor,
   PER_FILE_MAX_BYTES,
 } from '../src/media.js';
@@ -40,27 +39,19 @@ describe('sniffMime', () => {
   });
 
   it('detects PDF from %PDF- prefix', () => {
-    expect(sniffMime(Buffer.from('%PDF-1.7\n'), undefined, undefined)).toBe(
-      'application/pdf',
-    );
+    expect(sniffMime(Buffer.from('%PDF-1.7\n'), undefined, undefined)).toBe('application/pdf');
   });
 
   it('returns text/markdown for utf-8 text when name has .md', () => {
-    expect(sniffMime(Buffer.from('# hello\n'), undefined, 'README.md')).toBe(
-      'text/markdown',
-    );
+    expect(sniffMime(Buffer.from('# hello\n'), undefined, 'README.md')).toBe('text/markdown');
   });
 
   it('returns text/plain for utf-8 text without a recognized extension', () => {
-    expect(sniffMime(Buffer.from('plain text body\n'), undefined, 'notes')).toBe(
-      'text/plain',
-    );
+    expect(sniffMime(Buffer.from('plain text body\n'), undefined, 'notes')).toBe('text/plain');
   });
 
   it('returns text/plain when name ends in .txt', () => {
-    expect(sniffMime(Buffer.from('plain text\n'), undefined, 'log.txt')).toBe(
-      'text/plain',
-    );
+    expect(sniffMime(Buffer.from('plain text\n'), undefined, 'log.txt')).toBe('text/plain');
   });
 
   it('returns undefined for binary blobs that are neither known nor text', () => {
@@ -153,9 +144,7 @@ describe('cacheInboundBlob', () => {
   });
 
   it('reuses existing blob on identical content (dedupe by sha256)', async () => {
-    const png = Buffer.from([
-      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x9, 0x8, 0x7,
-    ]);
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x9, 0x8, 0x7]);
     const a = await cacheInboundBlob({
       dataDir: dir,
       sessionId: 's1',

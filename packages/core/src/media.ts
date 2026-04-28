@@ -1,13 +1,6 @@
 import { createHash } from 'node:crypto';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import { extname, join, resolve as resolvePath } from 'node:path';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { extname, join } from 'node:path';
 
 export type AttachmentKind = 'image' | 'document';
 
@@ -225,10 +218,7 @@ export async function cacheInboundBlob(input: CacheInboundBlobInput): Promise<At
   }
   const mime = sniffMime(input.bytes, input.declaredMime, input.declaredName);
   if (!mime) {
-    throw new AttachmentError(
-      'mime_unrecognized',
-      'could not identify file type from content',
-    );
+    throw new AttachmentError('mime_unrecognized', 'could not identify file type from content');
   }
   if (!isAllowedMime(mime)) {
     throw new AttachmentError('mime_not_allowed', `mime ${mime} is not allowed`);
@@ -272,9 +262,7 @@ export interface StageOutboundFileInput {
   readonly sourcePath: string;
 }
 
-export async function stageOutboundFile(
-  input: StageOutboundFileInput,
-): Promise<AttachmentRef> {
+export async function stageOutboundFile(input: StageOutboundFileInput): Promise<AttachmentRef> {
   let stat;
   try {
     stat = statSync(input.sourcePath);

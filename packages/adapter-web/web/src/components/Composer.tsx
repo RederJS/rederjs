@@ -59,10 +59,7 @@ export function Composer({
     const picked = Array.from(files).slice(0, slots);
     for (const file of picked) {
       const localId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      setQueue((q) => [
-        ...q,
-        { localId, status: 'uploading', name: file.name, size: file.size },
-      ]);
+      setQueue((q) => [...q, { localId, status: 'uploading', name: file.name, size: file.size }]);
       try {
         const result = await uploadMedia(sessionId, file);
         setQueue((q) =>
@@ -71,9 +68,7 @@ export function Composer({
       } catch (err) {
         setQueue((q) =>
           q.map((x) =>
-            x.localId === localId
-              ? { ...x, status: 'error', error: (err as Error).message }
-              : x,
+            x.localId === localId ? { ...x, status: 'error', error: (err as Error).message } : x,
           ),
         );
       }

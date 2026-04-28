@@ -165,7 +165,7 @@ describe('TelegramAdapter media (per-session cache + meta.attachments)', () => {
       },
     });
     await waitFor(() => fake.sent.length > 0, 2000);
-    expect(fake.sent[0]!.text.toLowerCase()).toContain("not supported");
+    expect(fake.sent[0]!.text.toLowerCase()).toContain('not supported');
     expect(received).toHaveLength(0);
   });
 

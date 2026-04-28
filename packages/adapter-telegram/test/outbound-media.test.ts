@@ -51,10 +51,7 @@ describe('sendOutboundWithFiles', () => {
 
   it('two images → sendMediaGroup with caption on first item', async () => {
     const fake = new FakeTelegramTransport();
-    const refs = [
-      makeRef('.png', 'image/png', 'image'),
-      makeRef('.jpg', 'image/jpeg', 'image'),
-    ];
+    const refs = [makeRef('.png', 'image/png', 'image'), makeRef('.jpg', 'image/jpeg', 'image')];
     const result = await sendOutboundWithFiles({
       transport: fake,
       chatId: 42,

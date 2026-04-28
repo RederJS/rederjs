@@ -165,11 +165,7 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
           no sessions match the current filter.
         </div>
       ) : (
-        <div
-          data-card={cardVariant}
-          className="sessions-grid grid gap-3.5"
-          style={gridStyle}
-        >
+        <div data-card={cardVariant} className="sessions-grid grid gap-3.5" style={gridStyle}>
           {filtered.map((s) => (
             <SessionCard
               key={s.session_id}

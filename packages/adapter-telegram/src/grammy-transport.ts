@@ -1,5 +1,5 @@
 import { Bot, InputFile } from 'grammy';
-import type { SendMessageOptions, TelegramTransport, TelegramUpdate, SendPhotoOptions, SendDocumentOptions, InputMediaPhoto } from './transport.js';
+import type { SendMessageOptions, TelegramTransport, TelegramUpdate } from './transport.js';
 
 export interface GrammyTransportOptions {
   token: string;

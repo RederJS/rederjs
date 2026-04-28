@@ -45,11 +45,7 @@ import {
   listAllBindingsForSession,
 } from './pairing.js';
 import type { Config } from './config.js';
-import {
-  stageOutboundFile,
-  encodeAttachmentsMeta,
-  type AttachmentRef,
-} from './media.js';
+import { stageOutboundFile, encodeAttachmentsMeta, type AttachmentRef } from './media.js';
 
 export interface RouterOptions {
   db: Db;

@@ -108,31 +108,32 @@ export function App(): JSX.Element {
             />
           )}
 
-          {selectedSession && (() => {
-            const panelEl = (
-              <Panel
-                session={selectedSession}
-                sessions={sessions}
-                statusVariant={tweaks.status}
-                bubbleVariant={tweaks.bubble}
-                composerVariant={tweaks.composer}
-                onClose={() => navigate('/')}
-                onSwitchSession={openSession}
-              />
-            );
-            if (panelVariant !== 'overlay') return panelEl;
-            return (
-              <div
-                className={cn(
-                  'absolute bottom-0 right-0 top-0 z-[5] w-full md:w-[min(620px,60%)] transition-transform duration-300 ease-spring-out',
-                  panelOpen ? 'translate-x-0' : 'translate-x-full',
-                )}
-                style={{ boxShadow: '-30px 0 60px -10px #000' }}
-              >
-                {panelEl}
-              </div>
-            );
-          })()}
+          {selectedSession &&
+            (() => {
+              const panelEl = (
+                <Panel
+                  session={selectedSession}
+                  sessions={sessions}
+                  statusVariant={tweaks.status}
+                  bubbleVariant={tweaks.bubble}
+                  composerVariant={tweaks.composer}
+                  onClose={() => navigate('/')}
+                  onSwitchSession={openSession}
+                />
+              );
+              if (panelVariant !== 'overlay') return panelEl;
+              return (
+                <div
+                  className={cn(
+                    'absolute bottom-0 right-0 top-0 z-[5] w-full md:w-[min(620px,60%)] transition-transform duration-300 ease-spring-out',
+                    panelOpen ? 'translate-x-0' : 'translate-x-full',
+                  )}
+                  style={{ boxShadow: '-30px 0 60px -10px #000' }}
+                >
+                  {panelEl}
+                </div>
+              );
+            })()}
         </div>
       </main>
 
