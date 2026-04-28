@@ -19,6 +19,7 @@ export function useEventStream(url: string | null, handler: SseHandler): void {
       'permission.cancelled',
       'session.state_changed',
       'session.activity_changed',
+      'session.cleared',
       'session.git_changed',
     ];
 
