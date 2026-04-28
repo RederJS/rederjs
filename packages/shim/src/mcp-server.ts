@@ -94,6 +94,18 @@ export function createMcpChannelServer(deps: ShimDeps): McpChannelServer {
         '(a fresh 5-letter id per reply) and your reply as `content`. If the tool ' +
         'schema is deferred, load it first via ' +
         '`ToolSearch(query="select:mcp__reder__reply", max_results=1)`.\n\n' +
+        'If the message includes `meta.attachments`, it is a JSON array of ' +
+        '`{path, mime, name, kind, size, sha256}` objects. Use the `Read` tool ' +
+        'on each `path` to inspect the file. The path is in a temporary cache; ' +
+        'if the user asks you to save the file to the project, copy it into the ' +
+        'workspace using `Write` (or `cp`) — that triggers the normal permission ' +
+        'prompt.\n\n' +
+        'You may attach files in your reply by passing `files: ["/abs/path", ...]` ' +
+        'to the `reply` tool. The daemon stages each file into the session media ' +
+        'cache and forwards it via the originating adapter (rendered inline in ' +
+        'the web dashboard, sent as Telegram media, etc.). Files must be 20 MB ' +
+        'or less and one of: PNG, JPEG, GIF, WebP, PDF, Markdown, or plain text.' +
+        '\n\n' +
         'Do this for every inbound channel message that expects a response.',
     },
   );
