@@ -6,6 +6,7 @@ import {
   cacheInboundBlob,
   stageOutboundFile,
   mediaDirFor,
+  wipeMediaForSession,
   PER_FILE_MAX_BYTES,
 } from '../src/media.js';
 import type { AttachmentRef } from '../src/media.js';
@@ -271,5 +272,45 @@ describe('stageOutboundFile', () => {
     await expect(
       stageOutboundFile({ dataDir: dir, sessionId: 's1', sourcePath: src }),
     ).rejects.toMatchObject({ code: 'too_large' });
+  });
+});
+
+describe('wipeMediaForSession', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'reder-media-wipe-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns false when the session has no media directory', () => {
+    expect(wipeMediaForSession(dir, 'never-existed')).toBe(false);
+  });
+
+  it('removes the per-session directory and leaves siblings alone', async () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xab, 0xcd, 0xef]);
+    const refA = await cacheInboundBlob({
+      dataDir: dir,
+      sessionId: 's-a',
+      bytes: png,
+      declaredMime: undefined,
+      declaredName: 'a.png',
+    });
+    const refB = await cacheInboundBlob({
+      dataDir: dir,
+      sessionId: 's-b',
+      bytes: png,
+      declaredMime: undefined,
+      declaredName: 'b.png',
+    });
+    expect(existsSync(refA.path)).toBe(true);
+    expect(existsSync(refB.path)).toBe(true);
+
+    expect(wipeMediaForSession(dir, 's-a')).toBe(true);
+
+    expect(existsSync(mediaDirFor(dir, 's-a'))).toBe(false);
+    expect(existsSync(refA.path)).toBe(false);
+    expect(existsSync(refB.path)).toBe(true);
   });
 });

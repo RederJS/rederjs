@@ -15,12 +15,13 @@ import {
   type PermissionResolvedPayload,
   type SessionStateChangedPayload,
   type SessionActivityChangedPayload,
+  type SessionClearedPayload,
 } from '@rederjs/core/adapter';
 import { WebAdapterConfigSchema, type WebAdapterConfig } from './config.js';
 import { createSseRegistry, type SseRegistry } from './sse.js';
 import { buildApp, listen } from './http.js';
 import { loadOrCreateToken, buildLoginUrl } from './auth.js';
-import { incrementUnread } from './routes/sessions.js';
+import { clearUnread, incrementUnread } from './routes/sessions.js';
 import { getSessionGit, invalidateSessionGit } from './git.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -307,6 +308,15 @@ export class WebAdapter extends Adapter {
         void this.refreshAndBroadcastGit(p.sessionId);
       }
     };
+    const onCleared = (p: SessionClearedPayload): void => {
+      void clearUnread(this.ctx.storage, p.sessionId).catch(() => {});
+      // publish() with a session id also reaches the global stream (any
+      // subscribers with sessionId=null), so the session-list view sees it.
+      this.sse.publish(p.sessionId, {
+        event: 'session.cleared',
+        data: p,
+      });
+    };
 
     events.on('inbound.persisted', onInbound);
     events.on('outbound.persisted', onOutbound);
@@ -314,6 +324,7 @@ export class WebAdapter extends Adapter {
     events.on('permission.resolved', onPermRes);
     events.on('session.state_changed', onState);
     events.on('session.activity_changed', onActivity);
+    events.on('session.cleared', onCleared);
 
     this.unsubscribers.push(
       () => events.off('inbound.persisted', onInbound),
@@ -322,6 +333,7 @@ export class WebAdapter extends Adapter {
       () => events.off('permission.resolved', onPermRes),
       () => events.off('session.state_changed', onState),
       () => events.off('session.activity_changed', onActivity),
+      () => events.off('session.cleared', onCleared),
     );
   }
 }

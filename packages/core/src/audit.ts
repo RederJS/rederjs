@@ -17,7 +17,19 @@ export type AuditEvent =
   | { kind: 'dangerous_flag_usage'; flag: string; caller?: string }
   | { kind: 'config_change'; detail: string }
   | { kind: 'rate_limit_exceeded'; adapter: string; sender_id: string; session_id: string }
-  | { kind: 'unknown_sender_dropped'; adapter: string; sender_id: string };
+  | { kind: 'unknown_sender_dropped'; adapter: string; sender_id: string }
+  | {
+      kind: 'session_cleared';
+      session_id: string;
+      source: 'startup' | 'clear';
+      counts: {
+        inbound: number;
+        outbound: number;
+        permissions: number;
+        transcriptOffsets: number;
+      };
+      cancelled_permissions: number;
+    };
 
 export interface AuditLog {
   write(event: AuditEvent): void;
