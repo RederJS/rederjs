@@ -181,7 +181,7 @@ export function createRouter(opts: RouterOptions): Router {
           ? rawSource
           : null;
       if (source !== null) {
-        void clearSession(evt.session_id, source);
+        void clearSession(evt.session_id, source, evt.timestamp);
         // Don't update activity until purge finishes — clearSession recomputes
         // activity itself after resetting unread/pending state.
         return;
@@ -204,7 +204,11 @@ export function createRouter(opts: RouterOptions): Router {
     }
   });
 
-  async function clearSession(sessionId: string, source: 'startup' | 'clear'): Promise<void> {
+  async function clearSession(
+    sessionId: string,
+    source: 'startup' | 'clear',
+    hookTimestamp: string,
+  ): Promise<void> {
     let counts: ReturnType<typeof purgeSessionData> = {
       inbound: 0,
       outbound: 0,
@@ -239,7 +243,7 @@ export function createRouter(opts: RouterOptions): Router {
       activity.onHookEvent({
         sessionId,
         hook: 'SessionStart',
-        timestamp: new Date().toISOString(),
+        timestamp: hookTimestamp,
       });
       audit.write({
         kind: 'session_cleared',
@@ -269,7 +273,10 @@ export function createRouter(opts: RouterOptions): Router {
     emit('session.cleared', {
       sessionId,
       source,
-      clearedAt: new Date().toISOString(),
+      // The hook's own timestamp records when claude actually fired
+      // SessionStart, not when this handler finished its async work — the
+      // latter could be hundreds of ms later if the daemon is busy.
+      clearedAt: hookTimestamp,
       counts: {
         inbound: counts.inbound,
         outbound: counts.outbound,
