@@ -21,6 +21,7 @@ import { createSseRegistry, type SseRegistry } from './sse.js';
 import { buildApp, listen } from './http.js';
 import { loadOrCreateToken, buildLoginUrl } from './auth.js';
 import { incrementUnread } from './routes/sessions.js';
+import { getSessionGit, invalidateSessionGit } from './git.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 /** Shipped SPA dist — <package>/dist/../web/dist */
@@ -64,6 +65,7 @@ export class WebAdapter extends Adapter {
   private lastInboundAt: Date | null = null;
   private lastOutboundAt: Date | null = null;
   private unsubscribers: Array<() => void> = [];
+  private lastActivityState = new Map<string, string>();
 
   constructor(private readonly opts: WebAdapterOptions = {}) {
     super();
@@ -232,6 +234,21 @@ export class WebAdapter extends Adapter {
     };
   }
 
+  private async refreshAndBroadcastGit(sessionId: string): Promise<void> {
+    const cfg = this.ctx.sessions.find((s) => s.session_id === sessionId);
+    if (!cfg?.workspace_dir) return;
+    invalidateSessionGit(cfg.workspace_dir);
+    try {
+      const git = await getSessionGit(cfg.workspace_dir, { logger: this.ctx.logger });
+      this.sse.broadcast({
+        event: 'session.git_changed',
+        data: { sessionId, branch: git.branch, pr: git.pr },
+      });
+    } catch (err) {
+      this.ctx.logger.debug({ err, sessionId }, 'reder.git.refresh_failed');
+    }
+  }
+
   private subscribe(): void {
     const events = this.ctx.router.events;
 
@@ -282,6 +299,13 @@ export class WebAdapter extends Adapter {
         event: 'session.activity_changed',
         data: p,
       });
+      const prev = this.lastActivityState.get(p.sessionId);
+      this.lastActivityState.set(p.sessionId, p.state);
+      // When a session leaves "working", Claude has just produced a turn —
+      // branch and PR may have changed. Refresh git info and broadcast it.
+      if (prev === 'working' && p.state !== 'working') {
+        void this.refreshAndBroadcastGit(p.sessionId);
+      }
     };
 
     events.on('inbound.persisted', onInbound);

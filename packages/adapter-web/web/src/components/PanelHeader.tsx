@@ -45,14 +45,36 @@ export function PanelHeader({
         <div className="truncate text-sm font-semibold tracking-[-0.01em]">
           {session.display_name}
         </div>
-        <div className="mt-0.5 flex gap-2.5 font-mono text-[11px] text-fg-3">
-          <span>
+        <div className="mt-0.5 flex min-w-0 items-center gap-2.5 font-mono text-[11px] text-fg-3">
+          <span className="shrink-0">
             id <b className="font-medium text-fg-2">{shortId(session.session_id)}</b>
           </span>
+          {session.branch && (
+            <>
+              <span className="shrink-0">•</span>
+              <span className="inline-flex min-w-0 items-center gap-1">
+                <Icons.branch size={12} />
+                <b className="truncate font-medium text-fg-2" title={session.branch}>
+                  {session.branch}
+                </b>
+                {session.pr && (
+                  <a
+                    href={session.pr.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Open PR #${session.pr.number} on GitHub`}
+                    className="shrink-0 font-medium text-accent hover:underline"
+                  >
+                    #{session.pr.number}
+                  </a>
+                )}
+              </span>
+            </>
+          )}
           {session.workspace_dir && (
             <>
-              <span className="hidden md:inline">•</span>
-              <span className="hidden md:inline-flex items-center gap-1 truncate">
+              <span className="hidden md:inline shrink-0">•</span>
+              <span className="hidden md:inline-flex min-w-0 items-center gap-1">
                 <Icons.folder size={12} />{' '}
                 <b className="truncate font-medium text-fg-2">{session.workspace_dir}</b>
               </span>

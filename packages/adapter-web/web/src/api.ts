@@ -1,3 +1,8 @@
+export interface PrInfo {
+  number: number;
+  url: string;
+}
+
 export interface SessionSummary {
   session_id: string;
   display_name: string;
@@ -14,6 +19,8 @@ export interface SessionSummary {
   activity_since: string | null;
   last_hook: string | null;
   last_hook_at: string | null;
+  branch: string | null;
+  pr: PrInfo | null;
 }
 
 export interface TranscriptMessage {

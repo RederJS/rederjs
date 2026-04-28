@@ -146,6 +146,14 @@ export const Icons: Record<string, IconComponent> = {
   folder: (p) => (
     <I {...p} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
   ),
+  branch: (p) => (
+    <I {...p}>
+      <circle cx="6" cy="3" r="2" />
+      <circle cx="6" cy="21" r="2" />
+      <circle cx="18" cy="6" r="2" />
+      <path d="M6 5v14M6 13a8 8 0 008-8h2" />
+    </I>
+  ),
 };
 
 export type IconName = keyof typeof Icons;

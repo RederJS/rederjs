@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { listMessages, listSessions, type SessionSummary } from '../api';
+import { listMessages, listSessions, type PrInfo, type SessionSummary } from '../api';
 import { useEventStream } from '../sse';
 
 const REFRESH_INTERVAL_MS = 30_000;
@@ -78,6 +78,21 @@ export function useSessionsState(): SessionsState {
   }, [refresh]);
 
   useEventStream('/api/stream', (name, data) => {
+    if (name === 'session.git_changed') {
+      const payload = data as
+        | { sessionId?: string; branch?: string | null; pr?: PrInfo | null }
+        | undefined;
+      if (!payload?.sessionId) return;
+      const targetId = payload.sessionId;
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.session_id === targetId
+            ? { ...s, branch: payload.branch ?? null, pr: payload.pr ?? null }
+            : s,
+        ),
+      );
+      return;
+    }
     if (
       name === 'inbound' ||
       name === 'outbound' ||
