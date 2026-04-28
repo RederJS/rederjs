@@ -10,6 +10,7 @@ import { listSessions } from '@rederjs/core/sessions';
 import { isRunning, startSession } from '@rederjs/core/tmux';
 import { listTranscript, getSessionActivity } from '../transcript.js';
 import type { SseRegistry } from '../sse.js';
+import { getSessionGit } from '../git.js';
 
 export interface SessionConfigEntry {
   session_id: string;
@@ -69,6 +70,7 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
         const tmuxRunning = isRunning(cfg.session_id);
         const unread = await readUnread(deps.storage, cfg.session_id);
         const act = activityById.get(cfg.session_id);
+        const git = await getSessionGit(cfg.workspace_dir, { logger: deps.logger });
         return {
           session_id: cfg.session_id,
           display_name: cfg.display_name,
@@ -88,6 +90,8 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
           activity_since: act?.since ?? null,
           last_hook: act?.lastHook ?? null,
           last_hook_at: act?.lastHookAt ?? null,
+          branch: git.branch,
+          pr: git.pr,
         };
       }),
     );
@@ -105,6 +109,7 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
     const tmuxRunning = isRunning(cfg.session_id);
     const unread = await readUnread(deps.storage, cfg.session_id);
     const act = deps.router.getActivity(cfg.session_id);
+    const git = await getSessionGit(cfg.workspace_dir, { logger: deps.logger });
     res.json({
       session_id: cfg.session_id,
       display_name: cfg.display_name,
@@ -124,6 +129,8 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
       activity_since: act?.since ?? null,
       last_hook: act?.lastHook ?? null,
       last_hook_at: act?.lastHookAt ?? null,
+      branch: git.branch,
+      pr: git.pr,
     });
   });
 
