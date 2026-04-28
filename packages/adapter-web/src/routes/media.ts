@@ -162,7 +162,10 @@ function streamFile(res: Response, path: string, mime: string, name: string): vo
 }
 
 function sanitizeFilename(name: string): string {
-  return name.replace(/[\r\n"]/g, '_');
+  // Strip characters that can break the quoted-string token in Content-Disposition
+  // (RFC 6266 §4.1): CR, LF, double-quote, backslash, and semicolon (which
+  // would allow injecting a second filename= parameter).
+  return name.replace(/[\r\n"\\;,]/g, '_');
 }
 
 function lookupRefBySha(
