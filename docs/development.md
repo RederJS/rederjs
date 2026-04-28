@@ -127,6 +127,18 @@ npm run dev:web
 
 Open the URL Vite prints. API calls hit `127.0.0.1:7781` (your dev daemon); SPA code reloads on save.
 
+### Reaching the dev server from a phone (LAN/Tailscale)
+
+`npm run dev:web` binds to `localhost` only. To reach it from another device on your network — typical for testing the mobile layout on a real phone:
+
+```sh
+npm run dev:web:lan
+```
+
+That sets `REDER_DEV_HOST=1`, which makes Vite listen on all interfaces. **Only use this on networks you trust:** the dev server proxies `/api` to the daemon over loopback, which bypasses the daemon's host-allowlist for any client that can reach Vite. Token auth on the daemon is the only remaining gate. Never enable it on coffee-shop wifi or other untrusted networks.
+
+For *direct* access to the daemon (port 7781) from another device, you also need to add that device's hostname or IP to `adapters.web.config.host_allowlist` in your `~/.config/reder/reder.config.yaml` — the daemon enforces a Host-header allowlist as DNS-rebinding protection and rejects unknown hosts with 421 "misdirected host".
+
 ## Exercising the Telegram adapter locally
 
 Create a separate dev bot via @BotFather — don't share a bot between your personal setup and a dev checkout, since only one process can long-poll a given bot at a time.

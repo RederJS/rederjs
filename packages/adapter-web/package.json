@@ -18,7 +18,8 @@
     "build": "tsc && npm run build:web",
     "build:web": "vite build --config web/vite.config.ts",
     "typecheck": "tsc --noEmit",
-    "dev:web": "vite --config web/vite.config.ts"
+    "dev:web": "vite --config web/vite.config.ts",
+    "dev:web:lan": "REDER_DEV_HOST=1 vite --config web/vite.config.ts"
   },
   "dependencies": {
     "@rederjs/core": "*",

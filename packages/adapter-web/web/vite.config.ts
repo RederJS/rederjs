@@ -43,9 +43,11 @@ export default defineConfig({
   root: __dirname,
   plugins: [react()],
   server: {
-    // Bind on all interfaces so the dev server is reachable from a phone over
-    // Tailscale/LAN, not just localhost.
-    host: true,
+    // Localhost-only by default. Set REDER_DEV_HOST=1 to bind on all interfaces
+    // (reachable from a phone over LAN/Tailscale). Opt-in because the dev
+    // server proxies /api to the daemon over loopback, which bypasses the
+    // daemon's host-allowlist for anyone on the network.
+    host: process.env.REDER_DEV_HOST ? true : undefined,
     port: 5173,
     proxy: {
       '/api': DAEMON_URL,
