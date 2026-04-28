@@ -16,18 +16,22 @@ import { parseButtons } from './MessageBubble';
 
 interface PanelProps {
   session: SessionSummary;
+  sessions: SessionSummary[];
   statusVariant: StatusVariant;
   bubbleVariant: BubbleVariant;
   composerVariant: ComposerVariant;
   onClose: () => void;
+  onSwitchSession: (sessionId: string) => void;
 }
 
 export function Panel({
   session,
+  sessions,
   statusVariant,
   bubbleVariant,
   composerVariant,
   onClose,
+  onSwitchSession,
 }: PanelProps): JSX.Element {
   const sessionId = session.session_id;
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
@@ -154,7 +158,13 @@ export function Panel({
 
   return (
     <div className="grid min-h-0 min-w-0 grid-rows-[auto_1fr_auto] overflow-hidden border-l border-line bg-bg">
-      <PanelHeader session={session} statusVariant={statusVariant} onClose={onClose} />
+      <PanelHeader
+        session={session}
+        sessions={sessions}
+        statusVariant={statusVariant}
+        onClose={onClose}
+        onSwitchSession={onSwitchSession}
+      />
       {error && (
         <div
           className="border-b px-4 py-2 text-xs"

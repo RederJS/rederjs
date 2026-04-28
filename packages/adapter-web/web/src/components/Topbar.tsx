@@ -9,6 +9,7 @@ interface TopbarProps {
   onToggleTheme: () => void;
   onOpenTweaks: () => void;
   onNewSession?: () => void;
+  onLogoClick?: () => void;
 }
 
 function formatPercent(percent: number): string {
@@ -29,6 +30,7 @@ export function Topbar({
   onToggleTheme,
   onOpenTweaks,
   onNewSession,
+  onLogoClick,
 }: TopbarProps): JSX.Element {
   const host =
     typeof window !== 'undefined' && window.location.hostname
@@ -36,16 +38,22 @@ export function Topbar({
       : 'localhost';
 
   return (
-    <header className="topbar-bg relative z-[2] flex items-center gap-4 border-b border-line px-5 py-3.5">
-      <div className="flex items-baseline gap-px font-mono text-[18px] font-bold tracking-[-0.02em]">
+    <header className="topbar-bg relative z-[2] flex items-center gap-2 md:gap-4 border-b border-line px-3 py-2.5 md:px-5 md:py-3.5">
+      <button
+        type="button"
+        onClick={onLogoClick}
+        title="Back to dashboard"
+        aria-label="Back to dashboard"
+        className="flex items-baseline gap-px font-mono text-[18px] font-bold tracking-[-0.02em] transition-colors hover:text-accent"
+      >
         <span>reder</span>
         <span
           className="ml-[3px] inline-block h-[18px] w-[9px] translate-y-[3px] bg-accent animate-caret-blink"
           aria-hidden
         />
-      </div>
+      </button>
 
-      <div className="flex h-[22px] items-center gap-2.5 border-l border-line pl-4 font-mono text-xs text-fg-3">
+      <div className="hidden md:flex h-[22px] items-center gap-2.5 border-l border-line pl-4 font-mono text-xs text-fg-3">
         <span className="breadcrumb-dot" aria-hidden />
         <span>
           host <span className="text-fg-2">{host}</span>
@@ -111,12 +119,12 @@ export function Topbar({
       <button
         type="button"
         onClick={onNewSession}
-        className="flex items-center gap-1.5 rounded-md border border-line bg-bg-2 px-3 py-1.5 font-mono text-xs text-fg-2 transition-colors hover:border-accent hover:text-accent"
+        className="flex items-center gap-1.5 rounded-md border border-line bg-bg-2 p-2 md:px-3 md:py-1.5 font-mono text-xs text-fg-2 transition-colors hover:border-accent hover:text-accent"
         title="New session"
         aria-label="New session"
       >
         <Icons.plus size={14} />
-        new session
+        <span className="hidden md:inline">new session</span>
       </button>
     </header>
   );

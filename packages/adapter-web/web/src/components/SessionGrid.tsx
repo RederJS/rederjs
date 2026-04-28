@@ -80,7 +80,7 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
   const gridStyle: CSSProperties = { ['--cols' as any]: cols };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-col overflow-auto px-5 pb-10 pt-6">
+    <div className="flex min-h-0 min-w-0 flex-col overflow-auto px-3 pb-6 pt-4 md:px-5 md:pb-10 md:pt-6">
       <div className="mb-4 flex flex-wrap items-center gap-3.5 font-mono text-xs">
         <span className="font-semibold text-fg">
           {filtered.length}
@@ -88,7 +88,21 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
         </span>
         <span className="h-3.5 w-px bg-line" />
 
-        <div className="flex gap-1.5">
+        <select
+          value={statusFilter}
+          onChange={(e) => onStatusFilterChange(e.target.value as Status | 'all')}
+          className="md:hidden rounded-md border border-line bg-bg-1 px-2.5 py-1 text-fg-2 font-mono text-xs"
+          aria-label="Status filter"
+        >
+          <option value="all">all ({sessions.length})</option>
+          {(['awaiting-user', 'idle', 'unknown', 'working', 'offline'] as const).map((s) => (
+            <option key={s} value={s}>
+              {s === 'awaiting-user' ? 'needs you' : s} ({counts[s]})
+            </option>
+          ))}
+        </select>
+
+        <div className="hidden md:flex gap-1.5">
           <Chip active={statusFilter === 'all'} onClick={() => onStatusFilterChange('all')}>
             all <span className="text-fg-4">{sessions.length}</span>
           </Chip>
@@ -103,7 +117,7 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
 
         <div className="flex-1" />
 
-        <label className="flex items-center gap-2 rounded-md border border-line bg-bg-1 px-2.5 py-1 text-fg-3">
+        <label className="hidden md:flex items-center gap-2 rounded-md border border-line bg-bg-1 px-2.5 py-1 text-fg-3">
           cols
           <input
             type="range"
@@ -116,7 +130,20 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
           <span className="min-w-[10px] text-center text-[11px] text-fg">{cols}</span>
         </label>
 
-        <div className="flex gap-px rounded-md border border-line p-0.5">
+        <select
+          value={sort}
+          onChange={(e) => onSortChange(e.target.value as SortKey)}
+          className="md:hidden rounded-md border border-line bg-bg-1 px-2.5 py-1 text-fg-2 font-mono text-xs"
+          aria-label="Sort"
+        >
+          {(['priority', 'recent', 'name'] as const).map((k) => (
+            <option key={k} value={k}>
+              sort: {k}
+            </option>
+          ))}
+        </select>
+
+        <div className="hidden md:flex gap-px rounded-md border border-line p-0.5">
           {(['priority', 'recent', 'name'] as const).map((k) => (
             <button
               key={k}
@@ -140,8 +167,8 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
       ) : (
         <div
           data-card={cardVariant}
-          className="grid gap-3.5"
-          style={{ ...gridStyle, gridTemplateColumns: 'repeat(var(--cols, 3), minmax(0, 1fr))' }}
+          className="sessions-grid grid gap-3.5"
+          style={gridStyle}
         >
           {filtered.map((s) => (
             <SessionCard

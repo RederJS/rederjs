@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { Panel } from './components/Panel';
 import { SessionGrid } from './components/SessionGrid';
 import { Topbar } from './components/Topbar';
@@ -43,16 +42,6 @@ export function App(): JSX.Element {
   const panelOpen = !!selectedSession;
   const panelVariant = tweaks.panel;
 
-  const contentStyle: CSSProperties = useMemo(() => {
-    if (!panelOpen || panelVariant === 'overlay') {
-      return { gridTemplateColumns: '1fr 0px' };
-    }
-    if (panelVariant === 'takeover') {
-      return { gridTemplateColumns: '0 1fr' };
-    }
-    return { gridTemplateColumns: '1fr min(620px, 46vw)' };
-  }, [panelOpen, panelVariant]);
-
   const openSession = (id: string): void => {
     if (selectedId === id) {
       navigate('/');
@@ -78,7 +67,7 @@ export function App(): JSX.Element {
   };
 
   return (
-    <div className="app-bg relative h-screen">
+    <div className="app-bg relative h-[100dvh]">
       <main
         className="relative grid h-full min-h-0 min-w-0"
         style={{ gridTemplateRows: 'auto 1fr' }}
@@ -90,15 +79,13 @@ export function App(): JSX.Element {
           onToggleTheme={() => setTweak('theme', tweaks.theme === 'dark' ? 'light' : 'dark')}
           onOpenTweaks={() => setTweaksOpen((v) => !v)}
           onNewSession={() => void handleNewSession()}
+          onLogoClick={() => navigate('/')}
         />
 
         <div
           data-panel={panelVariant}
           data-open={panelOpen || undefined}
-          className={cn(
-            'relative grid min-h-0 min-w-0 overflow-hidden transition-[grid-template-columns] duration-[320ms] ease-spring-out',
-          )}
-          style={contentStyle}
+          className="content-grid relative grid min-h-0 min-w-0 overflow-hidden transition-[grid-template-columns] duration-[320ms] ease-spring-out"
         >
           {loading && sessions.length === 0 ? (
             <div className="grid place-items-center text-sm text-fg-4">Loading sessions…</div>
@@ -121,32 +108,31 @@ export function App(): JSX.Element {
             />
           )}
 
-          {selectedSession &&
-            (panelVariant === 'overlay' ? (
-              <div
-                className={cn(
-                  'absolute bottom-0 right-0 top-0 z-[5] w-[min(620px,60%)] transition-transform duration-300 ease-spring-out',
-                  panelOpen ? 'translate-x-0' : 'translate-x-full',
-                )}
-                style={{ boxShadow: '-30px 0 60px -10px #000' }}
-              >
-                <Panel
-                  session={selectedSession}
-                  statusVariant={tweaks.status}
-                  bubbleVariant={tweaks.bubble}
-                  composerVariant={tweaks.composer}
-                  onClose={() => navigate('/')}
-                />
-              </div>
-            ) : (
+          {selectedSession && (() => {
+            const panelEl = (
               <Panel
                 session={selectedSession}
+                sessions={sessions}
                 statusVariant={tweaks.status}
                 bubbleVariant={tweaks.bubble}
                 composerVariant={tweaks.composer}
                 onClose={() => navigate('/')}
+                onSwitchSession={openSession}
               />
-            ))}
+            );
+            if (panelVariant !== 'overlay') return panelEl;
+            return (
+              <div
+                className={cn(
+                  'absolute bottom-0 right-0 top-0 z-[5] w-full md:w-[min(620px,60%)] transition-transform duration-300 ease-spring-out',
+                  panelOpen ? 'translate-x-0' : 'translate-x-full',
+                )}
+                style={{ boxShadow: '-30px 0 60px -10px #000' }}
+              >
+                {panelEl}
+              </div>
+            );
+          })()}
         </div>
       </main>
 
