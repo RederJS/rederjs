@@ -171,3 +171,39 @@ function looksLikeText(buf: Buffer): boolean {
     return false;
   }
 }
+
+export function encodeAttachmentsMeta(refs: readonly AttachmentRef[]): string {
+  if (refs.length === 0) return '';
+  return JSON.stringify(refs);
+}
+
+export function decodeAttachmentsMeta(raw: string | undefined): AttachmentRef[] {
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const out: AttachmentRef[] = [];
+  for (const item of parsed) {
+    if (!isAttachmentRef(item)) continue;
+    out.push(item);
+  }
+  return out;
+}
+
+function isAttachmentRef(v: unknown): v is AttachmentRef {
+  if (typeof v !== 'object' || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return (
+    typeof r['path'] === 'string' &&
+    typeof r['mime'] === 'string' &&
+    typeof r['name'] === 'string' &&
+    (r['kind'] === 'image' || r['kind'] === 'document') &&
+    typeof r['size'] === 'number' &&
+    typeof r['sha256'] === 'string' &&
+    /^[a-f0-9]{64}$/.test(r['sha256'] as string)
+  );
+}
