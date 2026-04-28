@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { extname, join } from 'node:path';
 
 export type AttachmentKind = 'image' | 'document';
@@ -69,6 +77,17 @@ export class AttachmentError extends Error {
 
 export function mediaDirFor(dataDir: string, sessionId: string): string {
   return join(dataDir, 'media', 'sessions', sessionId);
+}
+
+/**
+ * Recursively delete the per-session media cache. No-op if the directory
+ * doesn't exist. Returns true if a directory was actually present.
+ */
+export function wipeMediaForSession(dataDir: string, sessionId: string): boolean {
+  const dir = mediaDirFor(dataDir, sessionId);
+  if (!existsSync(dir)) return false;
+  rmSync(dir, { recursive: true, force: true });
+  return true;
 }
 
 /**

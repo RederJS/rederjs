@@ -72,6 +72,20 @@ export interface SessionActivityChangedPayload {
   readonly lastHookAt?: string;
 }
 
+export interface SessionClearedPayload {
+  readonly sessionId: string;
+  readonly source: 'startup' | 'clear';
+  readonly clearedAt: string;
+  readonly counts: {
+    readonly inbound: number;
+    readonly outbound: number;
+    readonly permissions: number;
+    readonly transcriptOffsets: number;
+    readonly cancelledPermissions: number;
+    readonly mediaWiped: boolean;
+  };
+}
+
 export interface RouterEventMap {
   'inbound.persisted': InboundPersistedPayload;
   'outbound.persisted': OutboundPersistedPayload;
@@ -80,6 +94,7 @@ export interface RouterEventMap {
   'permission.resolved': PermissionResolvedPayload;
   'session.state_changed': SessionStateChangedPayload;
   'session.activity_changed': SessionActivityChangedPayload;
+  'session.cleared': SessionClearedPayload;
 }
 
 export interface RouterEvents {

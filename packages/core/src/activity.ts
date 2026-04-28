@@ -110,6 +110,21 @@ export class SessionActivityTracker {
     this.states.delete(sessionId);
   }
 
+  /**
+   * Drop in-flight pending-permission tracking and the unread counter for a
+   * session. Used when the session's conversation state is purged (e.g. on
+   * a SessionStart-from-clear hook). `shimConnected`, `lastHook`, and the
+   * derived state are preserved — those reflect the live process, not the
+   * conversation.
+   */
+  resetPendingForClear(sessionId: string): void {
+    const s = this.states.get(sessionId);
+    if (!s) return;
+    s.pendingPermissions.clear();
+    s.unread = 0;
+    this.recompute(sessionId, s);
+  }
+
   private ensure(sessionId: string): InternalState {
     const existing = this.states.get(sessionId);
     if (existing) return existing;

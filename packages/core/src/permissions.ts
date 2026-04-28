@@ -268,6 +268,41 @@ export class PermissionManager {
     this.active.clear();
   }
 
+  /**
+   * Abandon every in-flight permission request belonging to a session — used
+   * when the session's claude process has been cleared/restarted, so the
+   * original tool calls are no longer reachable. Returns the request_ids
+   * that were active so callers can broadcast cancellation to adapters.
+   *
+   * Adapter prompts are cancelled here with `final_verdict='terminal'` so
+   * the user-visible UI in Telegram / web disappears. The on-disk
+   * `permission_requests` rows are NOT updated — the surrounding session
+   * purge deletes them.
+   */
+  async cancelForSession(sessionId: string): Promise<string[]> {
+    const cancelled: string[] = [];
+    for (const [requestId, entry] of this.active) {
+      if (entry.session_id !== sessionId) continue;
+      clearTimeout(entry.timer);
+      entry.settled = true;
+      cancelled.push(requestId);
+    }
+    for (const requestId of cancelled) {
+      this.active.delete(requestId);
+      for (const name of this.opts.adapters.allNames()) {
+        try {
+          await this.opts.adapters.cancel(name, requestId, 'terminal');
+        } catch (err) {
+          this.opts.logger.error(
+            { err, adapter: name, request_id: requestId },
+            'failed to cancel adapter permission prompt during session clear',
+          );
+        }
+      }
+    }
+    return cancelled;
+  }
+
   // Test helper
   activeCount(): number {
     return this.active.size;

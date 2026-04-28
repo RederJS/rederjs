@@ -64,6 +64,13 @@ export function Panel({
       void refresh();
       return;
     }
+    if (name === 'session.cleared') {
+      setMessages([]);
+      setPermissions([]);
+      setAnsweredByMsgId(new Map());
+      setError(null);
+      return;
+    }
     if (name === 'permission.requested') {
       const p = data as PendingPermission;
       setPermissions((prev) =>

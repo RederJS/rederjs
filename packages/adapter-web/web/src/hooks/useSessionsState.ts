@@ -106,6 +106,19 @@ export function useSessionsState(): SessionsState {
         if (payload?.sessionId) void refreshPreview(payload.sessionId);
       }
     }
+    if (name === 'session.cleared') {
+      const payload = data as { sessionId?: string } | undefined;
+      if (payload?.sessionId) {
+        const targetId = payload.sessionId;
+        setPreviews((prev) => {
+          if (!prev.has(targetId)) return prev;
+          const next = new Map(prev);
+          next.delete(targetId);
+          return next;
+        });
+      }
+      void refresh();
+    }
   });
 
   return { sessions, previews, loading, error, refresh, refreshPreview };

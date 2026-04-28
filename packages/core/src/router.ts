@@ -45,7 +45,13 @@ import {
   listAllBindingsForSession,
 } from './pairing.js';
 import type { Config } from './config.js';
-import { stageOutboundFile, encodeAttachmentsMeta, type AttachmentRef } from './media.js';
+import {
+  stageOutboundFile,
+  encodeAttachmentsMeta,
+  wipeMediaForSession,
+  type AttachmentRef,
+} from './media.js';
+import { purgeSessionData } from './storage/purge.js';
 
 export interface RouterOptions {
   db: Db;
@@ -164,6 +170,23 @@ export function createRouter(opts: RouterOptions): Router {
   });
 
   ipcServer.on('hook_event', (evt) => {
+    // SessionStart fires on startup, resume, clear, and compact. Wipe only on
+    // startup (fresh tmux/claude) and clear (user typed /clear) — `resume` and
+    // `compact` are explicit user attempts to keep context, so leave history
+    // alone.
+    if (evt.hook === 'SessionStart') {
+      const rawSource = evt.payload?.['source'];
+      const source =
+        typeof rawSource === 'string' && (rawSource === 'startup' || rawSource === 'clear')
+          ? rawSource
+          : null;
+      if (source !== null) {
+        void clearSession(evt.session_id, source, evt.timestamp);
+        // Don't update activity until purge finishes — clearSession recomputes
+        // activity itself after resetting unread/pending state.
+        return;
+      }
+    }
     activity.onHookEvent({
       sessionId: evt.session_id,
       hook: evt.hook,
@@ -180,6 +203,90 @@ export function createRouter(opts: RouterOptions): Router {
       void captureTranscript(evt.session_id, evt.payload['transcript_path']);
     }
   });
+
+  async function clearSession(
+    sessionId: string,
+    source: 'startup' | 'clear',
+    hookTimestamp: string,
+  ): Promise<void> {
+    let counts: ReturnType<typeof purgeSessionData> = {
+      inbound: 0,
+      outbound: 0,
+      permissions: 0,
+      transcriptOffsets: 0,
+    };
+    let mediaWiped = false;
+    let cancelledPermissions: string[] = [];
+    try {
+      cancelledPermissions = await permissions.cancelForSession(sessionId);
+      counts = purgeSessionData(db, sessionId);
+      if (opts.dataDir) {
+        try {
+          mediaWiped = wipeMediaForSession(opts.dataDir, sessionId);
+        } catch (err) {
+          logger.warn(
+            { err, session_id: sessionId, component: 'core.router' },
+            'failed to wipe media on session clear',
+          );
+        }
+      }
+      activity.resetPendingForClear(sessionId);
+      // The eager-prompt cache only holds the most recent UserPromptSubmit
+      // prompt for fall-through into transcript capture. After a clear,
+      // any cached prompt is referencing a turn that no longer exists.
+      eagerPromptBySession.delete(sessionId);
+      lastInboundBySession.delete(sessionId);
+      // Now apply the activity hook update. SessionStart resolves to 'idle'
+      // (claude is freshly up, awaiting input). resetPendingForClear above
+      // already cleared pendingPermissions and unread, so derive() lands on
+      // 'idle' instead of 'awaiting-user'.
+      activity.onHookEvent({
+        sessionId,
+        hook: 'SessionStart',
+        timestamp: hookTimestamp,
+      });
+      audit.write({
+        kind: 'session_cleared',
+        session_id: sessionId,
+        source,
+        counts,
+        cancelled_permissions: cancelledPermissions.length,
+      });
+      logger.info(
+        {
+          session_id: sessionId,
+          source,
+          ...counts,
+          cancelled_permissions: cancelledPermissions.length,
+          media_wiped: mediaWiped,
+          component: 'core.router',
+        },
+        'session conversation state cleared',
+      );
+    } catch (err) {
+      logger.error(
+        { err, session_id: sessionId, source, component: 'core.router' },
+        'session clear failed',
+      );
+      return;
+    }
+    emit('session.cleared', {
+      sessionId,
+      source,
+      // The hook's own timestamp records when claude actually fired
+      // SessionStart, not when this handler finished its async work — the
+      // latter could be hundreds of ms later if the daemon is busy.
+      clearedAt: hookTimestamp,
+      counts: {
+        inbound: counts.inbound,
+        outbound: counts.outbound,
+        permissions: counts.permissions,
+        transcriptOffsets: counts.transcriptOffsets,
+        cancelledPermissions: cancelledPermissions.length,
+        mediaWiped,
+      },
+    });
+  }
 
   // Tracks the most recent UserPromptSubmit prompt text per session so the
   // Stop-time transcript tail can match and skip that exact user entry.
