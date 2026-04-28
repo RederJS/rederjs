@@ -207,3 +207,61 @@ function isAttachmentRef(v: unknown): v is AttachmentRef {
     /^[a-f0-9]{64}$/.test(r['sha256'] as string)
   );
 }
+
+export interface CacheInboundBlobInput {
+  readonly dataDir: string;
+  readonly sessionId: string;
+  readonly bytes: Buffer;
+  readonly declaredMime: string | undefined;
+  readonly declaredName: string | undefined;
+}
+
+export async function cacheInboundBlob(input: CacheInboundBlobInput): Promise<AttachmentRef> {
+  if (input.bytes.length > PER_FILE_MAX_BYTES) {
+    throw new AttachmentError(
+      'too_large',
+      `attachment is ${input.bytes.length} bytes (max ${PER_FILE_MAX_BYTES})`,
+    );
+  }
+  const mime = sniffMime(input.bytes, input.declaredMime, input.declaredName);
+  if (!mime) {
+    throw new AttachmentError(
+      'mime_unrecognized',
+      'could not identify file type from content',
+    );
+  }
+  if (!isAllowedMime(mime)) {
+    throw new AttachmentError('mime_not_allowed', `mime ${mime} is not allowed`);
+  }
+
+  const sha256 = createHash('sha256').update(input.bytes).digest('hex');
+  const dir = mediaDirFor(input.dataDir, input.sessionId);
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  chmodSync(dir, 0o700);
+
+  const filename = blobFilename(sha256, mime);
+  const path = join(dir, filename);
+  if (!existsSync(path)) {
+    writeFileSync(path, input.bytes, { mode: 0o600 });
+  } else {
+    chmodSync(path, 0o600);
+  }
+
+  const kind = kindForMime(mime);
+  if (!kind) {
+    throw new AttachmentError('mime_not_allowed', `internal: no kind for mime ${mime}`);
+  }
+  const fallbackName =
+    input.declaredName && input.declaredName.length > 0
+      ? input.declaredName
+      : `${sha256}${extensionFor(mime) ?? ''}`;
+
+  return {
+    path,
+    mime,
+    name: fallbackName,
+    kind,
+    size: input.bytes.length,
+    sha256,
+  };
+}

@@ -1,6 +1,17 @@
-import { describe, it, expect } from 'vitest';
-import { sniffMime, encodeAttachmentsMeta, decodeAttachmentsMeta } from '../src/media.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import {
+  sniffMime,
+  encodeAttachmentsMeta,
+  decodeAttachmentsMeta,
+  cacheInboundBlob,
+  AttachmentError,
+  mediaDirFor,
+  PER_FILE_MAX_BYTES,
+} from '../src/media.js';
 import type { AttachmentRef } from '../src/media.js';
+import { mkdtempSync, rmSync, statSync, readFileSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 describe('sniffMime', () => {
   it('detects PNG from 8-byte signature', () => {
@@ -106,5 +117,118 @@ describe('encode/decodeAttachmentsMeta', () => {
 
   it('encode emits an empty string when given no refs', () => {
     expect(encodeAttachmentsMeta([])).toBe('');
+  });
+});
+
+describe('cacheInboundBlob', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'reder-media-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('writes bytes under sessions/<id>/<sha256>.<ext> with 0600', async () => {
+    const png = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01, 0x02, 0x03, 0x04,
+    ]);
+    const ref = await cacheInboundBlob({
+      dataDir: dir,
+      sessionId: 's1',
+      bytes: png,
+      declaredMime: undefined,
+      declaredName: 'shot.png',
+    });
+    expect(ref.mime).toBe('image/png');
+    expect(ref.kind).toBe('image');
+    expect(ref.name).toBe('shot.png');
+    expect(ref.size).toBe(png.length);
+    expect(ref.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(ref.path.startsWith(mediaDirFor(dir, 's1'))).toBe(true);
+    expect(ref.path.endsWith('.png')).toBe(true);
+    expect(readFileSync(ref.path).equals(png)).toBe(true);
+    expect(statSync(ref.path).mode & 0o777).toBe(0o600);
+  });
+
+  it('reuses existing blob on identical content (dedupe by sha256)', async () => {
+    const png = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x9, 0x8, 0x7,
+    ]);
+    const a = await cacheInboundBlob({
+      dataDir: dir,
+      sessionId: 's1',
+      bytes: png,
+      declaredMime: undefined,
+      declaredName: 'a.png',
+    });
+    const b = await cacheInboundBlob({
+      dataDir: dir,
+      sessionId: 's1',
+      bytes: png,
+      declaredMime: undefined,
+      declaredName: 'b.png',
+    });
+    expect(a.path).toBe(b.path);
+    expect(a.sha256).toBe(b.sha256);
+  });
+
+  it('rejects oversized blobs', async () => {
+    const big = Buffer.alloc(PER_FILE_MAX_BYTES + 1, 0x90);
+    await expect(
+      cacheInboundBlob({
+        dataDir: dir,
+        sessionId: 's1',
+        bytes: big,
+        declaredMime: 'application/pdf',
+        declaredName: 'huge.pdf',
+      }),
+    ).rejects.toMatchObject({ code: 'too_large' });
+  });
+
+  it('rejects unrecognized binary content', async () => {
+    const junk = Buffer.from([0x00, 0xff, 0xab, 0x00, 0x01]);
+    await expect(
+      cacheInboundBlob({
+        dataDir: dir,
+        sessionId: 's1',
+        bytes: junk,
+        declaredMime: 'application/octet-stream',
+        declaredName: 'mystery.bin',
+      }),
+    ).rejects.toMatchObject({ code: 'mime_unrecognized' });
+  });
+
+  it('falls back to <sha256>.<ext> when name is missing', async () => {
+    const pdf = Buffer.from('%PDF-1.4\n%hello\n');
+    const ref = await cacheInboundBlob({
+      dataDir: dir,
+      sessionId: 's1',
+      bytes: pdf,
+      declaredMime: undefined,
+      declaredName: undefined,
+    });
+    expect(ref.name).toBe(`${ref.sha256}.pdf`);
+  });
+
+  it('isolates sessions in their own subdirs', async () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const a = await cacheInboundBlob({
+      dataDir: dir,
+      sessionId: 's1',
+      bytes: png,
+      declaredMime: undefined,
+      declaredName: 'p.png',
+    });
+    const b = await cacheInboundBlob({
+      dataDir: dir,
+      sessionId: 's2',
+      bytes: png,
+      declaredMime: undefined,
+      declaredName: 'p.png',
+    });
+    expect(a.path).not.toBe(b.path);
+    expect(existsSync(a.path)).toBe(true);
+    expect(existsSync(b.path)).toBe(true);
   });
 });
