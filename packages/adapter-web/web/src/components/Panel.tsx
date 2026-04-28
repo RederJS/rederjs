@@ -68,6 +68,7 @@ export function Panel({
       setMessages([]);
       setPermissions([]);
       setAnsweredByMsgId(new Map());
+      setError(null);
       return;
     }
     if (name === 'permission.requested') {
