@@ -28,7 +28,7 @@ export function PanelHeader({
       <button
         type="button"
         onClick={onClose}
-        aria-label="Back"
+        aria-label="Back to dashboard"
         className="md:hidden grid size-9 place-items-center rounded-md text-fg-3 hover:bg-bg-2 hover:text-fg"
       >
         <Icons.chevL size={18} />
