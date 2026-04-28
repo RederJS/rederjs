@@ -234,6 +234,11 @@ export class FakeTelegramTransport implements TelegramTransport {
     chatId: number | string,
     media: readonly InputMediaPhoto[],
   ): Promise<Array<{ message_id: number }>> {
+    const failure = this.failures.find((f) => f.kind === 'send' && f.remaining > 0);
+    if (failure) {
+      failure.remaining--;
+      throw failure.error;
+    }
     const ids: number[] = [];
     for (let i = 0; i < media.length; i++) ids.push(this.nextMessageId++);
     this.sentGroups.push({ chatId, media, message_ids: ids });
