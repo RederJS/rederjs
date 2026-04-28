@@ -25,6 +25,14 @@ export function PanelHeader({
       className="flex items-center gap-3 border-b border-line px-4 py-3"
       style={{ background: 'color-mix(in oklab, var(--bg) 50%, var(--bg-1))' }}
     >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Back"
+        className="md:hidden grid size-9 place-items-center rounded-md text-fg-3 hover:bg-bg-2 hover:text-fg"
+      >
+        <Icons.chevL size={18} />
+      </button>
       <div className="scale-[0.92]">
         <Avatar
           sessionId={session.session_id}
