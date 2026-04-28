@@ -143,6 +143,65 @@ describe('GET /api/sessions/:sessionId/media/:sha256', () => {
     expect(res.status).toBe(400);
   });
 
+  it('sanitizes the Content-Disposition filename against RFC 6266 injection', async () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xab, 0xcd]);
+    // Upload a file (filename here doesn't matter for the served header — the
+    // Content-Disposition reads from meta.attachments[0].name via lookupRefBySha).
+    const fd = new FormData();
+    fd.append('file', new Blob([png], { type: 'image/png' }), 'safe.png');
+    const upRes = await fetch(`${baseUrl}/api/sessions/demo/media`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'sec-fetch-site': 'same-origin' },
+      body: fd,
+    });
+    const up = (await upRes.json()) as {
+      sha256: string;
+      path: string;
+      mime: string;
+      size: number;
+    };
+    // Attach a malicious filename via meta.attachments. This is what the GET
+    // serve handler reads to set Content-Disposition.
+    const evilName = 'evil"; filename=pwned.exe; \\\r\nLeaked: secret';
+    const msgRes = await fetch(`${baseUrl}/api/sessions/demo/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'sec-fetch-site': 'same-origin',
+      },
+      body: JSON.stringify({
+        content: '',
+        files: [up.path],
+        meta: {
+          attachments: JSON.stringify([
+            {
+              path: up.path,
+              mime: up.mime,
+              name: evilName,
+              kind: 'image',
+              size: up.size,
+              sha256: up.sha256,
+            },
+          ]),
+        },
+      }),
+    });
+    expect(msgRes.status).toBe(202);
+    const res = await fetch(`${baseUrl}/api/sessions/demo/media/${up.sha256}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const cd = res.headers.get('content-disposition') ?? '';
+    // The filename value sits inside a quoted-string. To prevent the attacker
+    // from injecting a second parameter (e.g. attachment;filename=pwned.exe),
+    // the quoted value must not contain raw `"`, `;`, `\\`, CR, or LF.
+    expect(cd.startsWith('inline; filename="')).toBe(true);
+    expect(cd.endsWith('"')).toBe(true);
+    const value = cd.slice('inline; filename="'.length, -1);
+    expect(value).not.toMatch(/["\\;,\r\n]/);
+  });
+
   it('404s on unknown sha256', async () => {
     const res = await fetch(`${baseUrl}/api/sessions/demo/media/${'a'.repeat(64)}`, {
       headers: { Authorization: `Bearer ${token}` },
