@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDatabase, type DatabaseHandle } from '../../core/src/storage/db.js';
@@ -12,7 +12,7 @@ import { createAdapterStorage } from '../../core/src/storage/kv.js';
 import { createBinding } from '../../core/src/pairing.js';
 import type { AdapterContext, InboundMessage } from '../../core/src/adapter.js';
 import { TelegramAdapter } from '../src/index.js';
-import { downloadAndCache, FileTooLargeError } from '../src/media.js';
+import { decodeAttachmentsMeta, mediaDirFor } from '../../core/src/media.js';
 import { FakeTelegramTransport } from './fake-transport.js';
 
 let dir: string;
@@ -71,36 +71,10 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-describe('downloadAndCache', () => {
-  it('caches file under sha256 name and enforces max size', async () => {
-    fake.files.set('f1', { file_path: 'photos/abc.jpg', data: Buffer.from('hello world') });
-    const cached = await downloadAndCache({
-      transport: fake,
-      fileId: 'f1',
-      cacheDir: join(dir, 'cache'),
-    });
-    expect(cached.path.endsWith('.jpg')).toBe(true);
-    expect(readFileSync(cached.path, 'utf8')).toBe('hello world');
-    const mode = statSync(cached.path).mode & 0o777;
-    expect(mode).toBe(0o600);
-  });
-
-  it('throws FileTooLargeError when payload exceeds limit', async () => {
-    fake.files.set('f2', { file_path: 'x.bin', data: Buffer.alloc(100) });
-    await expect(
-      downloadAndCache({
-        transport: fake,
-        fileId: 'f2',
-        cacheDir: join(dir, 'cache'),
-        maxBytes: 10,
-      }),
-    ).rejects.toBeInstanceOf(FileTooLargeError);
-  });
-});
-
-describe('TelegramAdapter media', () => {
-  it('downloads a photo, caches it, and emits InboundMessage with files[] + image_path meta', async () => {
-    fake.files.set('ph1', { file_path: 'photos/a.jpg', data: Buffer.from('image-bytes') });
+describe('TelegramAdapter media (per-session cache + meta.attachments)', () => {
+  it('caches a photo under sessions/<id>/<sha256>.<ext>', async () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01]);
+    fake.files.set('ph1', { file_path: 'photos/a.jpg', data: png });
     fake.enqueueUpdate({
       update_id: 1,
       message: {
@@ -112,18 +86,25 @@ describe('TelegramAdapter media', () => {
           { file_id: 'ph1-small', width: 100, height: 100, file_size: 100 },
           { file_id: 'ph1', width: 800, height: 600, file_size: 12345 },
         ],
-        caption: 'look at this',
+        caption: 'look',
       },
     });
     await waitFor(() => received.length > 0, 2000);
-    expect(received[0]!.content).toBe('look at this');
-    expect(received[0]!.files).toHaveLength(1);
-    expect(received[0]!.meta['image_path']).toBe(received[0]!.files[0]);
-    expect(received[0]!.meta['attachment_kind']).toBe('image');
+    const m = received[0]!;
+    expect(m.content).toBe('look');
+    expect(m.files).toHaveLength(1);
+    expect(m.files[0]!.startsWith(mediaDirFor(dir, 'booknerds'))).toBe(true);
+    const refs = decodeAttachmentsMeta(m.meta['attachments']);
+    expect(refs).toHaveLength(1);
+    expect(refs[0]!.kind).toBe('image');
+    expect(refs[0]!.mime).toBe('image/png');
+    expect(m.meta['image_path']).toBeUndefined();
+    expect(m.meta['attachment_kind']).toBeUndefined();
   });
 
-  it('downloads a document and emits InboundMessage with file_path meta', async () => {
-    fake.files.set('doc1', { file_path: 'docs/report.pdf', data: Buffer.from('%PDF-1.4\n...') });
+  it('caches a PDF document with meta.attachments and no legacy keys', async () => {
+    const pdf = Buffer.from('%PDF-1.4\nhi\n');
+    fake.files.set('doc1', { file_path: 'docs/r.pdf', data: pdf });
     fake.enqueueUpdate({
       update_id: 1,
       message: {
@@ -135,17 +116,20 @@ describe('TelegramAdapter media', () => {
           file_id: 'doc1',
           file_name: 'report.pdf',
           mime_type: 'application/pdf',
-          file_size: 13,
+          file_size: pdf.length,
         },
       },
     });
     await waitFor(() => received.length > 0, 2000);
-    expect(received[0]!.meta['file_path']).toBeTruthy();
-    expect(received[0]!.meta['attachment_name']).toBe('report.pdf');
-    expect(received[0]!.meta['attachment_mime']).toBe('application/pdf');
+    const refs = decodeAttachmentsMeta(received[0]!.meta['attachments']);
+    expect(refs).toHaveLength(1);
+    expect(refs[0]!.kind).toBe('document');
+    expect(refs[0]!.mime).toBe('application/pdf');
+    expect(refs[0]!.name).toBe('report.pdf');
+    expect(received[0]!.meta['file_path']).toBeUndefined();
   });
 
-  it('rejects documents larger than 20 MB', async () => {
+  it('rejects oversized documents before downloading', async () => {
     fake.enqueueUpdate({
       update_id: 1,
       message: {
@@ -153,14 +137,35 @@ describe('TelegramAdapter media', () => {
         chat: { id: 42, type: 'private' },
         from: { id: 99 },
         date: 1,
-        document: {
-          file_id: 'big',
-          file_size: 21 * 1024 * 1024,
-        },
+        document: { file_id: 'big', file_size: 21 * 1024 * 1024 },
       },
     });
     await waitFor(() => fake.sent.length > 0, 2000);
     expect(fake.sent[0]!.text).toContain('too large');
+    expect(received).toHaveLength(0);
+  });
+
+  it('rejects an unsupported document MIME with a friendly reply', async () => {
+    // ZIP magic bytes — not in our 7-MIME allowlist, sniffer returns undefined.
+    const zip = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]);
+    fake.files.set('zip1', { file_path: 'docs/x.zip', data: zip });
+    fake.enqueueUpdate({
+      update_id: 1,
+      message: {
+        message_id: 350,
+        chat: { id: 42, type: 'private' },
+        from: { id: 99 },
+        date: 1,
+        document: {
+          file_id: 'zip1',
+          file_name: 'archive.zip',
+          mime_type: 'application/zip',
+          file_size: zip.length,
+        },
+      },
+    });
+    await waitFor(() => fake.sent.length > 0, 2000);
+    expect(fake.sent[0]!.text.toLowerCase()).toContain("not supported");
     expect(received).toHaveLength(0);
   });
 
