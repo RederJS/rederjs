@@ -22,7 +22,7 @@ export function PanelHeader({
   const status = sessionStatus(session);
   return (
     <div
-      className="flex items-center gap-3 border-b border-line px-4 py-3"
+      className="flex min-w-0 items-center gap-3 overflow-hidden border-b border-line px-4 py-3"
       style={{ background: 'color-mix(in oklab, var(--bg) 50%, var(--bg-1))' }}
     >
       <button
@@ -54,7 +54,7 @@ export function PanelHeader({
               <span className="shrink-0">•</span>
               <span className="inline-flex min-w-0 items-center gap-1">
                 <Icons.branch size={12} />
-                <b className="truncate font-medium text-fg-2" title={session.branch}>
+                <b className="min-w-0 truncate font-medium text-fg-2" title={session.branch}>
                   {session.branch}
                 </b>
                 {session.pr && (
@@ -76,7 +76,12 @@ export function PanelHeader({
               <span className="hidden md:inline shrink-0">•</span>
               <span className="hidden md:inline-flex min-w-0 items-center gap-1">
                 <Icons.folder size={12} />{' '}
-                <b className="truncate font-medium text-fg-2">{session.workspace_dir}</b>
+                <b
+                  className="min-w-0 truncate font-medium text-fg-2"
+                  title={session.workspace_dir}
+                >
+                  {session.workspace_dir}
+                </b>
               </span>
             </>
           )}
