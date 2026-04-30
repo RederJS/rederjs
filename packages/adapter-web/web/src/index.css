@@ -111,21 +111,26 @@
      Layout is driven by [data-panel] (variant) and [data-open] (whether a session
      is selected). Mobile collapses every panel mode into "takeover" — the panel
      fills the viewport and the dashboard column shrinks to zero. */
+  /* `minmax(0, 1fr)` (instead of bare `1fr`) keeps the track from growing
+     past its share when a child has large min-content — without it a long
+     unbreakable token inside the panel (e.g. a long URL in inline `<code>`)
+     stretches the column past the viewport, and the message bubbles / send
+     button get visually clipped on the right. */
   .content-grid {
-    grid-template-columns: 1fr 0px;
+    grid-template-columns: minmax(0, 1fr) 0px;
   }
   .content-grid[data-panel='push'][data-open] {
-    grid-template-columns: 1fr min(620px, 46vw);
+    grid-template-columns: minmax(0, 1fr) min(620px, 46vw);
   }
   .content-grid[data-panel='takeover'][data-open] {
-    grid-template-columns: 0 1fr;
+    grid-template-columns: 0 minmax(0, 1fr);
   }
   /* overlay leaves the underlying grid alone; the panel is rendered absolutely. */
   /* Mobile collapse: needs to match the variant-specific selectors above on
      specificity (1 class + 2 attrs) and rely on source order to win. */
   @media (max-width: 767px) {
     .content-grid[data-panel][data-open] {
-      grid-template-columns: 0 1fr;
+      grid-template-columns: 0 minmax(0, 1fr);
     }
   }
 
