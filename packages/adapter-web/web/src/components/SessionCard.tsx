@@ -124,7 +124,7 @@ export function SessionCard({
         </div>
         <div className="flex-1 px-3.5 py-2 text-[13px] leading-[1.5] text-fg-2 line-clamp-2 min-h-[2.9em]">
           <span className="mr-1.5 font-mono text-[11px] text-fg-4">›</span>
-          {preview ?? (session.workspace_dir || 'No activity yet')}
+          {preview ?? 'No activity yet'}
         </div>
         <div
           className="grid grid-cols-4 gap-1 border-t border-line px-3.5 py-2.5 font-mono text-[10.5px] text-fg-3"
@@ -177,7 +177,7 @@ export function SessionCard({
 
       <div className="min-h-[2.9em] leading-[1.5] text-fg-2 line-clamp-4 text-[12px] @[141px]/card:line-clamp-3 @[141px]/card:text-[12.5px] @[171px]/card:line-clamp-2 @[171px]/card:text-[13px]">
         <span className="mr-1.5 font-mono text-[11px] text-fg-4">›</span>
-        {preview ?? (session.workspace_dir || 'No activity yet')}
+        {preview ?? 'No activity yet'}
       </div>
 
       {status === 'working' && <div className="scanbar" />}

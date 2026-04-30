@@ -71,20 +71,6 @@ export function PanelHeader({
               </span>
             </>
           )}
-          {session.workspace_dir && (
-            <>
-              <span className="hidden md:inline shrink-0">•</span>
-              <span className="hidden md:inline-flex min-w-0 items-center gap-1">
-                <Icons.folder size={12} />{' '}
-                <b
-                  className="min-w-0 truncate font-medium text-fg-2"
-                  title={session.workspace_dir}
-                >
-                  {session.workspace_dir}
-                </b>
-              </span>
-            </>
-          )}
         </div>
         <select
           value={session.session_id}
