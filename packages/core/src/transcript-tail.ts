@@ -1,22 +1,31 @@
 import { openSync, closeSync, readSync, statSync } from 'node:fs';
 import type { Database as Db } from 'better-sqlite3';
-import { classifyTranscriptLine, type ClassifiedEntry } from './transcript-parser.js';
+import {
+  classifyTranscriptLine,
+  classifyTranscriptSummary,
+  type ClassifiedEntry,
+} from './transcript-parser.js';
 
 export interface ConsumeInput {
   sessionId: string;
   transcriptPath: string;
 }
 
+export interface ConsumeResult {
+  entries: ClassifiedEntry[];
+  latestSummary: string | null;
+}
+
 const READ_CHUNK = 64 * 1024;
 
-export async function consumeTranscript(db: Db, input: ConsumeInput): Promise<ClassifiedEntry[]> {
+export async function consumeTranscript(db: Db, input: ConsumeInput): Promise<ConsumeResult> {
   const { sessionId, transcriptPath } = input;
 
   let size: number;
   try {
     size = statSync(transcriptPath).size;
   } catch {
-    return [];
+    return { entries: [], latestSummary: null };
   }
 
   const stored = db
@@ -28,7 +37,7 @@ export async function consumeTranscript(db: Db, input: ConsumeInput): Promise<Cl
 
   if (start === size) {
     upsertOffset(db, sessionId, transcriptPath, size);
-    return [];
+    return { entries: [], latestSummary: null };
   }
 
   const fd = openSync(transcriptPath, 'r');
@@ -48,20 +57,26 @@ export async function consumeTranscript(db: Db, input: ConsumeInput): Promise<Cl
 
     const lastNewline = buf.lastIndexOf(0x0a);
     if (lastNewline < 0) {
-      return [];
+      return { entries: [], latestSummary: null };
     }
     const consumable = buf.subarray(0, lastNewline + 1).toString('utf8');
     const newOffset = start + lastNewline + 1;
 
-    const out: ClassifiedEntry[] = [];
+    const entries: ClassifiedEntry[] = [];
+    let latestSummary: string | null = null;
     for (const line of consumable.split('\n')) {
       if (line.length === 0) continue;
       const entry = classifyTranscriptLine(line);
-      if (entry) out.push(entry);
+      if (entry) {
+        entries.push(entry);
+        continue;
+      }
+      const summary = classifyTranscriptSummary(line);
+      if (summary !== null) latestSummary = summary;
     }
 
     upsertOffset(db, sessionId, transcriptPath, newOffset);
-    return out;
+    return { entries, latestSummary };
   } finally {
     closeSync(fd);
   }

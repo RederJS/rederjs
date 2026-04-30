@@ -38,7 +38,7 @@ describe('consumeTranscript', () => {
   it('returns empty and sets offset when file is empty', async () => {
     writeFileSync(tPath, '');
     const out = await consumeTranscript(db.raw, { sessionId: 's1', transcriptPath: tPath });
-    expect(out).toEqual([]);
+    expect(out.entries).toEqual([]);
     const row = db.raw
       .prepare('SELECT byte_offset FROM transcript_offsets WHERE session_id = ?')
       .get('s1') as { byte_offset: number } | undefined;
@@ -48,7 +48,7 @@ describe('consumeTranscript', () => {
   it('returns all entries on first read', async () => {
     writeFileSync(tPath, USER('u1', 'hi') + ASSISTANT('a1', 'hello'));
     const out = await consumeTranscript(db.raw, { sessionId: 's1', transcriptPath: tPath });
-    expect(out.map((e) => e.uuid)).toEqual(['u1', 'a1']);
+    expect(out.entries.map((e) => e.uuid)).toEqual(['u1', 'a1']);
   });
 
   it('resumes from stored offset on second read', async () => {
@@ -56,7 +56,7 @@ describe('consumeTranscript', () => {
     await consumeTranscript(db.raw, { sessionId: 's1', transcriptPath: tPath });
     appendFileSync(tPath, ASSISTANT('a1', 'hello'));
     const out = await consumeTranscript(db.raw, { sessionId: 's1', transcriptPath: tPath });
-    expect(out.map((e) => e.uuid)).toEqual(['a1']);
+    expect(out.entries.map((e) => e.uuid)).toEqual(['a1']);
   });
 
   it('does not advance past a trailing partial line', async () => {
@@ -65,10 +65,10 @@ describe('consumeTranscript', () => {
     const partial = asstLine.slice(0, 20);
     writeFileSync(tPath, full + partial);
     const out1 = await consumeTranscript(db.raw, { sessionId: 's1', transcriptPath: tPath });
-    expect(out1.map((e) => e.uuid)).toEqual(['u1']);
+    expect(out1.entries.map((e) => e.uuid)).toEqual(['u1']);
     appendFileSync(tPath, asstLine.slice(20));
     const out2 = await consumeTranscript(db.raw, { sessionId: 's1', transcriptPath: tPath });
-    expect(out2.map((e) => e.uuid)).toEqual(['a1']);
+    expect(out2.entries.map((e) => e.uuid)).toEqual(['a1']);
   });
 
   it('restarts from zero when file shrinks below stored offset', async () => {
@@ -77,7 +77,7 @@ describe('consumeTranscript', () => {
     truncateSync(tPath, 0);
     writeFileSync(tPath, USER('u2', 'x'));
     const out = await consumeTranscript(db.raw, { sessionId: 's1', transcriptPath: tPath });
-    expect(out.map((e) => e.uuid)).toEqual(['u2']);
+    expect(out.entries.map((e) => e.uuid)).toEqual(['u2']);
   });
 
   it('returns empty when file does not exist', async () => {
@@ -85,6 +85,32 @@ describe('consumeTranscript', () => {
       sessionId: 's1',
       transcriptPath: join(dir, 'missing.jsonl'),
     });
-    expect(out).toEqual([]);
+    expect(out.entries).toEqual([]);
+  });
+});
+
+const SUMMARY = (text: string, leaf: string): string =>
+  JSON.stringify({ type: 'summary', summary: text, leafUuid: leaf }) + '\n';
+
+describe('consumeTranscript latestSummary', () => {
+  it('returns null when no summary lines are present', async () => {
+    writeFileSync(tPath, USER('u1', 'hi'));
+    const out = await consumeTranscript(db.raw, { sessionId: 's1', transcriptPath: tPath });
+    expect(out.latestSummary).toBeNull();
+  });
+
+  it('returns the only summary when exactly one is present', async () => {
+    writeFileSync(tPath, USER('u1', 'hi') + SUMMARY('first', 'l1'));
+    const out = await consumeTranscript(db.raw, { sessionId: 's1', transcriptPath: tPath });
+    expect(out.latestSummary).toBe('first');
+  });
+
+  it('returns the last summary when multiple are present', async () => {
+    writeFileSync(
+      tPath,
+      USER('u1', 'hi') + SUMMARY('first', 'l1') + ASSISTANT('a1', 'ok') + SUMMARY('second', 'l2'),
+    );
+    const out = await consumeTranscript(db.raw, { sessionId: 's1', transcriptPath: tPath });
+    expect(out.latestSummary).toBe('second');
   });
 });

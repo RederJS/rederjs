@@ -323,7 +323,8 @@ export function createRouter(opts: RouterOptions): Router {
 
   async function captureTranscript(sessionId: string, transcriptPath: string): Promise<void> {
     try {
-      const entries = await consumeTranscript(db, { sessionId, transcriptPath });
+      const { entries, latestSummary } = await consumeTranscript(db, { sessionId, transcriptPath });
+      void latestSummary; // Task 5c will persist this
       for (const entry of entries) {
         if (entry.kind === 'local-user') {
           // Skip if UserPromptSubmit already captured this exact prompt
