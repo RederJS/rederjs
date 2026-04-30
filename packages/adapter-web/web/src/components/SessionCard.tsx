@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import type { SessionSummary } from '../api';
 import { sessionStatus, shortId } from '../derive';
-import { formatLast, formatTokens, formatUptime } from '../format';
+import { formatLast } from '../format';
 import type { CardVariant, StatusVariant } from '../types';
 import { Avatar } from './Avatar';
 import { StatusPill } from './StatusPill';
@@ -105,12 +105,10 @@ export function SessionCard({
           {preview ?? 'No activity yet'}
         </div>
         <div
-          className="grid grid-cols-4 gap-1 border-t border-line px-3.5 py-2.5 font-mono text-[10.5px] text-fg-3"
+          className="grid grid-cols-2 gap-1 border-t border-line px-3.5 py-2.5 font-mono text-[10.5px] text-fg-3"
           style={{ background: 'color-mix(in oklab, var(--bg) 70%, #000)' }}
         >
-          <MetaCell label="Up" value={formatUptime(null)} />
           <MetaCell label="Last" value={formatLast(lastIso)} />
-          <MetaCell label="Tok" value={formatTokens(null)} />
           <MetaCell label="Unread" value={session.unread > 0 ? String(session.unread) : '—'} />
         </div>
       </div>
@@ -159,8 +157,7 @@ export function SessionCard({
 
       {status === 'working' && <div className="scanbar" />}
 
-      <div className="mt-auto hidden gap-x-2 gap-y-1 border-t border-dashed border-line pt-2.5 font-mono text-[10.5px] text-fg-3 @[141px]/card:grid @[141px]/card:grid-cols-1 @[171px]/card:grid-cols-3">
-        <MetaCell label="Up" value={formatUptime(null)} />
+      <div className="mt-auto hidden gap-x-2 gap-y-1 border-t border-dashed border-line pt-2.5 font-mono text-[10.5px] text-fg-3 @[141px]/card:grid @[141px]/card:grid-cols-1 @[171px]/card:grid-cols-2">
         <MetaCell label="Last" value={formatLast(lastIso)} />
         <MetaCell label="Unread" value={session.unread > 0 ? String(session.unread) : '—'} />
       </div>

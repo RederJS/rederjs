@@ -1,13 +1,3 @@
-export function formatUptime(mins: number | null | undefined): string {
-  if (mins == null || mins <= 0) return '—';
-  if (mins < 60) return `${mins}m`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h < 24) return `${h}h ${m}m`;
-  const d = Math.floor(h / 24);
-  return `${d}d ${h % 24}h`;
-}
-
 export function formatLast(iso: string | null | undefined): string {
   if (!iso) return '—';
   const diffMs = Date.now() - Date.parse(iso);
@@ -18,13 +8,6 @@ export function formatLast(iso: string | null | undefined): string {
   const h = Math.floor(mins / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
-}
-
-export function formatTokens(n: number | null | undefined): string {
-  if (n == null || n <= 0) return '—';
-  if (n < 1000) return `${n}`;
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
-  return `${(n / 1_000_000).toFixed(2)}m`;
 }
 
 export function formatHHMM(iso: string): string {
