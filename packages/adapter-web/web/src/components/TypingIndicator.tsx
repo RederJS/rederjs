@@ -14,11 +14,7 @@ export function TypingIndicator({ bubbleVariant }: TypingIndicatorProps): JSX.El
         : 'rounded-[10px] rounded-tl-[3px] border border-line bg-bubble-them text-fg-3 px-3 py-2.5';
 
   return (
-    <div
-      aria-label="claude is typing"
-      role="status"
-      className={cn('flex max-w-[88%] flex-col gap-1 self-start items-start')}
-    >
+    <div aria-label="claude is typing" role="status" className="max-w-[88%] self-start">
       <div className={cn('inline-flex items-center', bubbleStyles)}>
         <span className="typing-dot" />
         <span className="typing-dot" />

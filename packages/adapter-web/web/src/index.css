@@ -385,13 +385,6 @@
       repeating-linear-gradient(180deg, transparent 0 3px, rgba(255, 255, 255, 0.008) 3px 4px);
   }
 
-  /* activity line with arrow */
-  .activity-line::before {
-    content: '→';
-    color: var(--accent);
-    margin-right: 8px;
-  }
-
   /* typing indicator dots */
   @keyframes typing-bounce {
     0%,
