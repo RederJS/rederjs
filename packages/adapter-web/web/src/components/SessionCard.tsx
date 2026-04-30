@@ -116,7 +116,11 @@ export function SessionCard({
             </span>
             <span className="font-mono text-[11px] text-fg-4">{shortId(session.session_id)}</span>
           </div>
-          {statusVariant !== 'ringed' && <StatusPill status={status} />}
+          {statusVariant !== 'ringed' && (
+            <span className="basis-full w-fit @[281px]/card:ml-auto @[281px]/card:basis-auto @[281px]/card:w-auto">
+              <StatusPill status={status} />
+            </span>
+          )}
         </div>
         <div className="flex-1 px-3.5 py-2 text-[13px] leading-[1.5] text-fg-2 line-clamp-2 min-h-[2.9em]">
           <span className="mr-1.5 font-mono text-[11px] text-fg-4">›</span>
@@ -149,7 +153,7 @@ export function SessionCard({
         selected && 'border-accent bg-bg-1 shadow-card-selected',
       )}
     >
-      <div className="flex flex-wrap items-center gap-2.5 @max-[210px]/card:gap-2">
+      <div className="flex flex-wrap items-center gap-2 @[211px]/card:gap-2.5">
         <Avatar
           sessionId={session.session_id}
           name={session.display_name}
@@ -157,28 +161,28 @@ export function SessionCard({
           variant={statusVariant}
         />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate text-sm font-semibold tracking-[-0.01em] @max-[210px]/card:text-[13px]">
+          <span className="truncate text-[13px] font-semibold tracking-[-0.01em] @[211px]/card:text-sm">
             {session.display_name}
           </span>
-          <span className="font-mono text-[11px] text-fg-4 @max-[140px]/card:hidden">
+          <span className="hidden font-mono text-[11px] text-fg-4 @[141px]/card:inline">
             {shortId(session.session_id)}
           </span>
         </div>
         {statusVariant !== 'ringed' && (
-          <span className="ml-auto @max-[210px]/card:ml-0 @max-[210px]/card:basis-full @max-[210px]/card:w-fit">
+          <span className="basis-full w-fit @[281px]/card:ml-auto @[281px]/card:basis-auto @[281px]/card:w-auto">
             <StatusPill status={status} />
           </span>
         )}
       </div>
 
-      <div className="min-h-[2.9em] text-[13px] leading-[1.5] text-fg-2 line-clamp-2 @max-[170px]/card:line-clamp-3 @max-[170px]/card:text-[12.5px] @max-[140px]/card:line-clamp-4 @max-[140px]/card:text-[12px]">
+      <div className="min-h-[2.9em] leading-[1.5] text-fg-2 line-clamp-4 text-[12px] @[141px]/card:line-clamp-3 @[141px]/card:text-[12.5px] @[171px]/card:line-clamp-2 @[171px]/card:text-[13px]">
         <span className="mr-1.5 font-mono text-[11px] text-fg-4">›</span>
         {preview ?? (session.workspace_dir || 'No activity yet')}
       </div>
 
       {status === 'working' && <div className="scanbar" />}
 
-      <div className="mt-auto grid grid-cols-3 gap-x-2 gap-y-1 border-t border-dashed border-line pt-2.5 font-mono text-[10.5px] text-fg-3 @max-[170px]/card:grid-cols-1 @max-[140px]/card:hidden">
+      <div className="mt-auto hidden gap-x-2 gap-y-1 border-t border-dashed border-line pt-2.5 font-mono text-[10.5px] text-fg-3 @[141px]/card:grid @[141px]/card:grid-cols-1 @[171px]/card:grid-cols-3">
         <MetaCell label="Up" value={formatUptime(null)} />
         <MetaCell label="Last" value={formatLast(lastIso)} />
         <MetaCell label="Unread" value={session.unread > 0 ? String(session.unread) : '—'} />
