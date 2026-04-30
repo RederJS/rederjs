@@ -59,6 +59,21 @@ function extractUserText(content: unknown): string | null {
   return parts.length > 0 ? parts.join('\n\n') : null;
 }
 
+export function classifyTranscriptSummary(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  let parsed: { type?: unknown; summary?: unknown };
+  try {
+    parsed = JSON.parse(trimmed) as { type?: unknown; summary?: unknown };
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  if (parsed.type !== 'summary') return null;
+  if (typeof parsed.summary !== 'string' || parsed.summary.length === 0) return null;
+  return parsed.summary;
+}
+
 function extractAssistantText(content: unknown): string | null {
   if (typeof content === 'string') return content.length > 0 ? content : null;
   if (!Array.isArray(content)) return null;
