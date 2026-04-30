@@ -30,7 +30,7 @@ Reder gives you:
 - `ctx.logger` — a scoped pino logger. Use child loggers; never `console.log`.
 - `ctx.config` — your YAML block, already parsed. Validate it with zod.
 - `ctx.storage` — a KV store scoped to your adapter. Nobody else can read or write it.
-- `ctx.sessions` — the list of sessions declared in config (`session_id`, `display_name`, `workspace_dir?`, `auto_start`). Read-only.
+- `ctx.sessions` — the list of sessions declared in config (`session_id`, `display_name`, `workspace_dir?`, `avatar_path?`, `auto_start`). `avatar_path` is the absolute, daemon-resolved path to the avatar image (or undefined). Read-only.
 - `ctx.router` — the way you interact with the core:
   - `ingestInbound(InboundMessage)` — text + meta + optional file paths.
   - `ingestPermissionVerdict(PermissionVerdict)` — user approved/denied a prompt.
