@@ -21,6 +21,7 @@ export interface SessionSummary {
   last_hook_at: string | null;
   branch: string | null;
   pr: PrInfo | null;
+  avatar_url: string | null;
 }
 
 export interface TranscriptMessage {

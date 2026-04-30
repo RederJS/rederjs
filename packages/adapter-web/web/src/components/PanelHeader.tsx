@@ -39,6 +39,7 @@ export function PanelHeader({
           name={session.display_name}
           status={status}
           variant={statusVariant}
+          avatarUrl={session.avatar_url}
         />
       </div>
       <div className="relative min-w-0 flex-1">

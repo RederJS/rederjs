@@ -53,6 +53,7 @@ export function SessionCard({
           status={status}
           variant={statusVariant}
           size="sm"
+          avatarUrl={session.avatar_url}
         />
         <div className="flex-1 min-w-0">
           <div className="truncate text-sm font-semibold tracking-[-0.01em]">
@@ -87,6 +88,7 @@ export function SessionCard({
             name={session.display_name}
             status={status}
             variant={statusVariant}
+            avatarUrl={session.avatar_url}
           />
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="truncate text-sm font-semibold tracking-[-0.01em]">
@@ -134,6 +136,7 @@ export function SessionCard({
           name={session.display_name}
           status={status}
           variant={statusVariant}
+          avatarUrl={session.avatar_url}
         />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-[13px] font-semibold tracking-[-0.01em] @[211px]/card:text-sm">
