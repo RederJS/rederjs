@@ -6,6 +6,7 @@ import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
 import type { AdapterStorage, RouterHandle } from '@rederjs/core/adapter';
 import { authMiddleware, hostAllowlistMiddleware, type AuthOptions } from './auth.js';
+import { createAvatarRouter } from './routes/avatar.js';
 import { createSessionsRouter, type SessionConfigEntry } from './routes/sessions.js';
 import { createPermissionsRouter } from './routes/permissions.js';
 import { createStreamRouter } from './routes/stream.js';
@@ -87,6 +88,7 @@ export function buildApp(opts: BuildAppOptions): Express {
       db: opts.db,
     }),
   );
+  api.use(createAvatarRouter({ sessions: opts.sessions }));
 
   app.use('/api', api);
 

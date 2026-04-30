@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { Router as expressRouter, type Request, type Response } from 'express';
 import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
@@ -16,7 +17,18 @@ export interface SessionConfigEntry {
   session_id: string;
   display_name: string;
   workspace_dir?: string;
+  avatar_path?: string;
   auto_start: boolean;
+}
+
+function avatarUrl(cfg: SessionConfigEntry): string | null {
+  if (!cfg.avatar_path) return null;
+  try {
+    const stat = statSync(cfg.avatar_path);
+    return `/api/sessions/${cfg.session_id}/avatar?v=${Math.floor(stat.mtimeMs)}`;
+  } catch {
+    return null;
+  }
 }
 
 export interface SessionsRouteDeps {
@@ -91,6 +103,7 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
           last_hook_at: act?.lastHookAt ?? null,
           branch: git.branch,
           pr: git.pr,
+          avatar_url: avatarUrl(cfg),
         };
       }),
     );
@@ -130,6 +143,7 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
       last_hook_at: act?.lastHookAt ?? null,
       branch: git.branch,
       pr: git.pr,
+      avatar_url: avatarUrl(cfg),
     });
   });
 

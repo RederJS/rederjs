@@ -126,6 +126,7 @@ export class WebAdapter extends Adapter {
         session_id: s.session_id,
         display_name: s.display_name,
         ...(s.workspace_dir !== undefined ? { workspace_dir: s.workspace_dir } : {}),
+        ...(s.avatar_path !== undefined ? { avatar_path: s.avatar_path } : {}),
         auto_start: s.auto_start,
       })),
       sse: this.sse,
