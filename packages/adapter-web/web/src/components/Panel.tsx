@@ -195,7 +195,12 @@ export function Panel({
         onQuickReply={onQuickReply}
         answeredByMsgId={answeredByMsgId}
       />
-      <Composer variant={composerVariant} sessionId={sessionId} onSend={onSend} />
+      <Composer
+        variant={composerVariant}
+        sessionId={sessionId}
+        onSend={onSend}
+        placeholder={status === 'working' ? 'queues until next checkpoint…' : undefined}
+      />
     </div>
   );
 }

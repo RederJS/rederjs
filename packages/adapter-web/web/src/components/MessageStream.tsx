@@ -3,6 +3,7 @@ import type { TranscriptMessage } from '../api';
 import type { BubbleVariant, PendingPermission, Status } from '../types';
 import { MessageBubble, parseButtons } from './MessageBubble';
 import { PermissionCard } from './PermissionCard';
+import { TypingIndicator } from './TypingIndicator';
 import { dayKey, dayLabel } from '../format';
 import { cn } from '../cn';
 
@@ -44,12 +45,14 @@ export function MessageStream({
     stuckToBottomRef.current = distance <= STICKY_THRESHOLD_PX;
   }, []);
 
+  const showTypingIndicator = status === 'working';
+
   useLayoutEffect(() => {
     if (!stuckToBottomRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages, permissions.length]);
+  }, [messages, permissions.length, showTypingIndicator]);
 
   const latestButtonedId = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -115,11 +118,7 @@ export function MessageStream({
         />
       ))}
 
-      {status === 'working' && (
-        <div className="activity-line self-center rounded-md px-2 py-0.5 font-mono text-[10.5px] text-fg-4">
-          session is currently running — new messages queue until the next checkpoint
-        </div>
-      )}
+      {showTypingIndicator && <TypingIndicator bubbleVariant={bubbleVariant} />}
     </div>
   );
 }
