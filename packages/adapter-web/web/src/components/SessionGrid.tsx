@@ -65,14 +65,18 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
       if (sort === 'priority') {
         const d = STATUS_ORDER[sessionStatus(a)] - STATUS_ORDER[sessionStatus(b)];
         if (d !== 0) return d;
-        const aRaw = a.last_inbound_at || a.last_outbound_at || a.last_seen_at || '';
-        const bRaw = b.last_inbound_at || b.last_outbound_at || b.last_seen_at || '';
-        return Date.parse(bRaw) - Date.parse(aRaw);
+        const aTs =
+          Date.parse(a.last_inbound_at || a.last_outbound_at || a.last_seen_at || '') || 0;
+        const bTs =
+          Date.parse(b.last_inbound_at || b.last_outbound_at || b.last_seen_at || '') || 0;
+        return bTs - aTs;
       }
       if (sort === 'recent') {
-        const aRaw = a.last_inbound_at || a.last_outbound_at || a.last_seen_at || '';
-        const bRaw = b.last_inbound_at || b.last_outbound_at || b.last_seen_at || '';
-        return Date.parse(bRaw) - Date.parse(aRaw);
+        const aTs =
+          Date.parse(a.last_inbound_at || a.last_outbound_at || a.last_seen_at || '') || 0;
+        const bTs =
+          Date.parse(b.last_inbound_at || b.last_outbound_at || b.last_seen_at || '') || 0;
+        return bTs - aTs;
       }
       return a.display_name.localeCompare(b.display_name);
     });
