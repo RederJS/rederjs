@@ -47,9 +47,13 @@ export function PanelHeader({
           {session.display_name}
         </div>
         <div className="mt-0.5 flex min-w-0 items-center gap-2.5 font-mono text-[11px] text-fg-3">
-          <span className="shrink-0">
-            id <b className="font-medium text-fg-2">{shortId(session.session_id)}</b>
-          </span>
+          {session.claude_summary !== null ? (
+            <span className="min-w-0 truncate">{session.claude_summary}</span>
+          ) : (
+            <span className="shrink-0">
+              id <b className="font-medium text-fg-2">{shortId(session.session_id)}</b>
+            </span>
+          )}
           {session.branch && (
             <>
               <span className="shrink-0">•</span>

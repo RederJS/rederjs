@@ -60,7 +60,7 @@ export function SessionCard({
             {session.display_name}
           </div>
           <div className="truncate font-mono text-[11px] text-fg-4">
-            {shortId(session.session_id)}
+            {session.claude_summary ?? shortId(session.session_id)}
           </div>
         </div>
         {statusVariant !== 'pill' ? null : <StatusPill status={status} />}
@@ -94,7 +94,9 @@ export function SessionCard({
             <span className="truncate text-sm font-semibold tracking-[-0.01em]">
               {session.display_name}
             </span>
-            <span className="font-mono text-[11px] text-fg-4">{shortId(session.session_id)}</span>
+            <span className="truncate font-mono text-[11px] text-fg-4">
+              {session.claude_summary ?? shortId(session.session_id)}
+            </span>
           </div>
           {statusVariant !== 'ringed' && (
             <span className="basis-full w-fit @[281px]/card:ml-auto @[281px]/card:basis-auto @[281px]/card:w-auto">
@@ -142,8 +144,8 @@ export function SessionCard({
           <span className="truncate text-[13px] font-semibold tracking-[-0.01em] @[211px]/card:text-sm">
             {session.display_name}
           </span>
-          <span className="hidden font-mono text-[11px] text-fg-4 @[141px]/card:inline">
-            {shortId(session.session_id)}
+          <span className="hidden truncate font-mono text-[11px] text-fg-4 @[141px]/card:inline">
+            {session.claude_summary ?? shortId(session.session_id)}
           </span>
         </div>
         {statusVariant !== 'ringed' && (
