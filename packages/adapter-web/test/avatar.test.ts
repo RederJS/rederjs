@@ -118,6 +118,15 @@ describe('GET /api/sessions/:id/avatar', () => {
     expect(res.status).toBe(415);
   });
 
+  it('returns 404 when the configured file is missing on disk', async () => {
+    const { unlinkSync } = await import('node:fs');
+    unlinkSync(pngPath);
+    const res = await fetch(`${baseUrl}/api/sessions/with-avatar/avatar`, {
+      headers: { Authorization: `Bearer ${token}`, 'sec-fetch-site': 'same-origin' },
+    });
+    expect(res.status).toBe(404);
+  });
+
   it('honors If-None-Match by returning 304', async () => {
     const first = await fetch(`${baseUrl}/api/sessions/with-avatar/avatar`, {
       headers: { Authorization: `Bearer ${token}`, 'sec-fetch-site': 'same-origin' },
