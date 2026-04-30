@@ -1,4 +1,4 @@
-import { dirname } from 'node:path';
+import { resolve } from 'node:path';
 import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
 import { Adapter, type AdapterContext, type RouterHandle } from '@rederjs/core/adapter';
@@ -17,6 +17,7 @@ export interface AdapterHostDeps {
   audit: AuditLog;
   router: RouterHandle;
   dataDir: string;
+  configDir: string;
   resolveModule: (spec: string) => Promise<AdapterFactory>;
   healthSnapshot?: () => Promise<unknown>;
 }
@@ -96,6 +97,9 @@ export async function createAdapterHost(deps: AdapterHostDeps): Promise<AdapterH
             session_id: s.session_id,
             display_name: s.display_name,
             ...(s.workspace_dir !== undefined ? { workspace_dir: s.workspace_dir } : {}),
+            ...(s.avatar !== undefined
+              ? { avatar_path: resolve(deps.configDir, s.avatar) }
+              : {}),
             auto_start: s.auto_start,
           })),
           db: deps.db,
@@ -129,5 +133,3 @@ export async function createAdapterHost(deps: AdapterHostDeps): Promise<AdapterH
   };
 }
 
-// Silence unused-import warnings for types re-used in JSDoc elsewhere
-void dirname;

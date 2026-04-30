@@ -143,6 +143,7 @@ export interface SessionDescriptor {
   readonly session_id: string;
   readonly display_name: string;
   readonly workspace_dir?: string;
+  readonly avatar_path?: string;
   readonly auto_start: boolean;
 }
 

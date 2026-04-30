@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import type { Logger } from 'pino';
 import { createLogger } from '@rederjs/core/logger';
 import { loadConfig, type Config } from '@rederjs/core/config';
@@ -49,6 +49,7 @@ export interface BootstrapOptions {
 export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult> {
   const startedAt = new Date();
   const configPath = resolve(opts.configPath);
+  const configDir = dirname(configPath);
   const config = loadConfig(configPath);
 
   const runtimeDir = expandHome(config.runtime.runtime_dir);
@@ -161,6 +162,7 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
     audit,
     router,
     dataDir,
+    configDir,
     resolveModule: opts.overrideResolveModule ?? loadAdapter,
     healthSnapshot: snapshotFn,
   });
