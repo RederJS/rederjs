@@ -151,11 +151,6 @@ export async function startSession(
   return (await jsonOrThrow(res)) as { started: boolean; reason?: string; error?: string };
 }
 
-export async function repairSession(sessionId: string): Promise<void> {
-  const res = await fetch(`/api/sessions/${sessionId}/repair`, { method: 'POST' });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-}
-
 export interface SystemStats {
   cpu_percent: number;
   cpu_per_core: number[];

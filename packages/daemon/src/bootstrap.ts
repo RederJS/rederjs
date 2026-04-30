@@ -17,7 +17,6 @@ import {
 import { startSession as startTmuxSession, getPaneCommand } from '@rederjs/core/tmux';
 import type { Adapter } from '@rederjs/core/adapter';
 import { createAdapterHost, type AdapterHost, loadAdapter } from './adapter-host.js';
-import { runSessionRepair } from 'rederjs/commands/sessions-repair';
 import { hasClaudeHooks } from 'rederjs/commands/claude-hooks';
 export type { AdapterHost };
 
@@ -164,9 +163,6 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
     dataDir,
     resolveModule: opts.overrideResolveModule ?? loadAdapter,
     healthSnapshot: snapshotFn,
-    repairSession: async (sessionId: string) => {
-      await runSessionRepair({ sessionId, configPath });
-    },
   });
   adapterHostRef = adapterHost;
 

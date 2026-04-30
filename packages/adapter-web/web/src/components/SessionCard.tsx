@@ -1,6 +1,5 @@
-import type { KeyboardEvent, MouseEvent } from 'react';
+import type { KeyboardEvent } from 'react';
 import type { SessionSummary } from '../api';
-import { repairSession } from '../api';
 import { sessionStatus, shortId } from '../derive';
 import { formatLast, formatTokens, formatUptime } from '../format';
 import type { CardVariant, StatusVariant } from '../types';
@@ -35,26 +34,6 @@ export function SessionCard({
     }
   };
 
-  const handleRepair = async (e: MouseEvent): Promise<void> => {
-    e.stopPropagation();
-    try {
-      await repairSession(session.session_id);
-    } catch (err) {
-      alert(`Repair failed: ${(err as Error).message}`);
-    }
-  };
-
-  const repairButton =
-    status === 'unknown' ? (
-      <button
-        type="button"
-        onClick={handleRepair}
-        className="mt-1 self-start rounded border border-line px-1.5 py-0.5 text-[10px] text-fg-3 hover:text-fg"
-      >
-        Repair hooks
-      </button>
-    ) : null;
-
   if (variant === 'compact') {
     return (
       <div
@@ -84,7 +63,6 @@ export function SessionCard({
           </div>
         </div>
         {statusVariant !== 'pill' ? null : <StatusPill status={status} />}
-        {repairButton}
       </div>
     );
   }
@@ -135,7 +113,6 @@ export function SessionCard({
           <MetaCell label="Tok" value={formatTokens(null)} />
           <MetaCell label="Unread" value={session.unread > 0 ? String(session.unread) : '—'} />
         </div>
-        {repairButton && <div className="px-3.5 pb-2.5">{repairButton}</div>}
       </div>
     );
   }
@@ -187,7 +164,6 @@ export function SessionCard({
         <MetaCell label="Last" value={formatLast(lastIso)} />
         <MetaCell label="Unread" value={session.unread > 0 ? String(session.unread) : '—'} />
       </div>
-      {repairButton}
     </div>
   );
 }

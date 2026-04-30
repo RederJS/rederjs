@@ -29,7 +29,6 @@ export interface SessionsRouteDeps {
   adapterName: string;
   senderId: string;
   isSessionConnected: (sessionId: string) => boolean;
-  repairSession?: (sessionId: string) => Promise<void>;
 }
 
 const UNREAD_KEY = (sessionId: string): string => `unread:${sessionId}`;
@@ -209,24 +208,6 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
       logger: deps.logger,
     });
     res.status(result.started ? 201 : 200).json(result);
-  });
-
-  r.post('/sessions/:id/repair', async (req: Request, res: Response) => {
-    const sessionId = req.params['id']!;
-    if (!deps.sessions.some((s) => s.session_id === sessionId)) {
-      res.status(404).json({ error: 'not found' });
-      return;
-    }
-    if (!deps.repairSession) {
-      res.status(501).json({ error: 'repair not available' });
-      return;
-    }
-    try {
-      await deps.repairSession(sessionId);
-      res.status(200).json({ repaired: true });
-    } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
-    }
   });
 
   return r;

@@ -142,7 +142,6 @@ export class WebAdapter extends Adapter {
       staticDir: this.opts.staticDir ?? DEFAULT_STATIC_DIR,
       exposeHealth: this.cfg.expose_health,
       dataDir: this.ctx.dataDir,
-      ...(this.ctx.repairSession ? { repairSession: this.ctx.repairSession } : {}),
     });
 
     this.server = await listen(app, this.cfg.bind, this.cfg.port);
