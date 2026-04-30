@@ -29,6 +29,10 @@ const STATUS_ORDER: Record<Status, number> = {
   offline: 4,
 };
 
+function activityTs(s: SessionSummary): number {
+  return Date.parse(s.last_inbound_at || s.last_outbound_at || s.last_seen_at || '') || 0;
+}
+
 export function SessionGrid(props: SessionGridProps): JSX.Element {
   const {
     sessions,
@@ -65,18 +69,10 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
       if (sort === 'priority') {
         const d = STATUS_ORDER[sessionStatus(a)] - STATUS_ORDER[sessionStatus(b)];
         if (d !== 0) return d;
-        const aTs =
-          Date.parse(a.last_inbound_at || a.last_outbound_at || a.last_seen_at || '') || 0;
-        const bTs =
-          Date.parse(b.last_inbound_at || b.last_outbound_at || b.last_seen_at || '') || 0;
-        return bTs - aTs;
+        return activityTs(b) - activityTs(a);
       }
       if (sort === 'recent') {
-        const aTs =
-          Date.parse(a.last_inbound_at || a.last_outbound_at || a.last_seen_at || '') || 0;
-        const bTs =
-          Date.parse(b.last_inbound_at || b.last_outbound_at || b.last_seen_at || '') || 0;
-        return bTs - aTs;
+        return activityTs(b) - activityTs(a);
       }
       return a.display_name.localeCompare(b.display_name);
     });
