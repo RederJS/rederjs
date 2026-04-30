@@ -22,6 +22,7 @@ export interface SessionSummary {
   branch: string | null;
   pr: PrInfo | null;
   avatar_url: string | null;
+  claude_summary: string | null;
 }
 
 export interface TranscriptMessage {

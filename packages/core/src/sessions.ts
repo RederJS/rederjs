@@ -23,6 +23,7 @@ export interface SessionState {
   state: 'registered' | 'connected' | 'disconnected' | 'revoked';
   created_at: string;
   last_seen_at: string | null;
+  claude_summary: string | null;
 }
 
 function generateToken(): string {
@@ -112,7 +113,7 @@ export function deleteSession(db: Db, sessionId: string): DeleteSessionResult {
 export function getSessionState(db: Db, sessionId: string): SessionState | null {
   const row = db
     .prepare(
-      `SELECT session_id, display_name, state, created_at, last_seen_at
+      `SELECT session_id, display_name, state, created_at, last_seen_at, claude_summary
          FROM sessions WHERE session_id = ?`,
     )
     .get(sessionId) as SessionState | undefined;
@@ -122,7 +123,7 @@ export function getSessionState(db: Db, sessionId: string): SessionState | null 
 export function listSessions(db: Db): SessionState[] {
   return db
     .prepare(
-      `SELECT session_id, display_name, state, created_at, last_seen_at
+      `SELECT session_id, display_name, state, created_at, last_seen_at, claude_summary
          FROM sessions ORDER BY created_at`,
     )
     .all() as SessionState[];

@@ -324,7 +324,12 @@ export function createRouter(opts: RouterOptions): Router {
   async function captureTranscript(sessionId: string, transcriptPath: string): Promise<void> {
     try {
       const { entries, latestSummary } = await consumeTranscript(db, { sessionId, transcriptPath });
-      void latestSummary; // Task 5c will persist this
+      if (latestSummary !== null) {
+        db.prepare('UPDATE sessions SET claude_summary = ? WHERE session_id = ?').run(
+          latestSummary,
+          sessionId,
+        );
+      }
       for (const entry of entries) {
         if (entry.kind === 'local-user') {
           // Skip if UserPromptSubmit already captured this exact prompt
