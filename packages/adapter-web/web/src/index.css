@@ -192,7 +192,16 @@
     inset: 0;
     width: 40%;
     background: linear-gradient(90deg, transparent, var(--st-busy), transparent);
-    animation: scanbar 1.6s linear infinite;
+    animation: scanbar 2.4s ease-in-out infinite;
+  }
+  @keyframes scanbar {
+    0%,
+    100% {
+      transform: translateX(-100%);
+    }
+    50% {
+      transform: translateX(250%);
+    }
   }
 
   /* breadcrumb live dot */
