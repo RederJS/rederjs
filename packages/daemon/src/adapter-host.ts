@@ -97,9 +97,7 @@ export async function createAdapterHost(deps: AdapterHostDeps): Promise<AdapterH
             session_id: s.session_id,
             display_name: s.display_name,
             ...(s.workspace_dir !== undefined ? { workspace_dir: s.workspace_dir } : {}),
-            ...(s.avatar !== undefined
-              ? { avatar_path: resolve(deps.configDir, s.avatar) }
-              : {}),
+            ...(s.avatar !== undefined ? { avatar_path: resolve(deps.configDir, s.avatar) } : {}),
             auto_start: s.auto_start,
           })),
           db: deps.db,
@@ -132,4 +130,3 @@ export async function createAdapterHost(deps: AdapterHostDeps): Promise<AdapterH
     },
   };
 }
-

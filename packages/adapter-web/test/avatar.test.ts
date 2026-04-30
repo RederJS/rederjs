@@ -66,9 +66,19 @@ beforeEach(async () => {
     router,
     dataDir: dir,
     sessions: [
-      { session_id: 'with-avatar', display_name: 'WithAvatar', avatar_path: pngPath, auto_start: false },
+      {
+        session_id: 'with-avatar',
+        display_name: 'WithAvatar',
+        avatar_path: pngPath,
+        auto_start: false,
+      },
       { session_id: 'no-avatar', display_name: 'NoAvatar', auto_start: false },
-      { session_id: 'svg-avatar', display_name: 'SvgAvatar', avatar_path: svgPath, auto_start: false },
+      {
+        session_id: 'svg-avatar',
+        display_name: 'SvgAvatar',
+        avatar_path: svgPath,
+        auto_start: false,
+      },
     ],
     db: db.raw,
   };
@@ -151,7 +161,9 @@ describe('GET /api/sessions includes avatar_url', () => {
       headers: { Authorization: `Bearer ${token}`, 'sec-fetch-site': 'same-origin' },
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { sessions: Array<{ session_id: string; avatar_url: string | null }> };
+    const body = (await res.json()) as {
+      sessions: Array<{ session_id: string; avatar_url: string | null }>;
+    };
     const withAv = body.sessions.find((s) => s.session_id === 'with-avatar');
     expect(withAv?.avatar_url).toMatch(/^\/api\/sessions\/with-avatar\/avatar\?v=\d+$/);
     const noAv = body.sessions.find((s) => s.session_id === 'no-avatar');
