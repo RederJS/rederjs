@@ -23,11 +23,15 @@ interface SessionGridProps {
 
 const STATUS_ORDER: Record<Status, number> = {
   'awaiting-user': 0,
-  unknown: 1,
-  offline: 2,
-  idle: 3,
-  working: 4,
+  idle: 1,
+  working: 2,
+  unknown: 3,
+  offline: 4,
 };
+
+function activityTs(s: SessionSummary): number {
+  return Date.parse(s.last_inbound_at || s.last_outbound_at || s.last_seen_at || '') || 0;
+}
 
 export function SessionGrid(props: SessionGridProps): JSX.Element {
   const {
@@ -65,12 +69,10 @@ export function SessionGrid(props: SessionGridProps): JSX.Element {
       if (sort === 'priority') {
         const d = STATUS_ORDER[sessionStatus(a)] - STATUS_ORDER[sessionStatus(b)];
         if (d !== 0) return d;
-        return a.display_name.localeCompare(b.display_name);
+        return activityTs(b) - activityTs(a);
       }
       if (sort === 'recent') {
-        const aRaw = a.last_inbound_at || a.last_outbound_at || a.last_seen_at || '';
-        const bRaw = b.last_inbound_at || b.last_outbound_at || b.last_seen_at || '';
-        return Date.parse(bRaw) - Date.parse(aRaw);
+        return activityTs(b) - activityTs(a);
       }
       return a.display_name.localeCompare(b.display_name);
     });

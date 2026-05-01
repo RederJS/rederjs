@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyTranscriptLine } from '../src/transcript-parser.js';
+import { classifyTranscriptLine, classifyTranscriptSummary } from '../src/transcript-parser.js';
 
 describe('classifyTranscriptLine', () => {
   it('returns null for non-JSON', () => {
@@ -135,5 +135,39 @@ describe('classifyTranscriptLine', () => {
       },
     });
     expect(classifyTranscriptLine(line)).toBeNull();
+  });
+});
+
+describe('classifyTranscriptSummary', () => {
+  it('returns the summary string for a summary line', () => {
+    const line = JSON.stringify({
+      type: 'summary',
+      summary: 'Refactor the auth middleware',
+      leafUuid: 'leaf-1',
+    });
+    expect(classifyTranscriptSummary(line)).toBe('Refactor the auth middleware');
+  });
+
+  it('returns null for non-summary lines', () => {
+    const userLine = JSON.stringify({
+      type: 'user',
+      uuid: 'u-1',
+      timestamp: '2026-04-24T12:00:00Z',
+      message: { role: 'user', content: 'hi' },
+    });
+    expect(classifyTranscriptSummary(userLine)).toBeNull();
+  });
+
+  it('returns null for malformed JSON', () => {
+    expect(classifyTranscriptSummary('not json')).toBeNull();
+  });
+
+  it('returns null when summary field is missing or empty', () => {
+    expect(
+      classifyTranscriptSummary(JSON.stringify({ type: 'summary', leafUuid: 'l' })),
+    ).toBeNull();
+    expect(
+      classifyTranscriptSummary(JSON.stringify({ type: 'summary', summary: '', leafUuid: 'l' })),
+    ).toBeNull();
   });
 });

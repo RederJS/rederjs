@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { Router as expressRouter, type Request, type Response } from 'express';
 import type { Database as Db } from 'better-sqlite3';
 import type { Logger } from 'pino';
@@ -16,7 +17,18 @@ export interface SessionConfigEntry {
   session_id: string;
   display_name: string;
   workspace_dir?: string;
+  avatar_path?: string;
   auto_start: boolean;
+}
+
+function avatarUrl(cfg: SessionConfigEntry): string | null {
+  if (!cfg.avatar_path) return null;
+  try {
+    const stat = statSync(cfg.avatar_path);
+    return `/api/sessions/${cfg.session_id}/avatar?v=${Math.floor(stat.mtimeMs)}`;
+  } catch {
+    return null;
+  }
 }
 
 export interface SessionsRouteDeps {
@@ -29,7 +41,6 @@ export interface SessionsRouteDeps {
   adapterName: string;
   senderId: string;
   isSessionConnected: (sessionId: string) => boolean;
-  repairSession?: (sessionId: string) => Promise<void>;
 }
 
 const UNREAD_KEY = (sessionId: string): string => `unread:${sessionId}`;
@@ -78,6 +89,7 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
           auto_start: cfg.auto_start,
           state: row?.state ?? 'registered',
           last_seen_at: row?.last_seen_at ?? null,
+          claude_summary: row?.claude_summary ?? null,
           shim_connected: deps.isSessionConnected(cfg.session_id),
           tmux_running: tmuxRunning,
           last_inbound_at: activity.lastInboundAt,
@@ -92,6 +104,7 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
           last_hook_at: act?.lastHookAt ?? null,
           branch: git.branch,
           pr: git.pr,
+          avatar_url: avatarUrl(cfg),
         };
       }),
     );
@@ -117,6 +130,7 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
       auto_start: cfg.auto_start,
       state: row?.state ?? 'registered',
       last_seen_at: row?.last_seen_at ?? null,
+      claude_summary: row?.claude_summary ?? null,
       shim_connected: deps.isSessionConnected(cfg.session_id),
       tmux_running: tmuxRunning,
       last_inbound_at: activity.lastInboundAt,
@@ -131,6 +145,7 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
       last_hook_at: act?.lastHookAt ?? null,
       branch: git.branch,
       pr: git.pr,
+      avatar_url: avatarUrl(cfg),
     });
   });
 
@@ -209,24 +224,6 @@ export function createSessionsRouter(deps: SessionsRouteDeps): ReturnType<typeof
       logger: deps.logger,
     });
     res.status(result.started ? 201 : 200).json(result);
-  });
-
-  r.post('/sessions/:id/repair', async (req: Request, res: Response) => {
-    const sessionId = req.params['id']!;
-    if (!deps.sessions.some((s) => s.session_id === sessionId)) {
-      res.status(404).json({ error: 'not found' });
-      return;
-    }
-    if (!deps.repairSession) {
-      res.status(501).json({ error: 'repair not available' });
-      return;
-    }
-    try {
-      await deps.repairSession(sessionId);
-      res.status(200).json({ repaired: true });
-    } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
-    }
   });
 
   return r;

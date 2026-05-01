@@ -125,4 +125,27 @@ sessions:
     expect(cfg.security.permission_timeout_seconds).toBe(600);
     expect(cfg.storage.retention.inbound_acknowledged_days).toBe(7);
   });
+
+  it('accepts an optional avatar field on a session', () => {
+    const path = writeConfig(`
+version: 1
+sessions:
+  - session_id: demo
+    display_name: Demo
+    avatar: ./images/demo.png
+`);
+    const cfg = loadConfig(path);
+    expect(cfg.sessions[0]?.avatar).toBe('./images/demo.png');
+  });
+
+  it('omits avatar when not configured', () => {
+    const path = writeConfig(`
+version: 1
+sessions:
+  - session_id: demo
+    display_name: Demo
+`);
+    const cfg = loadConfig(path);
+    expect(cfg.sessions[0]?.avatar).toBeUndefined();
+  });
 });

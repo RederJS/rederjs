@@ -143,6 +143,7 @@ export interface SessionDescriptor {
   readonly session_id: string;
   readonly display_name: string;
   readonly workspace_dir?: string;
+  readonly avatar_path?: string;
   readonly auto_start: boolean;
 }
 
@@ -165,12 +166,6 @@ export interface AdapterContext {
    * daemon's `/health` endpoint. Used by the web adapter to serve `/health`.
    */
   readonly healthSnapshot?: () => Promise<unknown>;
-  /**
-   * Optional callback for adapters that need to trigger a session-repair
-   * flow (equivalent to `reder sessions repair <id>`). Populated by the
-   * daemon when it knows the config path.
-   */
-  readonly repairSession?: (sessionId: string) => Promise<void>;
 }
 
 export interface InboundMessage {

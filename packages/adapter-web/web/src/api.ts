@@ -21,6 +21,8 @@ export interface SessionSummary {
   last_hook_at: string | null;
   branch: string | null;
   pr: PrInfo | null;
+  avatar_url: string | null;
+  claude_summary: string | null;
 }
 
 export interface TranscriptMessage {
@@ -149,11 +151,6 @@ export async function startSession(
 ): Promise<{ started: boolean; reason?: string; error?: string }> {
   const res = await fetch(`/api/sessions/${sessionId}/start`, { method: 'POST' });
   return (await jsonOrThrow(res)) as { started: boolean; reason?: string; error?: string };
-}
-
-export async function repairSession(sessionId: string): Promise<void> {
-  const res = await fetch(`/api/sessions/${sessionId}/repair`, { method: 'POST' });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 }
 
 export interface SystemStats {

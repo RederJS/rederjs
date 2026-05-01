@@ -60,6 +60,7 @@ export const ConfigSchemaV1 = z
           session_id: z.string().regex(sessionIdRe),
           display_name: z.string().min(1),
           workspace_dir: z.string().min(1).optional(),
+          avatar: z.string().min(1).optional(),
           auto_start: z.boolean().default(false),
           permission_mode: z
             .enum(['default', 'plan', 'acceptEdits', 'auto', 'dontAsk', 'bypassPermissions'])

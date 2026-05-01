@@ -126,6 +126,7 @@ export class WebAdapter extends Adapter {
         session_id: s.session_id,
         display_name: s.display_name,
         ...(s.workspace_dir !== undefined ? { workspace_dir: s.workspace_dir } : {}),
+        ...(s.avatar_path !== undefined ? { avatar_path: s.avatar_path } : {}),
         auto_start: s.auto_start,
       })),
       sse: this.sse,
@@ -142,7 +143,6 @@ export class WebAdapter extends Adapter {
       staticDir: this.opts.staticDir ?? DEFAULT_STATIC_DIR,
       exposeHealth: this.cfg.expose_health,
       dataDir: this.ctx.dataDir,
-      ...(this.ctx.repairSession ? { repairSession: this.ctx.repairSession } : {}),
     });
 
     this.server = await listen(app, this.cfg.bind, this.cfg.port);

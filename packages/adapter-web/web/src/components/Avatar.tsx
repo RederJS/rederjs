@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { avatarColor, initials } from '../derive';
 import type { Status, StatusVariant } from '../types';
 import { cn } from '../cn';
@@ -8,6 +9,7 @@ interface AvatarProps {
   status: Status;
   variant?: StatusVariant;
   size?: 'sm' | 'md' | 'lg';
+  avatarUrl?: string | null;
 }
 
 const SIZE_PX = { sm: 28, md: 36, lg: 48 } as const;
@@ -19,10 +21,18 @@ export function Avatar({
   status,
   variant = 'ringed',
   size = 'md',
+  avatarUrl = null,
 }: AvatarProps): JSX.Element {
   const px = SIZE_PX[size];
   const fontPx = FONT_PX[size];
   const color = avatarColor(sessionId);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [avatarUrl]);
+
+  const showImage = avatarUrl !== null && !imageFailed;
 
   return (
     <span
@@ -33,11 +43,20 @@ export function Avatar({
       <span
         className={cn(
           'avatar-frame',
-          'grid place-items-center rounded-full font-mono font-bold text-[#0b0c0f] relative',
+          'grid place-items-center overflow-hidden rounded-full font-mono font-bold text-[#0b0c0f] relative',
         )}
         style={{ width: px, height: px, fontSize: fontPx, background: color }}
       >
-        {initials(name)}
+        {showImage ? (
+          <img
+            src={avatarUrl ?? undefined}
+            alt={name}
+            className="h-full w-full object-cover"
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          initials(name)
+        )}
       </span>
       {variant === 'ringed' && <span className="avatar-ring" />}
       {variant === 'corner' && (

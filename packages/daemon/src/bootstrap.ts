@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import type { Logger } from 'pino';
 import { createLogger } from '@rederjs/core/logger';
 import { loadConfig, type Config } from '@rederjs/core/config';
@@ -17,7 +17,6 @@ import {
 import { startSession as startTmuxSession, getPaneCommand } from '@rederjs/core/tmux';
 import type { Adapter } from '@rederjs/core/adapter';
 import { createAdapterHost, type AdapterHost, loadAdapter } from './adapter-host.js';
-import { runSessionRepair } from 'rederjs/commands/sessions-repair';
 import { hasClaudeHooks } from 'rederjs/commands/claude-hooks';
 export type { AdapterHost };
 
@@ -50,6 +49,7 @@ export interface BootstrapOptions {
 export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult> {
   const startedAt = new Date();
   const configPath = resolve(opts.configPath);
+  const configDir = dirname(configPath);
   const config = loadConfig(configPath);
 
   const runtimeDir = expandHome(config.runtime.runtime_dir);
@@ -162,11 +162,9 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
     audit,
     router,
     dataDir,
+    configDir,
     resolveModule: opts.overrideResolveModule ?? loadAdapter,
     healthSnapshot: snapshotFn,
-    repairSession: async (sessionId: string) => {
-      await runSessionRepair({ sessionId, configPath });
-    },
   });
   adapterHostRef = adapterHost;
 

@@ -147,6 +147,7 @@ adapters:
 | `session_id`    | yes      | Stable identifier — also the tmux session name. `[a-z0-9_-]{2,63}`         |
 | `display_name`  | yes      | Human label shown in dashboard and Telegram pairing messages               |
 | `workspace_dir` | no       | Directory `claude` should run in. Required for tmux auto-start or CLI start |
+| `avatar`        | no       | Path to a PNG/JPEG/WebP/GIF shown on the dashboard. Resolved relative to the config file; absolute paths honored. Falls back to initials if absent or unreadable. |
 | `auto_start`    | no       | `true` → daemon starts a tmux session at boot if one isn't already running |
 
 When `auto_start: true`, on daemon start reder runs the equivalent of:
