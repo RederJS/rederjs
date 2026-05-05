@@ -10,6 +10,7 @@ export type BubbleVariant = 'classic' | 'terminal' | 'minimal';
 export type ComposerVariant = 'rail' | 'segmented' | 'minimal';
 export type PanelVariant = 'push' | 'overlay' | 'takeover';
 export type SortKey = 'priority' | 'recent' | 'name';
+export type VoiceScope = 'always' | 'idle-or-awaiting';
 
 export interface Tweaks {
   theme: Theme;
@@ -20,6 +21,8 @@ export interface Tweaks {
   bubble: BubbleVariant;
   composer: ComposerVariant;
   panel: PanelVariant;
+  voiceScope: VoiceScope;
+  voicePauseMs: number;
 }
 
 export const ACCENT_HEX: Record<Accent, string> = {
@@ -39,6 +42,8 @@ export const DEFAULT_TWEAKS: Tweaks = {
   bubble: 'classic',
   composer: 'rail',
   panel: 'push',
+  voiceScope: 'always',
+  voicePauseMs: 1500,
 };
 
 export interface PendingPermission {
