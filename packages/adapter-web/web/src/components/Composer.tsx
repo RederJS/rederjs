@@ -70,6 +70,12 @@ export function Composer({
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
   }, [text, speech.interim]);
 
+  // Auto-clear speaking when the FSM enters a terminal error state so the mic
+  // button de-activates immediately and a single tap retries (not two taps).
+  useEffect(() => {
+    if (speech.error) setSpeaking(false);
+  }, [speech.error]);
+
   const uploading = queue.some((q) => q.status === 'uploading');
   const successful = queue.filter((q) => q.status === 'done' && q.result);
   const canAttach = queue.length < MAX_ATTACHMENTS && !disabled;
