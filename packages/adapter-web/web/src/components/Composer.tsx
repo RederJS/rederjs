@@ -245,7 +245,13 @@ export function Composer({
               {speaking ? 'listening…' : 'speak'}
             </ToolButton>
             <div className="flex-1" />
-            <SendButton canSend={canSend} sending={sending} onClick={() => void submit()} />
+            <SendButton
+              canSend={canSend}
+              sending={sending}
+              countingDown={speech.countingDown}
+              onClick={() => void submit()}
+              onCancelCountdown={speech.cancelCountdown}
+            />
           </div>
         </div>
       </div>
@@ -276,7 +282,13 @@ export function Composer({
             readOnly={speaking}
             className="min-h-[22px] max-h-[160px] flex-1 resize-none border-0 bg-transparent px-1 py-1.5 font-mono text-[12.5px] text-fg outline-none placeholder:text-fg-4"
           />
-          <SendButton canSend={canSend} sending={sending} onClick={() => void submit()} />
+          <SendButton
+            canSend={canSend}
+            sending={sending}
+            countingDown={speech.countingDown}
+            onClick={() => void submit()}
+            onCancelCountdown={speech.cancelCountdown}
+          />
         </div>
       </div>
     );
@@ -324,7 +336,13 @@ export function Composer({
           readOnly={speaking}
           className="min-h-[22px] max-h-[160px] flex-1 resize-none border-0 bg-transparent px-1 py-1.5 text-[13.5px] leading-[1.5] text-fg outline-none placeholder:text-fg-4"
         />
-        <SendButton canSend={canSend} sending={sending} onClick={() => void submit()} />
+        <SendButton
+          canSend={canSend}
+          sending={sending}
+          countingDown={speech.countingDown}
+          onClick={() => void submit()}
+          onCancelCountdown={speech.cancelCountdown}
+        />
       </div>
       <div className="flex justify-between px-1 font-mono text-[10.5px] text-fg-4">
         <span>
@@ -417,12 +435,30 @@ function ToolButton({
 function SendButton({
   canSend,
   sending,
+  countingDown,
   onClick,
+  onCancelCountdown,
 }: {
   canSend: boolean;
   sending: boolean;
+  countingDown?: boolean;
   onClick: () => void;
+  onCancelCountdown?: () => void;
 }): JSX.Element {
+  if (countingDown) {
+    return (
+      <button
+        type="button"
+        onClick={onCancelCountdown}
+        title="Cancel — keep talking"
+        aria-label="Cancel countdown"
+        className="voice-countdown inline-flex h-[30px] items-center gap-1.5 rounded-md bg-accent px-3 font-mono text-xs font-semibold text-[color:#0b0c0f] hover:brightness-110"
+      >
+        cancel
+        <Icons.close size={12} stroke="#0b0c0f" />
+      </button>
+    );
+  }
   return (
     <button
       type="button"
