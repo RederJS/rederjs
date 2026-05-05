@@ -548,3 +548,12 @@
     border: 3px solid transparent;
   }
 }
+
+/* @property must be at the top level (cannot be nested inside @layer).
+   Registers --countdown-progress so Chrome can interpolate it in @keyframes,
+   enabling the conic-gradient countdown ring to animate smoothly. */
+@property --countdown-progress {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}

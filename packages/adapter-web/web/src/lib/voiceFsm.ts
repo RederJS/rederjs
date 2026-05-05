@@ -56,7 +56,6 @@ export class VoiceFsm {
   // Timestamps in ms (from event nowMs); null when not active.
   private lastResultAt: number | null = null;
   private countdownStartedAt: number | null = null;
-  private firstEnabledAt: number | null = null;
 
   constructor(config: FsmConfig) {
     this.config = config;
@@ -97,7 +96,6 @@ export class VoiceFsm {
       case 'enable': {
         if (this.mode !== 'off') return [];
         this.error = null;
-        this.firstEnabledAt = event.nowMs;
         this.lastResultAt = event.nowMs;
         if (this.shouldRunRecognition()) {
           this.mode = 'listening';
@@ -111,7 +109,6 @@ export class VoiceFsm {
         const wasListening = this.mode === 'listening' || this.mode === 'countingDown';
         this.mode = 'off';
         this.countdownStartedAt = null;
-        this.firstEnabledAt = null;
         return wasListening ? [{ kind: 'stop-recognition' }] : [];
       }
       case 'final-result': {

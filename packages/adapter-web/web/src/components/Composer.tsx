@@ -118,6 +118,7 @@ export function Composer({
       await onSend(content, refs);
       setText('');
       setQueue([]);
+      speech.clearBuffer();
     } finally {
       setSending(false);
     }
@@ -161,7 +162,6 @@ export function Composer({
   const isSegmented = variant === 'segmented';
 
   const voiceMessage: string | null = (() => {
-    if (speaking && !speech.supported) return 'voice input not supported in this browser';
     if (speech.error === 'not-allowed')
       return 'microphone permission denied — check browser site settings';
     if (speech.error === 'audio-capture') return 'no microphone available';

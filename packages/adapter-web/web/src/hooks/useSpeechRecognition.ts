@@ -28,6 +28,8 @@ export interface UseSpeechRecognitionResult {
   cancelCountdown: () => void;
   /** Seed the FSM buffer with text already in the textarea on activation. */
   seedBuffer: (text: string) => void;
+  /** Clear the FSM buffer after a successful submit so subsequent speech starts fresh. */
+  clearBuffer: () => void;
 }
 
 function getCtor(): { new (): SpeechRecognition } | null {
@@ -175,6 +177,10 @@ export function useSpeechRecognition(
     fsmRef.current.seedBuffer(text);
   }, []);
 
+  const clearBuffer = useCallback((): void => {
+    fsmRef.current.clearBuffer();
+  }, []);
+
   return {
     supported,
     listening: state.listening,
@@ -183,6 +189,7 @@ export function useSpeechRecognition(
     error: state.error,
     cancelCountdown,
     seedBuffer,
+    clearBuffer,
   };
 }
 
