@@ -196,6 +196,23 @@ export class VoiceFsm {
         this.mode = 'listening';
         return [];
       }
+      case 'recognition-end': {
+        if (this.mode === 'off' || this.mode === 'failed') return [];
+        if (this.shouldRunRecognition()) {
+          this.mode = 'listening';
+          this.lastResultAt = event.nowMs;
+          return [{ kind: 'start-recognition' }];
+        }
+        this.mode = 'paused';
+        return [];
+      }
+      case 'recognition-error': {
+        if (event.error === 'aborted') return [];
+        this.error = event.error;
+        this.mode = 'failed';
+        this.countdownStartedAt = null;
+        return [];
+      }
       default:
         return [];
     }

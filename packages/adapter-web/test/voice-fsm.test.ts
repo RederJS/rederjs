@@ -156,3 +156,84 @@ describe('VoiceFsm — silence and countdown', () => {
     expect(fsm.getState().mode).toBe('listening'); // no countdown; buffer empty
   });
 });
+
+describe('VoiceFsm — recognition-end and errors', () => {
+  it('emits start-recognition on end while still enabled and gate allows', () => {
+    const fsm = new VoiceFsm({ scope: 'always', pauseMs: 1500 });
+    fsm.setStatus('idle');
+    fsm.dispatch({ kind: 'enable', nowMs: 0 });
+    const effects = fsm.dispatch({ kind: 'recognition-end', nowMs: 100 });
+    expect(effects).toEqual([{ kind: 'start-recognition' }]);
+    expect(fsm.getState().mode).toBe('listening');
+  });
+
+  it('does not restart on end when scope is idle-or-awaiting and session is working', () => {
+    const fsm = new VoiceFsm({ scope: 'idle-or-awaiting', pauseMs: 1500 });
+    fsm.setStatus('working');
+    fsm.dispatch({ kind: 'enable', nowMs: 0 });
+    const effects = fsm.dispatch({ kind: 'recognition-end', nowMs: 100 });
+    expect(effects).toEqual([]);
+    expect(fsm.getState().mode).toBe('paused');
+  });
+
+  it('not-allowed error sets failed mode and clears recognition', () => {
+    const fsm = new VoiceFsm({ scope: 'always', pauseMs: 1500 });
+    fsm.setStatus('idle');
+    fsm.dispatch({ kind: 'enable', nowMs: 0 });
+    const effects = fsm.dispatch({ kind: 'recognition-error', error: 'not-allowed' });
+    expect(effects).toEqual([]);
+    expect(fsm.getState().mode).toBe('failed');
+    expect(fsm.getState().error).toBe('not-allowed');
+  });
+
+  it('aborted error is ignored (no state change)', () => {
+    const fsm = new VoiceFsm({ scope: 'always', pauseMs: 1500 });
+    fsm.setStatus('idle');
+    fsm.dispatch({ kind: 'enable', nowMs: 0 });
+    fsm.dispatch({ kind: 'recognition-error', error: 'aborted' });
+    expect(fsm.getState().mode).toBe('listening');
+    expect(fsm.getState().error).toBeNull();
+  });
+
+  it('60s of zero results triggers idle-safety no-speech error', () => {
+    const fsm = new VoiceFsm({ scope: 'always', pauseMs: 1500 });
+    fsm.setStatus('idle');
+    fsm.dispatch({ kind: 'enable', nowMs: 0 });
+    fsm.dispatch({ kind: 'tick', nowMs: 30_000 });
+    expect(fsm.getState().mode).toBe('listening');
+    const effects = fsm.dispatch({ kind: 'tick', nowMs: 60_500 });
+    expect(effects).toEqual([{ kind: 'stop-recognition' }]);
+    expect(fsm.getState().mode).toBe('off');
+    expect(fsm.getState().error).toBe('no-speech');
+  });
+});
+
+describe('VoiceFsm — scope=idle-or-awaiting', () => {
+  it('emits stop-recognition on transition to working', () => {
+    const fsm = new VoiceFsm({ scope: 'idle-or-awaiting', pauseMs: 1500 });
+    fsm.setStatus('idle');
+    fsm.dispatch({ kind: 'enable', nowMs: 0 });
+    const effects = fsm.dispatch({ kind: 'status-change', status: 'working', nowMs: 100 });
+    expect(effects).toEqual([{ kind: 'stop-recognition' }]);
+    expect(fsm.getState().mode).toBe('paused');
+  });
+
+  it('emits start-recognition on transition back to idle', () => {
+    const fsm = new VoiceFsm({ scope: 'idle-or-awaiting', pauseMs: 1500 });
+    fsm.setStatus('working');
+    fsm.dispatch({ kind: 'enable', nowMs: 0 });
+    expect(fsm.getState().mode).toBe('paused');
+    const effects = fsm.dispatch({ kind: 'status-change', status: 'idle', nowMs: 100 });
+    expect(effects).toEqual([{ kind: 'start-recognition' }]);
+    expect(fsm.getState().mode).toBe('listening');
+  });
+
+  it('scope=always does NOT stop on transition to working', () => {
+    const fsm = new VoiceFsm({ scope: 'always', pauseMs: 1500 });
+    fsm.setStatus('idle');
+    fsm.dispatch({ kind: 'enable', nowMs: 0 });
+    const effects = fsm.dispatch({ kind: 'status-change', status: 'working', nowMs: 100 });
+    expect(effects).toEqual([]);
+    expect(fsm.getState().mode).toBe('listening');
+  });
+});
