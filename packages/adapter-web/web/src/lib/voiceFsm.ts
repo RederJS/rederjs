@@ -139,6 +139,63 @@ export class VoiceFsm {
         }
         return [];
       }
+      case 'status-change': {
+        const prev = this.status;
+        this.status = event.status;
+        if (this.mode === 'off') return [];
+        const effects: FsmEffect[] = [];
+        // Scope='idle-or-awaiting': stop on transition to working, start on transition back.
+        if (this.config.scope === 'idle-or-awaiting') {
+          const wasRunning = prev === 'idle' || prev === 'awaiting-user';
+          const nowRunning = this.shouldRunRecognition();
+          if (wasRunning && !nowRunning) {
+            this.mode = 'paused';
+            this.countdownStartedAt = null;
+            effects.push({ kind: 'stop-recognition' });
+            return effects;
+          }
+          if (!wasRunning && nowRunning) {
+            this.mode = 'listening';
+            this.lastResultAt = event.nowMs;
+            effects.push({ kind: 'start-recognition' });
+            return effects;
+          }
+        }
+        // Re-evaluate countdown when status flips into a countdown-eligible state.
+        this.maybeStartCountdown(event.nowMs);
+        return effects;
+      }
+      case 'tick': {
+        if (this.mode === 'off' || this.mode === 'paused' || this.mode === 'failed') return [];
+        if (this.mode === 'countingDown') {
+          if (this.countdownStartedAt !== null && event.nowMs - this.countdownStartedAt >= COUNTDOWN_MS) {
+            this.countdownStartedAt = null;
+            this.mode = 'listening';
+            if (this.buffer.trim().length > 0) {
+              return [{ kind: 'auto-submit' }];
+            }
+            return [];
+          }
+          return [];
+        }
+        // mode === 'listening'
+        // Idle-safety: 60s with zero results since enable.
+        if (this.lastResultAt === null) return [];
+        if (event.nowMs - this.lastResultAt >= IDLE_SAFETY_MS) {
+          this.error = 'no-speech';
+          this.mode = 'off';
+          this.countdownStartedAt = null;
+          return [{ kind: 'stop-recognition' }];
+        }
+        this.maybeStartCountdown(event.nowMs);
+        return [];
+      }
+      case 'cancel-countdown': {
+        if (this.mode !== 'countingDown') return [];
+        this.countdownStartedAt = null;
+        this.mode = 'listening';
+        return [];
+      }
       default:
         return [];
     }
@@ -156,5 +213,15 @@ export class VoiceFsm {
   private shouldRunRecognition(): boolean {
     if (this.config.scope === 'always') return true;
     return this.status === 'idle' || this.status === 'awaiting-user';
+  }
+
+  private maybeStartCountdown(nowMs: number): void {
+    if (this.mode !== 'listening') return;
+    if (this.lastResultAt === null) return;
+    if (nowMs - this.lastResultAt < this.config.pauseMs) return;
+    if (this.status !== 'idle' && this.status !== 'awaiting-user') return;
+    if (this.buffer.trim().length === 0) return;
+    this.mode = 'countingDown';
+    this.countdownStartedAt = nowMs;
   }
 }
