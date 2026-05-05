@@ -74,7 +74,7 @@ export function Composer({
   // button de-activates immediately and a single tap retries (not two taps).
   useEffect(() => {
     if (speech.error) setSpeaking(false);
-  }, [speech.error]);
+  }, [speech.error, setSpeaking]);
 
   const uploading = queue.some((q) => q.status === 'uploading');
   const successful = queue.filter((q) => q.status === 'done' && q.result);
