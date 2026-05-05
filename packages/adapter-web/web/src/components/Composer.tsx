@@ -4,6 +4,9 @@ import { Icons } from './Icon';
 import type { ComposerVariant } from '../types';
 import { cn } from '../cn';
 import { uploadMedia, type AttachmentRef, type UploadResult } from '../api';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import type { SessionStatus } from '../lib/voiceFsm';
+import type { VoiceScope } from '../types';
 
 const ALLOWED_ACCEPT =
   'image/png,image/jpeg,image/gif,image/webp,application/pdf,text/markdown,text/plain';
@@ -15,6 +18,9 @@ interface ComposerProps {
   onSend: (content: string, attachments: AttachmentRef[]) => Promise<void> | void;
   disabled?: boolean;
   placeholder?: string;
+  sessionStatus?: SessionStatus;
+  voiceScope?: VoiceScope;
+  voicePauseMs?: number;
 }
 
 interface QueuedAttachment {
@@ -32,6 +38,9 @@ export function Composer({
   onSend,
   disabled,
   placeholder,
+  sessionStatus = 'unknown',
+  voiceScope = 'always',
+  voicePauseMs = 1500,
 }: ComposerProps): JSX.Element {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -40,12 +49,24 @@ export function Composer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
+  // submitRef breaks circular ref between submit() and the hook's onAutoSubmit callback.
+  const submitRef = useRef<() => Promise<void>>(async () => {});
+
+  const speech = useSpeechRecognition({
+    enabled: speaking,
+    sessionStatus,
+    scope: voiceScope,
+    pauseMs: voicePauseMs,
+    onAutoSubmit: () => { void submitRef.current(); },
+    onTranscriptChange: (next) => setText(next),
+  });
+
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
     ta.style.height = 'auto';
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
-  }, [text]);
+  }, [text, speech.interim]);
 
   const uploading = queue.some((q) => q.status === 'uploading');
   const successful = queue.filter((q) => q.status === 'done' && q.result);
@@ -99,6 +120,7 @@ export function Composer({
       setSending(false);
     }
   };
+  submitRef.current = submit;
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Escape' && speaking) {
@@ -115,8 +137,23 @@ export function Composer({
     if (!speaking) setText(e.target.value);
   };
 
+  const toggleSpeaking = (): void => {
+    if (!speech.supported) return;
+    if (!speaking) {
+      // Seed FSM with whatever the user already typed so spoken text appends to it.
+      speech.seedBuffer(text);
+    }
+    setSpeaking((v) => !v);
+  };
+
+  const displayedText =
+    speaking && speech.interim
+      ? `${text}${text && !text.endsWith(' ') ? ' ' : ''}${speech.interim}`
+      : text;
   const placeholderText = speaking
-    ? 'listening — speak your message…'
+    ? speech.error
+      ? 'voice input error — tap mic to retry'
+      : 'listening — speak your message…'
     : (placeholder ?? 'Message the session…');
   const isMinimal = variant === 'minimal';
   const isSegmented = variant === 'segmented';
@@ -182,7 +219,7 @@ export function Composer({
           <textarea
             ref={taRef}
             rows={1}
-            value={text}
+            value={displayedText}
             onChange={onTextChange}
             onKeyDown={onKeyDown}
             placeholder={placeholderText}
@@ -198,7 +235,12 @@ export function Composer({
               <Icons.paperclip size={14} />
               attach
             </ToolButton>
-            <ToolButton title="Speak" active={speaking} onClick={() => setSpeaking((v) => !v)}>
+            <ToolButton
+              title={speech.supported ? 'Speak' : 'Voice input not supported in this browser'}
+              active={speaking}
+              disabled={!speech.supported}
+              onClick={toggleSpeaking}
+            >
               <Icons.mic size={14} />
               {speaking ? 'listening…' : 'speak'}
             </ToolButton>
@@ -227,7 +269,7 @@ export function Composer({
           <textarea
             ref={taRef}
             rows={1}
-            value={text}
+            value={displayedText}
             onChange={onTextChange}
             onKeyDown={onKeyDown}
             placeholder={placeholderText}
@@ -264,9 +306,10 @@ export function Composer({
             <Icons.paperclip size={14} />
           </IBtn>
           <IBtn
-            title="Speak (Esc to stop)"
+            title={speech.supported ? 'Speak (Esc to stop)' : 'Voice input not supported in this browser'}
             active={speaking}
-            onClick={() => setSpeaking((v) => !v)}
+            disabled={!speech.supported}
+            onClick={toggleSpeaking}
           >
             <Icons.mic size={14} />
           </IBtn>
@@ -274,7 +317,7 @@ export function Composer({
         <textarea
           ref={taRef}
           rows={1}
-          value={text}
+          value={displayedText}
           onChange={onTextChange}
           onKeyDown={onKeyDown}
           placeholder={placeholderText}
