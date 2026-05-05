@@ -176,6 +176,14 @@ export function Composer({
       <div className="px-3 pb-1 font-mono text-[10.5px] text-fg-4">{voiceMessage}</div>
     ) : null;
 
+  const micButtonTitle = !speech.secureContext
+    ? 'Voice input requires HTTPS or localhost'
+    : !speech.supported
+      ? 'Voice input not supported in this browser'
+      : isSegmented
+        ? 'Speak'
+        : 'Speak (Esc to stop)';
+
   const chips =
     queue.length > 0 ? (
       <div className="flex flex-wrap gap-1.5 px-3 pt-2">
@@ -254,7 +262,7 @@ export function Composer({
               attach
             </ToolButton>
             <ToolButton
-              title={speech.supported ? 'Speak' : 'Voice input not supported in this browser'}
+              title={micButtonTitle}
               active={speaking}
               disabled={!speech.supported}
               onClick={toggleSpeaking}
@@ -338,9 +346,7 @@ export function Composer({
             <Icons.paperclip size={14} />
           </IBtn>
           <IBtn
-            title={
-              speech.supported ? 'Speak (Esc to stop)' : 'Voice input not supported in this browser'
-            }
+            title={micButtonTitle}
             active={speaking}
             disabled={!speech.supported}
             onClick={toggleSpeaking}

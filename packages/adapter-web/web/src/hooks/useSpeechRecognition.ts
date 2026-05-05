@@ -21,6 +21,8 @@ export interface UseSpeechRecognitionOptions {
 
 export interface UseSpeechRecognitionResult {
   supported: boolean;
+  /** True when the page is served over HTTPS or from localhost. The Web Speech API requires this. */
+  secureContext: boolean;
   listening: boolean;
   countingDown: boolean;
   interim: string;
@@ -37,11 +39,17 @@ function getCtor(): { new (): SpeechRecognition } | null {
   return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
 }
 
+function isSecureContext(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.isSecureContext === true;
+}
+
 export function useSpeechRecognition(
   opts: UseSpeechRecognitionOptions,
 ): UseSpeechRecognitionResult {
   const ctor = useMemo(() => getCtor(), []);
-  const supported = ctor !== null;
+  const secureContext = useMemo(() => isSecureContext(), []);
+  const supported = ctor !== null && secureContext;
 
   const fsmRef = useRef<VoiceFsm>(new VoiceFsm({ scope: opts.scope, pauseMs: opts.pauseMs }));
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -183,6 +191,7 @@ export function useSpeechRecognition(
 
   return {
     supported,
+    secureContext,
     listening: state.listening,
     countingDown: state.countingDown,
     interim: state.interim,
