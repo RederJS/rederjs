@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { VoiceFsm, type FsmEffect, type FsmState, type SessionStatus, type SpeechErrorKind } from '../lib/voiceFsm';
+import {
+  VoiceFsm,
+  type FsmEffect,
+  type FsmState,
+  type SessionStatus,
+  type SpeechErrorKind,
+} from '../lib/voiceFsm';
 import type { VoiceScope } from '../types';
 
 const TICK_MS = 100;
@@ -29,7 +35,9 @@ function getCtor(): { new (): SpeechRecognition } | null {
   return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
 }
 
-export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpeechRecognitionResult {
+export function useSpeechRecognition(
+  opts: UseSpeechRecognitionOptions,
+): UseSpeechRecognitionResult {
   const ctor = useMemo(() => getCtor(), []);
   const supported = ctor !== null;
 
@@ -37,7 +45,10 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpee
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [state, setState] = useState<FsmState>(() => fsmRef.current.getState());
 
-  const callbacksRef = useRef({ onAutoSubmit: opts.onAutoSubmit, onTranscriptChange: opts.onTranscriptChange });
+  const callbacksRef = useRef({
+    onAutoSubmit: opts.onAutoSubmit,
+    onTranscriptChange: opts.onTranscriptChange,
+  });
   useEffect(() => {
     callbacksRef.current.onAutoSubmit = opts.onAutoSubmit;
     callbacksRef.current.onTranscriptChange = opts.onTranscriptChange;
@@ -50,9 +61,14 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpee
 
   useEffect(() => {
     fsmRef.current.setStatus(opts.sessionStatus);
-    applyEffects(fsmRef.current.dispatch({ kind: 'status-change', status: opts.sessionStatus, nowMs: Date.now() }));
+    applyEffects(
+      fsmRef.current.dispatch({
+        kind: 'status-change',
+        status: opts.sessionStatus,
+        nowMs: Date.now(),
+      }),
+    );
     setState(fsmRef.current.getState());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opts.sessionStatus]);
 
   // Apply FSM effects to the actual SpeechRecognition instance.
@@ -62,7 +78,6 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpee
       else if (effect.kind === 'stop-recognition') stopRecognition();
       else if (effect.kind === 'auto-submit') callbacksRef.current.onAutoSubmit();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startRecognition = (): void => {
@@ -84,10 +99,14 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpee
       }
       const now = Date.now();
       if (finalText.length > 0) {
-        applyEffects(fsmRef.current.dispatch({ kind: 'final-result', text: finalText.trim(), nowMs: now }));
+        applyEffects(
+          fsmRef.current.dispatch({ kind: 'final-result', text: finalText.trim(), nowMs: now }),
+        );
       }
       if (interim.length > 0) {
-        applyEffects(fsmRef.current.dispatch({ kind: 'interim-result', text: interim, nowMs: now }));
+        applyEffects(
+          fsmRef.current.dispatch({ kind: 'interim-result', text: interim, nowMs: now }),
+        );
       }
       const next = fsmRef.current.getState();
       setState(next);
@@ -130,7 +149,6 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpee
       applyEffects(fsmRef.current.dispatch({ kind: 'disable' }));
     }
     setState(fsmRef.current.getState());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opts.enabled]);
 
   // Periodic tick.
@@ -141,13 +159,11 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpee
       setState(fsmRef.current.getState());
     }, TICK_MS);
     return () => window.clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opts.enabled]);
 
   // Cleanup on unmount.
   useEffect(() => {
     return () => stopRecognition();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cancelCountdown = useCallback((): void => {
