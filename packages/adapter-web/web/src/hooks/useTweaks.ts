@@ -14,7 +14,9 @@ function loadTweaks(): Tweaks {
       merged.voiceScope = DEFAULT_TWEAKS.voiceScope;
     }
     const ms = Number(merged.voicePauseMs);
-    merged.voicePauseMs = Number.isFinite(ms) ? Math.max(500, Math.min(4000, Math.round(ms))) : DEFAULT_TWEAKS.voicePauseMs;
+    merged.voicePauseMs = Number.isFinite(ms)
+      ? Math.max(500, Math.min(4000, Math.round(ms)))
+      : DEFAULT_TWEAKS.voicePauseMs;
     return merged;
   } catch {
     return DEFAULT_TWEAKS;

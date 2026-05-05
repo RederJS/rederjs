@@ -38,11 +38,11 @@ export type FsmMode = 'off' | 'listening' | 'countingDown' | 'paused' | 'failed'
 
 export interface FsmState {
   mode: FsmMode;
-  buffer: string;       // committed (final) transcript
-  interim: string;      // current interim chunk
+  buffer: string; // committed (final) transcript
+  interim: string; // current interim chunk
   error: SpeechErrorKind | null;
   countingDown: boolean;
-  listening: boolean;   // is the recognition currently capturing audio?
+  listening: boolean; // is the recognition currently capturing audio?
 }
 
 export class VoiceFsm {
@@ -168,7 +168,10 @@ export class VoiceFsm {
       case 'tick': {
         if (this.mode === 'off' || this.mode === 'paused' || this.mode === 'failed') return [];
         if (this.mode === 'countingDown') {
-          if (this.countdownStartedAt !== null && event.nowMs - this.countdownStartedAt >= COUNTDOWN_MS) {
+          if (
+            this.countdownStartedAt !== null &&
+            event.nowMs - this.countdownStartedAt >= COUNTDOWN_MS
+          ) {
             this.countdownStartedAt = null;
             this.mode = 'listening';
             if (this.buffer.trim().length > 0) {

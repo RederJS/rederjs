@@ -9,7 +9,13 @@ import {
 } from '../api';
 import { sessionStatus } from '../derive';
 import { useEventStream } from '../sse';
-import type { BubbleVariant, ComposerVariant, PendingPermission, StatusVariant, VoiceScope } from '../types';
+import type {
+  BubbleVariant,
+  ComposerVariant,
+  PendingPermission,
+  StatusVariant,
+  VoiceScope,
+} from '../types';
 import { Composer } from './Composer';
 import { MessageStream } from './MessageStream';
 import { PanelHeader } from './PanelHeader';

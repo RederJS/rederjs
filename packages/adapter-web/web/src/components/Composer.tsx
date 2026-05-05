@@ -57,7 +57,9 @@ export function Composer({
     sessionStatus,
     scope: voiceScope,
     pauseMs: voicePauseMs,
-    onAutoSubmit: () => { void submitRef.current(); },
+    onAutoSubmit: () => {
+      void submitRef.current();
+    },
     onTranscriptChange: (next) => setText(next),
   });
 
@@ -160,7 +162,8 @@ export function Composer({
 
   const voiceMessage: string | null = (() => {
     if (speaking && !speech.supported) return 'voice input not supported in this browser';
-    if (speech.error === 'not-allowed') return 'microphone permission denied — check browser site settings';
+    if (speech.error === 'not-allowed')
+      return 'microphone permission denied — check browser site settings';
     if (speech.error === 'audio-capture') return 'no microphone available';
     if (speech.error === 'network') return 'voice input failed (network)';
     if (speech.error === 'no-speech') return 'voice input paused — no speech detected for 60s';
@@ -335,7 +338,9 @@ export function Composer({
             <Icons.paperclip size={14} />
           </IBtn>
           <IBtn
-            title={speech.supported ? 'Speak (Esc to stop)' : 'Voice input not supported in this browser'}
+            title={
+              speech.supported ? 'Speak (Esc to stop)' : 'Voice input not supported in this browser'
+            }
             active={speaking}
             disabled={!speech.supported}
             onClick={toggleSpeaking}
