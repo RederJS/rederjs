@@ -37,6 +37,12 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpee
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [state, setState] = useState<FsmState>(() => fsmRef.current.getState());
 
+  const callbacksRef = useRef({ onAutoSubmit: opts.onAutoSubmit, onTranscriptChange: opts.onTranscriptChange });
+  useEffect(() => {
+    callbacksRef.current.onAutoSubmit = opts.onAutoSubmit;
+    callbacksRef.current.onTranscriptChange = opts.onTranscriptChange;
+  }, [opts.onAutoSubmit, opts.onTranscriptChange]);
+
   // Keep FSM config and status mirrored.
   useEffect(() => {
     fsmRef.current.setConfig({ scope: opts.scope, pauseMs: opts.pauseMs });
@@ -54,7 +60,7 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpee
     for (const effect of effects) {
       if (effect.kind === 'start-recognition') startRecognition();
       else if (effect.kind === 'stop-recognition') stopRecognition();
-      else if (effect.kind === 'auto-submit') opts.onAutoSubmit();
+      else if (effect.kind === 'auto-submit') callbacksRef.current.onAutoSubmit();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -85,7 +91,7 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpee
       }
       const next = fsmRef.current.getState();
       setState(next);
-      opts.onTranscriptChange(next.buffer);
+      callbacksRef.current.onTranscriptChange(next.buffer);
     };
     rec.onerror = (event: SpeechRecognitionErrorEvent) => {
       const kind = mapErrorKind(event.error);
@@ -93,7 +99,7 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpee
       setState(fsmRef.current.getState());
     };
     rec.onend = () => {
-      recognitionRef.current = null;
+      if (recognitionRef.current === rec) recognitionRef.current = null;
       applyEffects(fsmRef.current.dispatch({ kind: 'recognition-end', nowMs: Date.now() }));
       setState(fsmRef.current.getState());
     };
@@ -108,8 +114,12 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions): UseSpee
   const stopRecognition = (): void => {
     const rec = recognitionRef.current;
     if (!rec) return;
-    recognitionRef.current = null;
-    try { rec.stop(); } catch { /* ignore */ }
+    try {
+      rec.stop();
+    } catch {
+      /* ignore */
+    }
+    if (recognitionRef.current === rec) recognitionRef.current = null;
   };
 
   // Drive enable/disable based on opts.enabled.
