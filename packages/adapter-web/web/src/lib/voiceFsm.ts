@@ -92,8 +92,69 @@ export class VoiceFsm {
     this.buffer = text;
   }
 
-  dispatch(_event: FsmEvent): FsmEffect[] {
-    // Implemented in Task 3.
-    return [];
+  dispatch(event: FsmEvent): FsmEffect[] {
+    switch (event.kind) {
+      case 'enable': {
+        if (this.mode !== 'off') return [];
+        this.error = null;
+        this.firstEnabledAt = event.nowMs;
+        this.lastResultAt = event.nowMs;
+        if (this.shouldRunRecognition()) {
+          this.mode = 'listening';
+          return [{ kind: 'start-recognition' }];
+        }
+        this.mode = 'paused';
+        return [];
+      }
+      case 'disable': {
+        if (this.mode === 'off') return [];
+        const wasListening = this.mode === 'listening' || this.mode === 'countingDown';
+        this.mode = 'off';
+        this.countdownStartedAt = null;
+        this.firstEnabledAt = null;
+        return wasListening ? [{ kind: 'stop-recognition' }] : [];
+      }
+      case 'final-result': {
+        if (this.mode === 'off') return [];
+        if (event.text.length === 0) {
+          this.lastResultAt = event.nowMs;
+          return [];
+        }
+        this.appendFinal(event.text);
+        this.interim = '';
+        this.lastResultAt = event.nowMs;
+        if (this.mode === 'countingDown') {
+          this.countdownStartedAt = null;
+          this.mode = 'listening';
+        }
+        return [];
+      }
+      case 'interim-result': {
+        if (this.mode === 'off') return [];
+        this.interim = event.text;
+        this.lastResultAt = event.nowMs;
+        if (this.mode === 'countingDown') {
+          this.countdownStartedAt = null;
+          this.mode = 'listening';
+        }
+        return [];
+      }
+      default:
+        return [];
+    }
+  }
+
+  private appendFinal(text: string): void {
+    if (this.buffer.length === 0) {
+      this.buffer = text;
+      return;
+    }
+    const needsSpace = !/\s$/.test(this.buffer);
+    this.buffer = this.buffer + (needsSpace ? ' ' : '') + text;
+  }
+
+  private shouldRunRecognition(): boolean {
+    if (this.config.scope === 'always') return true;
+    return this.status === 'idle' || this.status === 'awaiting-user';
   }
 }
