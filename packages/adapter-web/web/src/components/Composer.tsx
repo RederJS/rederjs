@@ -158,6 +158,21 @@ export function Composer({
   const isMinimal = variant === 'minimal';
   const isSegmented = variant === 'segmented';
 
+  const voiceMessage: string | null = (() => {
+    if (speaking && !speech.supported) return 'voice input not supported in this browser';
+    if (speech.error === 'not-allowed') return 'microphone permission denied — check browser site settings';
+    if (speech.error === 'audio-capture') return 'no microphone available';
+    if (speech.error === 'network') return 'voice input failed (network)';
+    if (speech.error === 'no-speech') return 'voice input paused — no speech detected for 60s';
+    if (speech.error === 'unknown') return 'voice input error';
+    return null;
+  })();
+
+  const voiceRow =
+    voiceMessage !== null ? (
+      <div className="px-3 pb-1 font-mono text-[10.5px] text-fg-4">{voiceMessage}</div>
+    ) : null;
+
   const chips =
     queue.length > 0 ? (
       <div className="flex flex-wrap gap-1.5 px-3 pt-2">
@@ -254,6 +269,7 @@ export function Composer({
             />
           </div>
         </div>
+        {voiceRow}
       </div>
     );
   }
@@ -290,6 +306,7 @@ export function Composer({
             onCancelCountdown={speech.cancelCountdown}
           />
         </div>
+        {voiceRow}
       </div>
     );
   }
@@ -350,6 +367,7 @@ export function Composer({
         </span>
         <span>end-to-end via VPS</span>
       </div>
+      {voiceRow}
     </div>
   );
 }
