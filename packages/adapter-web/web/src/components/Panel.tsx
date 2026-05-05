@@ -9,7 +9,7 @@ import {
 } from '../api';
 import { sessionStatus } from '../derive';
 import { useEventStream } from '../sse';
-import type { BubbleVariant, ComposerVariant, PendingPermission, StatusVariant } from '../types';
+import type { BubbleVariant, ComposerVariant, PendingPermission, StatusVariant, VoiceScope } from '../types';
 import { Composer } from './Composer';
 import { MessageStream } from './MessageStream';
 import { PanelHeader } from './PanelHeader';
@@ -21,6 +21,8 @@ interface PanelProps {
   statusVariant: StatusVariant;
   bubbleVariant: BubbleVariant;
   composerVariant: ComposerVariant;
+  voiceScope: VoiceScope;
+  voicePauseMs: number;
   onClose: () => void;
   onSwitchSession: (sessionId: string) => void;
 }
@@ -31,6 +33,8 @@ export function Panel({
   statusVariant,
   bubbleVariant,
   composerVariant,
+  voiceScope,
+  voicePauseMs,
   onClose,
   onSwitchSession,
 }: PanelProps): JSX.Element {
@@ -199,6 +203,9 @@ export function Panel({
         variant={composerVariant}
         sessionId={sessionId}
         onSend={onSend}
+        sessionStatus={status}
+        voiceScope={voiceScope}
+        voicePauseMs={voicePauseMs}
         placeholder={status === 'working' ? 'queues until next checkpoint…' : undefined}
       />
     </div>
