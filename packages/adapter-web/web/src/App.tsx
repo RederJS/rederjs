@@ -117,6 +117,8 @@ export function App(): JSX.Element {
                   statusVariant={tweaks.status}
                   bubbleVariant={tweaks.bubble}
                   composerVariant={tweaks.composer}
+                  voiceScope={tweaks.voiceScope}
+                  voicePauseMs={tweaks.voicePauseMs}
                   onClose={() => navigate('/')}
                   onSwitchSession={openSession}
                 />

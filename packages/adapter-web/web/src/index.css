@@ -443,6 +443,44 @@
     background: color-mix(in oklab, var(--accent) 6%, var(--bg-2)) !important;
   }
 
+  /* voice-input countdown ring on the send button */
+  .voice-countdown {
+    position: relative;
+    overflow: hidden;
+  }
+  .voice-countdown::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: conic-gradient(
+      from 0deg,
+      color-mix(in oklab, #0b0c0f 35%, transparent) 0%,
+      color-mix(in oklab, #0b0c0f 35%, transparent) var(--countdown-progress, 0%),
+      transparent var(--countdown-progress, 0%) 100%
+    );
+    animation: voice-countdown-sweep 1s linear forwards;
+  }
+  @keyframes voice-countdown-sweep {
+    from {
+      --countdown-progress: 0%;
+    }
+    to {
+      --countdown-progress: 100%;
+    }
+  }
+  /* fallback for browsers without @property: simulate via background-size */
+  @supports not (background: conic-gradient(from 0deg, red, red 50%, transparent 50%)) {
+    .voice-countdown::after {
+      background: linear-gradient(
+        90deg,
+        color-mix(in oklab, #0b0c0f 35%, transparent),
+        transparent
+      );
+    }
+  }
+
   /* quick-reply buttons */
   .qbtn {
     padding: 6px 12px;
@@ -509,4 +547,13 @@
     background-clip: padding-box;
     border: 3px solid transparent;
   }
+}
+
+/* @property must be at the top level (cannot be nested inside @layer).
+   Registers --countdown-progress so Chrome can interpolate it in @keyframes,
+   enabling the conic-gradient countdown ring to animate smoothly. */
+@property --countdown-progress {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
 }

@@ -9,7 +9,15 @@ function loadTweaks(): Tweaks {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_TWEAKS;
     const parsed = JSON.parse(raw) as Partial<Tweaks>;
-    return { ...DEFAULT_TWEAKS, ...parsed };
+    const merged = { ...DEFAULT_TWEAKS, ...parsed };
+    if (merged.voiceScope !== 'always' && merged.voiceScope !== 'idle-or-awaiting') {
+      merged.voiceScope = DEFAULT_TWEAKS.voiceScope;
+    }
+    const ms = Number(merged.voicePauseMs);
+    merged.voicePauseMs = Number.isFinite(ms)
+      ? Math.max(500, Math.min(4000, Math.round(ms)))
+      : DEFAULT_TWEAKS.voicePauseMs;
+    return merged;
   } catch {
     return DEFAULT_TWEAKS;
   }

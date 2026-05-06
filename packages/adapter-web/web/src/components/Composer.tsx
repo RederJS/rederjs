@@ -4,6 +4,9 @@ import { Icons } from './Icon';
 import type { ComposerVariant } from '../types';
 import { cn } from '../cn';
 import { uploadMedia, type AttachmentRef, type UploadResult } from '../api';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import type { SessionStatus } from '../lib/voiceFsm';
+import type { VoiceScope } from '../types';
 
 const ALLOWED_ACCEPT =
   'image/png,image/jpeg,image/gif,image/webp,application/pdf,text/markdown,text/plain';
@@ -15,6 +18,9 @@ interface ComposerProps {
   onSend: (content: string, attachments: AttachmentRef[]) => Promise<void> | void;
   disabled?: boolean;
   placeholder?: string;
+  sessionStatus?: SessionStatus;
+  voiceScope?: VoiceScope;
+  voicePauseMs?: number;
 }
 
 interface QueuedAttachment {
@@ -32,6 +38,9 @@ export function Composer({
   onSend,
   disabled,
   placeholder,
+  sessionStatus = 'unknown',
+  voiceScope = 'always',
+  voicePauseMs = 1500,
 }: ComposerProps): JSX.Element {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -40,12 +49,32 @@ export function Composer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
+  // submitRef breaks circular ref between submit() and the hook's onAutoSubmit callback.
+  const submitRef = useRef<() => Promise<void>>(async () => {});
+
+  const speech = useSpeechRecognition({
+    enabled: speaking,
+    sessionStatus,
+    scope: voiceScope,
+    pauseMs: voicePauseMs,
+    onAutoSubmit: () => {
+      void submitRef.current();
+    },
+    onTranscriptChange: (next) => setText(next),
+  });
+
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
     ta.style.height = 'auto';
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
-  }, [text]);
+  }, [text, speech.interim]);
+
+  // Auto-clear speaking when the FSM enters a terminal error state so the mic
+  // button de-activates immediately and a single tap retries (not two taps).
+  useEffect(() => {
+    if (speech.error) setSpeaking(false);
+  }, [speech.error, setSpeaking]);
 
   const uploading = queue.some((q) => q.status === 'uploading');
   const successful = queue.filter((q) => q.status === 'done' && q.result);
@@ -95,10 +124,12 @@ export function Composer({
       await onSend(content, refs);
       setText('');
       setQueue([]);
+      speech.clearBuffer();
     } finally {
       setSending(false);
     }
   };
+  submitRef.current = submit;
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Escape' && speaking) {
@@ -115,11 +146,49 @@ export function Composer({
     if (!speaking) setText(e.target.value);
   };
 
+  const toggleSpeaking = (): void => {
+    if (!speech.supported) return;
+    if (!speaking) {
+      // Seed FSM with whatever the user already typed so spoken text appends to it.
+      speech.seedBuffer(text);
+    }
+    setSpeaking((v) => !v);
+  };
+
+  const displayedText =
+    speaking && speech.interim
+      ? `${text}${text && !text.endsWith(' ') ? ' ' : ''}${speech.interim}`
+      : text;
   const placeholderText = speaking
-    ? 'listening — speak your message…'
+    ? speech.error
+      ? 'voice input error — tap mic to retry'
+      : 'listening — speak your message…'
     : (placeholder ?? 'Message the session…');
   const isMinimal = variant === 'minimal';
   const isSegmented = variant === 'segmented';
+
+  const voiceMessage: string | null = (() => {
+    if (speech.error === 'not-allowed')
+      return 'microphone permission denied — check browser site settings';
+    if (speech.error === 'audio-capture') return 'no microphone available';
+    if (speech.error === 'network') return 'voice input failed (network)';
+    if (speech.error === 'no-speech') return 'voice input paused — no speech detected for 60s';
+    if (speech.error === 'unknown') return 'voice input error';
+    return null;
+  })();
+
+  const voiceRow =
+    voiceMessage !== null ? (
+      <div className="px-3 pb-1 font-mono text-[10.5px] text-fg-4">{voiceMessage}</div>
+    ) : null;
+
+  const micButtonTitle = !speech.secureContext
+    ? 'Voice input requires HTTPS or localhost'
+    : !speech.supported
+      ? 'Voice input not supported in this browser'
+      : isSegmented
+        ? 'Speak'
+        : 'Speak (Esc to stop)';
 
   const chips =
     queue.length > 0 ? (
@@ -182,7 +251,7 @@ export function Composer({
           <textarea
             ref={taRef}
             rows={1}
-            value={text}
+            value={displayedText}
             onChange={onTextChange}
             onKeyDown={onKeyDown}
             placeholder={placeholderText}
@@ -198,14 +267,26 @@ export function Composer({
               <Icons.paperclip size={14} />
               attach
             </ToolButton>
-            <ToolButton title="Speak" active={speaking} onClick={() => setSpeaking((v) => !v)}>
+            <ToolButton
+              title={micButtonTitle}
+              active={speaking}
+              disabled={!speech.supported}
+              onClick={toggleSpeaking}
+            >
               <Icons.mic size={14} />
               {speaking ? 'listening…' : 'speak'}
             </ToolButton>
             <div className="flex-1" />
-            <SendButton canSend={canSend} sending={sending} onClick={() => void submit()} />
+            <SendButton
+              canSend={canSend}
+              sending={sending}
+              countingDown={speech.countingDown}
+              onClick={() => void submit()}
+              onCancelCountdown={speech.cancelCountdown}
+            />
           </div>
         </div>
+        {voiceRow}
       </div>
     );
   }
@@ -227,15 +308,22 @@ export function Composer({
           <textarea
             ref={taRef}
             rows={1}
-            value={text}
+            value={displayedText}
             onChange={onTextChange}
             onKeyDown={onKeyDown}
             placeholder={placeholderText}
             readOnly={speaking}
             className="min-h-[22px] max-h-[160px] flex-1 resize-none border-0 bg-transparent px-1 py-1.5 font-mono text-[12.5px] text-fg outline-none placeholder:text-fg-4"
           />
-          <SendButton canSend={canSend} sending={sending} onClick={() => void submit()} />
+          <SendButton
+            canSend={canSend}
+            sending={sending}
+            countingDown={speech.countingDown}
+            onClick={() => void submit()}
+            onCancelCountdown={speech.cancelCountdown}
+          />
         </div>
+        {voiceRow}
       </div>
     );
   }
@@ -264,9 +352,10 @@ export function Composer({
             <Icons.paperclip size={14} />
           </IBtn>
           <IBtn
-            title="Speak (Esc to stop)"
+            title={micButtonTitle}
             active={speaking}
-            onClick={() => setSpeaking((v) => !v)}
+            disabled={!speech.supported}
+            onClick={toggleSpeaking}
           >
             <Icons.mic size={14} />
           </IBtn>
@@ -274,14 +363,20 @@ export function Composer({
         <textarea
           ref={taRef}
           rows={1}
-          value={text}
+          value={displayedText}
           onChange={onTextChange}
           onKeyDown={onKeyDown}
           placeholder={placeholderText}
           readOnly={speaking}
           className="min-h-[22px] max-h-[160px] flex-1 resize-none border-0 bg-transparent px-1 py-1.5 text-[13.5px] leading-[1.5] text-fg outline-none placeholder:text-fg-4"
         />
-        <SendButton canSend={canSend} sending={sending} onClick={() => void submit()} />
+        <SendButton
+          canSend={canSend}
+          sending={sending}
+          countingDown={speech.countingDown}
+          onClick={() => void submit()}
+          onCancelCountdown={speech.cancelCountdown}
+        />
       </div>
       <div className="flex justify-between px-1 font-mono text-[10.5px] text-fg-4">
         <span>
@@ -289,6 +384,7 @@ export function Composer({
         </span>
         <span>end-to-end via VPS</span>
       </div>
+      {voiceRow}
     </div>
   );
 }
@@ -374,12 +470,30 @@ function ToolButton({
 function SendButton({
   canSend,
   sending,
+  countingDown,
   onClick,
+  onCancelCountdown,
 }: {
   canSend: boolean;
   sending: boolean;
+  countingDown?: boolean;
   onClick: () => void;
+  onCancelCountdown?: () => void;
 }): JSX.Element {
+  if (countingDown) {
+    return (
+      <button
+        type="button"
+        onClick={onCancelCountdown}
+        title="Cancel — keep talking"
+        aria-label="Cancel countdown"
+        className="voice-countdown inline-flex h-[30px] items-center gap-1.5 rounded-md bg-accent px-3 font-mono text-xs font-semibold text-[color:#0b0c0f] hover:brightness-110"
+      >
+        cancel
+        <Icons.close size={12} stroke="#0b0c0f" />
+      </button>
+    );
+  }
   return (
     <button
       type="button"

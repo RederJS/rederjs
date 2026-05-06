@@ -150,6 +150,29 @@ export function Tweaks({ tweaks, setTweak, onClose }: TweaksProps): JSX.Element 
               ]}
             />
           </Row>
+
+          <Row label="Voice scope" value={tweaks.voiceScope === 'always' ? 'always' : 'idle only'}>
+            <Segmented
+              value={tweaks.voiceScope}
+              onChange={(v) => setTweak('voiceScope', v)}
+              options={[
+                { value: 'always', label: 'always' },
+                { value: 'idle-or-awaiting', label: 'idle only' },
+              ]}
+            />
+          </Row>
+
+          <Row label="Voice pause" value={`${(tweaks.voicePauseMs / 1000).toFixed(1)}s`}>
+            <input
+              type="range"
+              min={500}
+              max={4000}
+              step={100}
+              value={tweaks.voicePauseMs}
+              onChange={(e) => setTweak('voicePauseMs', Number(e.target.value))}
+              className="cols-slider-range w-full"
+            />
+          </Row>
         </div>
       </aside>
     </>
