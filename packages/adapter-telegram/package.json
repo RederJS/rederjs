@@ -1,9 +1,25 @@
 {
   "name": "@rederjs/adapter-telegram",
   "version": "0.1.0",
+  "description": "Reder Telegram adapter — DM Claude Code, get replies, approve permissions from your phone.",
+  "license": "MIT",
+  "author": "Edward de Groot <ed@degrootventures.com>",
+  "keywords": [
+    "reder",
+    "claude-code",
+    "telegram",
+    "bot",
+    "adapter"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": "./dist/index.js"
   },
@@ -12,10 +28,11 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@rederjs/core": "*",
+    "@rederjs/core": "^0.1.0",
     "grammy": "^1.30.0"
   },
   "devDependencies": {

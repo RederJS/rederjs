@@ -1,9 +1,24 @@
 {
   "name": "@rederjs/shim",
   "version": "0.1.0",
+  "description": "Reder MCP shim — loaded by Claude Code in each project to connect to the reder daemon.",
+  "license": "MIT",
+  "author": "Edward de Groot <ed@degrootventures.com>",
+  "keywords": [
+    "reder",
+    "claude-code",
+    "mcp",
+    "shim"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "bin": {
     "reder-shim": "./dist/index.js",
     "reder-hook": "./dist/hook-cli.js"
@@ -13,10 +28,11 @@
   },
   "scripts": {
     "build": "tsc && chmod +x dist/index.js dist/hook-cli.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@rederjs/core": "*",
+    "@rederjs/core": "^0.1.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "zod": "^3.23.0"
   },

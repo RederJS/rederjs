@@ -35,7 +35,7 @@ Reder is a daemon that sits next to `claude` and bridges it to the outside world
 ## Install
 
 ```sh
-npm install -g reder
+npm install -g rederjs
 ```
 
 Provides three binaries:

@@ -1,9 +1,25 @@
 {
   "name": "@rederjs/daemon",
   "version": "0.1.0",
+  "description": "Reder daemon (rederd) — bridges Claude Code sessions to remote adapters.",
+  "license": "MIT",
+  "author": "Edward de Groot <ed@degrootventures.com>",
+  "keywords": [
+    "reder",
+    "claude-code",
+    "claude",
+    "daemon",
+    "tmux"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "bin": {
     "rederd": "./dist/index.js"
   },
@@ -12,12 +28,13 @@
   },
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@rederjs/core": "*",
-    "@rederjs/adapter-telegram": "*",
-    "rederjs": "*"
+    "@rederjs/core": "^0.1.0",
+    "@rederjs/adapter-telegram": "^0.1.0",
+    "rederjs": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0"

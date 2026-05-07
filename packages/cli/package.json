@@ -1,9 +1,26 @@
 {
   "name": "rederjs",
   "version": "0.1.0",
+  "description": "Reder CLI — manage the reder daemon and paired Claude Code sessions.",
+  "license": "MIT",
+  "author": "Edward de Groot <ed@degrootventures.com>",
+  "keywords": [
+    "reder",
+    "rederjs",
+    "cli",
+    "claude-code",
+    "claude",
+    "tmux"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "bin": {
     "reder": "./dist/index.js"
   },
@@ -21,12 +38,16 @@
       "default": "./dist/commands/claude-hooks.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@rederjs/core": "*",
+    "@rederjs/core": "^0.1.0",
     "commander": "^12.0.0",
     "prompts": "^2.4.0",
     "yaml": "^2.5.0"
