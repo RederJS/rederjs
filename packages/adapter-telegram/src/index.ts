@@ -41,9 +41,32 @@ interface BotRuntime {
   botUsername: string;
   pollAbort: AbortController;
   stopped: boolean;
+  allowGroups: boolean;
 }
 
 const OFFSET_KEY_PREFIX = 'offset:';
+
+/**
+ * Extract the originating chat type from any Telegram update shape we care
+ * about (message, edited_message, channel_post, edited_channel_post,
+ * callback_query.message). Returns null when no chat info is present, in
+ * which case callers should fall through to normalizeUpdate's 'ignore' path.
+ */
+function extractChatType(update: {
+  message?: { chat?: { type?: string } } | undefined;
+  edited_message?: { chat?: { type?: string } } | undefined;
+  channel_post?: { chat?: { type?: string } } | undefined;
+  edited_channel_post?: { chat?: { type?: string } } | undefined;
+  callback_query?: { message?: { chat?: { type?: string } } } | undefined;
+}): string | null {
+  const candidate =
+    update.message?.chat?.type ??
+    update.edited_message?.chat?.type ??
+    update.channel_post?.chat?.type ??
+    update.edited_channel_post?.chat?.type ??
+    update.callback_query?.message?.chat?.type;
+  return candidate ?? null;
+}
 
 export class TelegramAdapter extends Adapter {
   override readonly name = 'telegram';
@@ -87,6 +110,7 @@ export class TelegramAdapter extends Adapter {
         botUsername: info.botUsername,
         pollAbort: new AbortController(),
         stopped: false,
+        allowGroups: bot.allow_groups,
       };
       this.bots.push(runtime);
       this.logger.info(
@@ -381,6 +405,18 @@ export class TelegramAdapter extends Adapter {
       ? Awaited<ReturnType<TelegramTransport['getUpdates']>>[number]
       : never,
   ): Promise<void> {
+    // Chat-type gate: when allow_groups is false (the safe default), drop any
+    // update whose underlying chat is not 'private'. This covers groups,
+    // supergroups, and channels — and applies to text messages, edits,
+    // callback queries (group inline-keyboards), photos, documents, and
+    // commands. Drop silently to avoid signalling configuration to attackers.
+    if (!runtime.allowGroups) {
+      const chatType = extractChatType(update);
+      if (chatType !== null && chatType !== 'private') {
+        return;
+      }
+    }
+
     const norm = normalizeUpdate(update, { sessionId: runtime.sessionId });
 
     switch (norm.kind) {

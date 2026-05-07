@@ -70,12 +70,13 @@ export class FakeTelegramTransport implements TelegramTransport {
     text: string;
     username?: string;
     messageId?: number;
+    chatType?: 'private' | 'group' | 'supergroup' | 'channel';
   }): void {
     this.enqueueUpdate({
       update_id: params.update_id,
       message: {
         message_id: params.messageId ?? this.nextMessageId++,
-        chat: { id: params.chatId, type: 'private' },
+        chat: { id: params.chatId, type: params.chatType ?? 'private' },
         from: {
           id: params.senderId,
           ...(params.username !== undefined ? { username: params.username } : {}),
@@ -93,6 +94,7 @@ export class FakeTelegramTransport implements TelegramTransport {
     messageId: number;
     senderId: number;
     data: string;
+    chatType?: 'private' | 'group' | 'supergroup' | 'channel';
   }): void {
     this.enqueueUpdate({
       update_id: params.update_id,
@@ -100,7 +102,10 @@ export class FakeTelegramTransport implements TelegramTransport {
         id: params.id,
         data: params.data,
         from: { id: params.senderId },
-        message: { message_id: params.messageId, chat: { id: params.chatId } },
+        message: {
+          message_id: params.messageId,
+          chat: { id: params.chatId, type: params.chatType ?? 'private' },
+        },
       },
     });
   }
