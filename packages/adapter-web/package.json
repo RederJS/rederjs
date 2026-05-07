@@ -1,6 +1,20 @@
 {
   "name": "@rederjs/adapter-web",
   "version": "0.1.0",
+  "description": "Reder web adapter — browser dashboard for live transcripts and remote control of Claude Code sessions.",
+  "license": "MIT",
+  "author": "Edward de Groot <ed@degrootventures.com>",
+  "keywords": [
+    "reder",
+    "claude-code",
+    "dashboard",
+    "express",
+    "react",
+    "adapter"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,10 +33,11 @@
     "build:web": "vite build --config web/vite.config.ts",
     "typecheck": "tsc --noEmit",
     "dev:web": "vite --config web/vite.config.ts",
-    "dev:web:lan": "REDER_DEV_HOST=1 vite --config web/vite.config.ts"
+    "dev:web:lan": "REDER_DEV_HOST=1 vite --config web/vite.config.ts",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@rederjs/core": "*",
+    "@rederjs/core": "^0.1.0",
     "better-sqlite3": "^11.0.0",
     "busboy": "^1.6.0",
     "cookie": "^0.7.0",
