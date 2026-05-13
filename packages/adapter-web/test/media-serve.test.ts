@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -54,7 +54,9 @@ beforeEach(async () => {
   await adapter.start(ctx);
   router.registerAdapter('web', { adapter });
   baseUrl = `http://127.0.0.1:${port}`;
-  token = readFileSync(join(dir, 'dashboard.token'), 'utf8').trim();
+  const raw = adapter.getRawTokenIfAvailable();
+  if (raw === null) throw new Error('expected raw token from fresh adapter start');
+  token = raw;
 });
 
 afterEach(async () => {

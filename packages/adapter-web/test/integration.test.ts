@@ -56,6 +56,9 @@ beforeEach(async () => {
       auth: 'token',
       host_allowlist: [],
       sender_id: 'web:local',
+      // Existing tests pre-date the default flip; opt-in explicitly so the
+      // /health assertions still match.
+      expose_health: true,
     },
     storage: createAdapterStorage(db.raw, 'web'),
     router,
@@ -73,10 +76,11 @@ beforeEach(async () => {
   await adapter.start(ctx);
   router.registerAdapter('web', { adapter });
   baseUrl = `http://127.0.0.1:${port}`;
-  // Token is persisted; read it via the adapter.
-  const tokPath = join(dir, 'dashboard.token');
-  const { readFileSync } = await import('node:fs');
-  token = readFileSync(tokPath, 'utf8').trim();
+  // After start(), the freshly-minted raw token is held in memory because
+  // the adapter just generated it. On disk it is stored as a sha256 hash.
+  const raw = adapter.getRawTokenIfAvailable();
+  if (raw === null) throw new Error('expected raw token from freshly-started adapter');
+  token = raw;
 
   // Hold a ref to the http server so we can ensure cleanup (defensive).
   innerServer = (adapter as unknown as { server: Server }).server;
@@ -239,5 +243,106 @@ describe('adapter-web http surface', () => {
     expect(body.mem_percent).toBeLessThanOrEqual(100);
     expect(typeof body.uptime_seconds).toBe('number');
     expect(body.uptime_seconds).toBeGreaterThan(0);
+  });
+});
+
+describe('adapter-web /health defaults', () => {
+  let dir2: string;
+  let db2: DatabaseHandle;
+  let ipcServer2: IpcServer;
+  let router2: Router;
+  let adapter2: WebAdapter;
+  let baseUrl2: string;
+
+  async function ephemeralPort2(): Promise<number> {
+    const { createServer } = await import('node:net');
+    return new Promise((resolve) => {
+      const s = createServer();
+      s.listen(0, '127.0.0.1', () => {
+        const port = (s.address() as AddressInfo).port;
+        s.close(() => resolve(port));
+      });
+    });
+  }
+
+  beforeEach(async () => {
+    dir2 = mkdtempSync(join(tmpdir(), 'reder-web-health-'));
+    db2 = openDatabase(join(dir2, 'test.db'));
+    const logger = createLogger({ level: 'error', destination: { write: () => {} } });
+    const audit = createAuditLog(dir2);
+    ipcServer2 = await createIpcServer({
+      db: db2.raw,
+      socketPath: join(dir2, 'r.sock'),
+      logger,
+    });
+    router2 = createRouter({
+      db: db2.raw,
+      ipcServer: ipcServer2,
+      logger,
+      audit,
+      outboundInitialBackoffMs: 1,
+    });
+    await createSession(db2.raw, 'demo', 'Demo');
+  });
+
+  afterEach(async () => {
+    await adapter2?.stop();
+    await router2?.stop();
+    await ipcServer2?.close();
+    db2?.close();
+    rmSync(dir2, { recursive: true, force: true });
+  });
+
+  it('default-on: /health returns 404 when expose_health is omitted', async () => {
+    const port = await ephemeralPort2();
+    adapter2 = new WebAdapter({ db: db2.raw });
+    const ctx: AdapterContext = {
+      logger: createLogger({ level: 'error', destination: { write: () => {} } }),
+      config: {
+        bind: '127.0.0.1',
+        port,
+        auth: 'token',
+        host_allowlist: [],
+        sender_id: 'web:local',
+        // expose_health intentionally omitted — exercises the new default.
+      },
+      storage: createAdapterStorage(db2.raw, 'web'),
+      router: router2,
+      dataDir: dir2,
+      sessions: [{ session_id: 'demo', display_name: 'Demo', auto_start: false }],
+      db: db2.raw,
+    };
+    await adapter2.start(ctx);
+    router2.registerAdapter('web', { adapter: adapter2 });
+    baseUrl2 = `http://127.0.0.1:${port}`;
+    const res = await fetch(`${baseUrl2}/health`);
+    // No /health route registered, so the SPA-fallback 404 fires.
+    expect([401, 404]).toContain(res.status);
+  });
+
+  it('expose_health: true + loopback returns the snapshot', async () => {
+    const port = await ephemeralPort2();
+    adapter2 = new WebAdapter({ db: db2.raw });
+    const ctx: AdapterContext = {
+      logger: createLogger({ level: 'error', destination: { write: () => {} } }),
+      config: {
+        bind: '127.0.0.1',
+        port,
+        auth: 'token',
+        host_allowlist: [],
+        sender_id: 'web:local',
+        expose_health: true,
+      },
+      storage: createAdapterStorage(db2.raw, 'web'),
+      router: router2,
+      dataDir: dir2,
+      sessions: [{ session_id: 'demo', display_name: 'Demo', auto_start: false }],
+      db: db2.raw,
+    };
+    await adapter2.start(ctx);
+    router2.registerAdapter('web', { adapter: adapter2 });
+    baseUrl2 = `http://127.0.0.1:${port}`;
+    const res = await fetch(`${baseUrl2}/health`);
+    expect(res.status).toBe(200);
   });
 });

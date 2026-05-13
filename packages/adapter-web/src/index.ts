@@ -20,7 +20,7 @@ import {
 import { WebAdapterConfigSchema, type WebAdapterConfig } from './config.js';
 import { createSseRegistry, type SseRegistry } from './sse.js';
 import { buildApp, listen } from './http.js';
-import { loadOrCreateToken } from './auth.js';
+import { loadOrCreateToken, buildLoginUrl } from './auth.js';
 import { clearUnread, incrementUnread } from './routes/sessions.js';
 import { getSessionGit, invalidateSessionGit } from './git.js';
 
@@ -60,7 +60,13 @@ export class WebAdapter extends Adapter {
   private cfg!: WebAdapterConfig;
   private sse!: SseRegistry;
   private server: Server | null = null;
-  private token!: string;
+  private tokenHash!: string;
+  /**
+   * Raw token, only present immediately after creation/rotation or when
+   * loading a legacy raw-format token file. Cleared from memory once the
+   * one-time bootstrap URL has been emitted to the logs.
+   */
+  private freshRawToken: string | null = null;
   private tokenPath!: string;
   private connectedSince: Date | null = null;
   private lastInboundAt: Date | null = null;
@@ -90,16 +96,25 @@ export class WebAdapter extends Adapter {
     // Token.
     this.tokenPath = this.cfg.token_path ?? join(this.ctx.dataDir, 'dashboard.token');
     if (this.cfg.auth === 'token') {
-      const t = loadOrCreateToken(this.tokenPath);
-      this.token = t.token;
+      const t = loadOrCreateToken(this.tokenPath, this.ctx.logger);
+      this.tokenHash = t.tokenHash;
+      this.freshRawToken = t.rawToken ?? null;
       if (t.created) {
+        const bootstrapUrl =
+          t.rawToken !== undefined
+            ? buildLoginUrl({ bind: this.cfg.bind, port: this.cfg.port, token: t.rawToken })
+            : undefined;
         this.ctx.logger.info(
-          { token_path: this.tokenPath, component: 'adapter.web' },
-          'generated new dashboard token',
+          {
+            token_path: this.tokenPath,
+            component: 'adapter.web',
+            ...(bootstrapUrl !== undefined ? { bootstrap_url: bootstrapUrl } : {}),
+          },
+          'generated new dashboard token (run `reder dashboard url` to print the bootstrap URL)',
         );
       }
     } else {
-      this.token = '';
+      this.tokenHash = '';
       this.ctx.logger.warn(
         { component: 'adapter.web' },
         'dashboard auth disabled (auth: none) — rely on upstream auth (Caddy, SSO, etc.)',
@@ -114,7 +129,7 @@ export class WebAdapter extends Adapter {
     const app = buildApp({
       auth: {
         mode: this.cfg.auth,
-        token: this.token,
+        tokenHash: this.tokenHash,
         hostAllowlist: [this.cfg.bind, ...this.cfg.host_allowlist],
         secureCookie: this.cfg.secure_cookie,
       },
@@ -213,6 +228,20 @@ export class WebAdapter extends Adapter {
       event: 'permission.cancelled',
       data: { requestId, ...(finalVerdict !== undefined ? { finalVerdict } : {}) },
     });
+  }
+
+  /**
+   * Return the raw dashboard token if it is currently held in memory —
+   * either because it was just generated (fresh install) or because the
+   * on-disk file is still in the legacy raw format. Returns `null` once
+   * the daemon has been started against a hashed-at-rest token, in which
+   * case the raw token is unrecoverable and must be rotated to reset.
+   *
+   * Public for daemon / CLI helpers and tests; not part of the
+   * cross-process adapter contract.
+   */
+  getRawTokenIfAvailable(): string | null {
+    return this.freshRawToken;
   }
 
   override async healthCheck(): Promise<AdapterHealth> {
@@ -335,4 +364,4 @@ export class WebAdapter extends Adapter {
 
 export default WebAdapter;
 export { WebAdapterConfigSchema, type WebAdapterConfig };
-export { buildLoginUrl, loadOrCreateToken } from './auth.js';
+export { buildLoginUrl, loadOrCreateToken, rotateToken, hashToken } from './auth.js';

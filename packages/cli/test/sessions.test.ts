@@ -8,7 +8,9 @@ import {
   runSessionsUp,
   formatSessionsList,
 } from '../src/commands/sessions.js';
-import { runDashboardUrl } from '../src/commands/dashboard.js';
+import { runDashboardUrl, runDashboardRotateToken } from '../src/commands/dashboard.js';
+import { createHash } from 'node:crypto';
+import { readFileSync, existsSync } from 'node:fs';
 import * as tmux from '@rederjs/core/tmux';
 
 let dir: string;
@@ -200,5 +202,102 @@ adapters:
     const r = runDashboardUrl({ configPath });
     expect(r.url).toBe('http://127.0.0.1:7781/');
     expect(r.auth).toBe('none');
+  });
+
+  it('marks legacy raw-token files explicitly', () => {
+    const dataDir = join(dir, 'data');
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, 'dashboard.token'), 'rdr_web_legacy_raw\n');
+    writeConfig(`version: 1
+runtime: { runtime_dir: ${dir}/rt, data_dir: ${dataDir} }
+sessions: []
+adapters:
+  web:
+    module: '@rederjs/adapter-web'
+    enabled: true
+    config: { bind: 127.0.0.1, port: 7781, auth: token }
+`);
+    const r = runDashboardUrl({ configPath });
+    expect(r.legacy_token_format).toBe(true);
+    expect(r.url).toContain('rdr_web_legacy_raw');
+  });
+
+  it('errors with rotate guidance when the token file is hashed', () => {
+    const dataDir = join(dir, 'data');
+    mkdirSync(dataDir, { recursive: true });
+    const hashHex = createHash('sha256').update('whatever').digest('hex');
+    writeFileSync(join(dataDir, 'dashboard.token'), hashHex + '\n');
+    writeConfig(`version: 1
+runtime: { runtime_dir: ${dir}/rt, data_dir: ${dataDir} }
+sessions: []
+adapters:
+  web:
+    module: '@rederjs/adapter-web'
+    enabled: true
+    config: { bind: 127.0.0.1, port: 7781, auth: token }
+`);
+    expect(() => runDashboardUrl({ configPath })).toThrow(/rotate-token/);
+  });
+});
+
+describe('reder dashboard rotate-token', () => {
+  it('mints a new token, writes the hash, and returns the URL', () => {
+    const dataDir = join(dir, 'data');
+    mkdirSync(dataDir, { recursive: true });
+    writeConfig(`version: 1
+runtime: { runtime_dir: ${dir}/rt, data_dir: ${dataDir} }
+sessions: []
+adapters:
+  web:
+    module: '@rederjs/adapter-web'
+    enabled: true
+    config: { bind: 127.0.0.1, port: 7781, auth: token }
+`);
+    const r = runDashboardRotateToken({ configPath });
+    expect(r.rotated).toBe(false);
+    expect(r.url).toMatch(/\?token=rdr_web_/);
+    // On disk: hash, not raw.
+    const onDisk = readFileSync(r.token_path, 'utf8').trim();
+    expect(onDisk).toMatch(/^[0-9a-f]{64}$/);
+    const rawTokenMatch = /\?token=([^&]+)/.exec(r.url);
+    expect(rawTokenMatch).toBeTruthy();
+    const raw = decodeURIComponent(rawTokenMatch![1]!);
+    expect(createHash('sha256').update(raw).digest('hex')).toBe(onDisk);
+  });
+
+  it('replaces an existing token and reports rotated=true', () => {
+    const dataDir = join(dir, 'data');
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, 'dashboard.token'), 'rdr_web_legacy\n');
+    writeConfig(`version: 1
+runtime: { runtime_dir: ${dir}/rt, data_dir: ${dataDir} }
+sessions: []
+adapters:
+  web:
+    module: '@rederjs/adapter-web'
+    enabled: true
+    config: { bind: 127.0.0.1, port: 7781, auth: token }
+`);
+    const r = runDashboardRotateToken({ configPath });
+    expect(r.rotated).toBe(true);
+    expect(existsSync(r.token_path)).toBe(true);
+    const onDisk = readFileSync(r.token_path, 'utf8').trim();
+    expect(onDisk).not.toBe('rdr_web_legacy');
+    expect(onDisk).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('refuses to rotate when auth: none', () => {
+    const dataDir = join(dir, 'data');
+    mkdirSync(dataDir, { recursive: true });
+    writeConfig(`version: 1
+runtime: { runtime_dir: ${dir}/rt, data_dir: ${dataDir} }
+sessions: []
+adapters:
+  web:
+    module: '@rederjs/adapter-web'
+    enabled: true
+    config: { bind: 127.0.0.1, port: 7781, auth: none }
+`);
+    expect(() => runDashboardRotateToken({ configPath })).toThrow(/Cannot rotate/);
   });
 });

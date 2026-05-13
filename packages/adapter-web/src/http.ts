@@ -38,9 +38,24 @@ export function buildApp(opts: BuildAppOptions): Express {
 
   app.use(hostAllowlistMiddleware(opts.auth));
 
-  // Unauthenticated health endpoints — external monitors + `reder status`.
+  // Unauthenticated health endpoints — local monitors + `reder status`.
+  // Restricted to loopback regardless of host_allowlist; the snapshot is
+  // sensitive enough that public exposure should go through an
+  // authenticated reverse proxy.
   if (opts.exposeHealth) {
-    const handler = async (_req: express.Request, res: express.Response): Promise<void> => {
+    const isLoopback = (req: express.Request): boolean => {
+      const ip = req.ip ?? req.socket.remoteAddress ?? '';
+      // Express normalises ::ffff:127.0.0.1 to 127.0.0.1 only when
+      // trust proxy is set; handle both directly.
+      return (
+        ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip.startsWith('127.')
+      );
+    };
+    const handler = async (req: express.Request, res: express.Response): Promise<void> => {
+      if (!isLoopback(req)) {
+        res.status(403).type('text/plain').send('forbidden');
+        return;
+      }
       try {
         const snap = await opts.healthSnapshot();
         res.setHeader('content-type', 'application/json');

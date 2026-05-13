@@ -54,8 +54,9 @@ beforeEach(async () => {
   await adapter.start(ctx);
   router.registerAdapter('web', { adapter });
   baseUrl = `http://127.0.0.1:${port}`;
-  const { readFileSync } = await import('node:fs');
-  token = readFileSync(join(dir, 'dashboard.token'), 'utf8').trim();
+  const raw = adapter.getRawTokenIfAvailable();
+  if (raw === null) throw new Error('expected raw token from fresh adapter start');
+  token = raw;
 });
 
 afterEach(async () => {

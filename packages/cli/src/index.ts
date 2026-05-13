@@ -19,7 +19,12 @@ import {
   runSessionsUp,
   formatSessionsUp,
 } from './commands/sessions.js';
-import { runDashboardUrl, formatDashboardUrl } from './commands/dashboard.js';
+import {
+  runDashboardUrl,
+  formatDashboardUrl,
+  runDashboardRotateToken,
+  formatDashboardRotateToken,
+} from './commands/dashboard.js';
 import { PERMISSION_MODES, type PermissionMode } from '@rederjs/core/tmux';
 import {
   runTelegramBotAdd,
@@ -479,6 +484,19 @@ dashboard
       const r = runDashboardUrl(buildCfgOpts());
       if (jsonMode()) process.stdout.write(JSON.stringify(r) + '\n');
       else process.stdout.write(formatDashboardUrl(r) + '\n');
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+dashboard
+  .command('rotate-token')
+  .description('mint a new dashboard token (invalidates the previous one after `reder restart`)')
+  .action(() => {
+    try {
+      const r = runDashboardRotateToken(buildCfgOpts());
+      if (jsonMode()) process.stdout.write(JSON.stringify(r) + '\n');
+      else process.stdout.write(formatDashboardRotateToken(r) + '\n');
     } catch (err) {
       fail(err);
     }
