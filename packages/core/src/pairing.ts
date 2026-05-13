@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Database as Db } from 'better-sqlite3';
 
 /**
@@ -8,6 +8,8 @@ import type { Database as Db } from 'better-sqlite3';
 const CODE_ALPHABET = 'abcdefghijkmnopqrstuvwxyz23456789';
 const CODE_LENGTH = 6;
 const CODE_TTL_MS = 10 * 60 * 1000;
+const ID_BYTES = 16;
+const SALT_BYTES = 16;
 
 export function generatePairCode(): string {
   const bytes = randomBytes(CODE_LENGTH * 2);
@@ -17,6 +19,13 @@ export function generatePairCode(): string {
     if (c) out += c;
   }
   return out;
+}
+
+function hashCode(code: string, salt: Buffer): Buffer {
+  const h = createHash('sha256');
+  h.update(code, 'utf8');
+  h.update(salt);
+  return h.digest();
 }
 
 export interface CreatePairCodeInput {
@@ -33,15 +42,25 @@ export interface PairCodeRecord {
   expiresAt: string;
 }
 
+/**
+ * Generate a fresh pair code, store its salted SHA-256 hash, and return the
+ * plaintext code to the caller (the only place it ever exists in memory).
+ */
 export function createPairCode(db: Db, input: CreatePairCodeInput): PairCodeRecord {
   const code = generatePairCode();
+  const id = randomBytes(ID_BYTES);
+  const salt = randomBytes(SALT_BYTES);
+  const codeHash = hashCode(code, salt);
   const created_at = new Date();
   const expires_at = new Date(created_at.getTime() + CODE_TTL_MS);
   db.prepare(
-    `INSERT INTO pair_codes (code, adapter, sender_id, sender_metadata, created_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO pair_codes_v2
+       (id, code_hash, salt, adapter, sender_id, sender_metadata, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
-    code,
+    id,
+    codeHash,
+    salt,
     input.adapter,
     input.senderId,
     input.senderMetadata ? JSON.stringify(input.senderMetadata) : null,
@@ -57,40 +76,115 @@ export function createPairCode(db: Db, input: CreatePairCodeInput): PairCodeReco
   };
 }
 
-export function lookupPairCode(db: Db, code: string): PairCodeRecord | null {
-  const row = db
+interface PairCodeRow {
+  id: Buffer;
+  code_hash: Buffer;
+  salt: Buffer;
+  adapter: string;
+  sender_id: string;
+  sender_metadata: string | null;
+  expires_at: string;
+}
+
+interface ActiveRow {
+  id: Buffer;
+  adapter: string;
+  senderId: string;
+  senderMetadata: Record<string, unknown> | null;
+  expiresAt: string;
+}
+
+function findActiveRow(db: Db, code: string): ActiveRow | null {
+  const rows = db
     .prepare(
-      'SELECT code, adapter, sender_id, sender_metadata, expires_at FROM pair_codes WHERE code = ?',
+      `SELECT id, code_hash, salt, adapter, sender_id, sender_metadata, expires_at
+         FROM pair_codes_v2
+        WHERE expires_at > ?`,
     )
-    .get(code) as
-    | {
-        code: string;
-        adapter: string;
-        sender_id: string;
-        sender_metadata: string | null;
-        expires_at: string;
-      }
-    | undefined;
+    .all(new Date().toISOString()) as PairCodeRow[];
+  for (const row of rows) {
+    const candidate = hashCode(code, row.salt);
+    if (candidate.length === row.code_hash.length && timingSafeEqual(candidate, row.code_hash)) {
+      return {
+        id: row.id,
+        adapter: row.adapter,
+        senderId: row.sender_id,
+        senderMetadata: row.sender_metadata
+          ? (JSON.parse(row.sender_metadata) as Record<string, unknown>)
+          : null,
+        expiresAt: row.expires_at,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Look up a pair code by plaintext. Iterates non-expired rows, comparing each
+ * stored hash with `timingSafeEqual` against `sha256(code || salt)`. Returns
+ * the metadata of the matching row (without exposing the row id). This is a
+ * read-only operation suitable for inspection; redemption must go through
+ * {@link redeemPairCode} so that the lookup-then-delete pair is atomic.
+ */
+export function lookupPairCode(db: Db, code: string): PairCodeRecord | null {
+  const row = findActiveRow(db, code);
   if (!row) return null;
-  if (new Date(row.expires_at).getTime() < Date.now()) return null;
   return {
-    code: row.code,
+    code,
     adapter: row.adapter,
-    senderId: row.sender_id,
-    senderMetadata: row.sender_metadata
-      ? (JSON.parse(row.sender_metadata) as Record<string, unknown>)
-      : null,
-    expiresAt: row.expires_at,
+    senderId: row.senderId,
+    senderMetadata: row.senderMetadata,
+    expiresAt: row.expiresAt,
   };
 }
 
-export function consumePairCode(db: Db, code: string): void {
-  db.prepare('DELETE FROM pair_codes WHERE code = ?').run(code);
+export interface RedeemedPairCode {
+  adapter: string;
+  senderId: string;
+  senderMetadata: Record<string, unknown> | null;
+  expiresAt: string;
+}
+
+/**
+ * Atomically look up and consume a pair code. Runs in a single SQLite
+ * transaction so that concurrent redemption attempts can never both succeed:
+ * the second `DELETE … WHERE id = ? AND expires_at > ?` will report
+ * `changes === 0` and the caller is told the code is invalid.
+ *
+ * Returns the redeemed binding metadata on success, `null` if no live code
+ * matched, or if another caller consumed it first.
+ */
+export function redeemPairCode(db: Db, code: string): RedeemedPairCode | null {
+  const txn = db.transaction((): RedeemedPairCode | null => {
+    const row = findActiveRow(db, code);
+    if (!row) return null;
+    const nowIso = new Date().toISOString();
+    const result = db
+      .prepare('DELETE FROM pair_codes_v2 WHERE id = ? AND expires_at > ?')
+      .run(row.id, nowIso);
+    if (result.changes !== 1) return null;
+    return {
+      adapter: row.adapter,
+      senderId: row.senderId,
+      senderMetadata: row.senderMetadata,
+      expiresAt: row.expiresAt,
+    };
+  });
+  return txn();
+}
+
+/**
+ * Delete every row from `pair_codes_v2` (useful when a redemption attempt was
+ * already paired — keep callers from leaking the row). Exposed for tests; the
+ * router uses {@link redeemPairCode} in the normal path.
+ */
+export function consumePairCodeById(db: Db, id: Buffer): void {
+  db.prepare('DELETE FROM pair_codes_v2 WHERE id = ?').run(id);
 }
 
 export function purgeExpiredPairCodes(db: Db): number {
   const result = db
-    .prepare('DELETE FROM pair_codes WHERE expires_at < ?')
+    .prepare('DELETE FROM pair_codes_v2 WHERE expires_at < ?')
     .run(new Date().toISOString());
   return Number(result.changes);
 }

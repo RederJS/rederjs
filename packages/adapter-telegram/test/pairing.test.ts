@@ -68,10 +68,16 @@ describe('TelegramAdapter pairing + allowlist', () => {
     expect(fake.sent[0]!.text).toContain('pairing code');
     const code = extractPairCode(fake.sent[0]!.text);
     expect(code).toMatch(/^[a-z0-9]{6}$/);
-    // Row exists in pair_codes
-    const rows = db.raw.prepare('SELECT * FROM pair_codes').all() as Array<{ code: string }>;
+    // Row exists in pair_codes_v2 but stores only the salted hash; the
+    // plaintext code must never appear in the database.
+    const rows = db.raw.prepare('SELECT * FROM pair_codes_v2').all() as Array<{
+      code_hash: Buffer;
+      salt: Buffer;
+    }>;
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.code).toBe(code);
+    expect(Buffer.isBuffer(rows[0]!.code_hash)).toBe(true);
+    expect(Buffer.isBuffer(rows[0]!.salt)).toBe(true);
+    expect(rows[0]!.code_hash.toString('utf8').includes(code!)).toBe(false);
   });
 
   it('does not forward unpaired messages to the router', async () => {

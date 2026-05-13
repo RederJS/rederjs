@@ -83,7 +83,7 @@ describe('TelegramAdapter allowlist mode', () => {
     const pairMsgs = fake.sent.filter((s) => s.text.toLowerCase().includes('pairing'));
     expect(pairMsgs).toHaveLength(0);
     // No pair_codes row was created.
-    const pairRows = db.raw.prepare('SELECT code FROM pair_codes').all();
+    const pairRows = db.raw.prepare('SELECT id FROM pair_codes_v2').all();
     expect(pairRows).toHaveLength(0);
     // Binding was auto-created with chat_id metadata.
     const binding = getBinding(db.raw, 'telegram', '99', 'booknerds');
@@ -107,7 +107,7 @@ describe('TelegramAdapter allowlist mode', () => {
 
     expect(ingested).toHaveLength(0);
     expect(fake.sent).toHaveLength(0);
-    const pairRows = db.raw.prepare('SELECT code FROM pair_codes').all();
+    const pairRows = db.raw.prepare('SELECT id FROM pair_codes_v2').all();
     expect(pairRows).toHaveLength(0);
     const binding = getBinding(db.raw, 'telegram', '1234', 'booknerds');
     expect(binding).toBeNull();
@@ -121,7 +121,7 @@ describe('TelegramAdapter allowlist mode', () => {
     await waitFor(() => fake.sent.length > 0, 2000);
 
     expect(fake.sent[0]!.text).toContain('pairing code');
-    const pairRows = db.raw.prepare('SELECT code FROM pair_codes').all() as Array<{ code: string }>;
+    const pairRows = db.raw.prepare('SELECT id FROM pair_codes_v2').all() as Array<{ id: Buffer }>;
     expect(pairRows).toHaveLength(1);
   });
 });

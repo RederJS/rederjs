@@ -36,14 +36,14 @@ import type { AuditLog } from './audit.js';
 import { PermissionManager, type PermissionManagerOptions } from './permissions.js';
 import { SessionActivityTracker, type SessionActivitySnapshot } from './activity.js';
 import {
-  lookupPairCode,
-  consumePairCode,
+  redeemPairCode,
   createBinding,
   createPairCode as createPairCodeRecord,
   isPaired as isPairedDb,
   upsertBinding as upsertBindingDb,
   listAllBindingsForSession,
 } from './pairing.js';
+import { RateLimiter } from './ratelimit.js';
 import type { Config } from './config.js';
 import {
   stageOutboundFile,
@@ -90,6 +90,15 @@ interface LastInboundBySession {
 const OUTBOUND_DEFAULT_MAX_ATTEMPTS = 5;
 const OUTBOUND_DEFAULT_INITIAL_BACKOFF_MS = 250;
 
+/**
+ * Defense-in-depth limit on `admin_pair_request` redemption attempts per
+ * shim session: caps brute-force volume from a same-uid local attacker. The
+ * code space is ~30 bits and the TTL is 10 minutes, so this only matters if
+ * the host is already compromised — but the cost of bounding it is trivial.
+ */
+const ADMIN_PAIR_RATE_LIMIT = 10;
+const ADMIN_PAIR_RATE_WINDOW_MS = 60_000;
+
 export function createRouter(opts: RouterOptions): Router {
   const { db, ipcServer, logger, audit } = opts;
   const adapters = new Map<string, AdapterRegistration>();
@@ -110,6 +119,8 @@ export function createRouter(opts: RouterOptions): Router {
       emitter.off(event, listener as (...args: unknown[]) => void);
     },
   };
+
+  const adminPairRateLimiter = new RateLimiter(ADMIN_PAIR_RATE_LIMIT, ADMIN_PAIR_RATE_WINDOW_MS);
 
   const activity = new SessionActivityTracker();
   const activityListener = (snap: SessionActivitySnapshot): void => {
@@ -672,8 +683,34 @@ export function createRouter(opts: RouterOptions): Router {
   // Admin pair request ---------------------------------------------------------
 
   async function handleAdminPairRequest(evt: AdminPairRequestEvent): Promise<void> {
+    // Defense-in-depth: cap redemption attempts per shim session. With ~30
+    // bits of code entropy and a 10-min TTL, brute force is infeasible at any
+    // sane rate, but bounding it neutralises noisy local attackers.
+    const rl = adminPairRateLimiter.check(`admin-pair:${evt.session_id}`);
+    if (!rl.allowed) {
+      logger.warn(
+        {
+          session_id: evt.session_id,
+          attempts: rl.currentCount,
+          reset_in_ms: rl.resetInMs,
+          component: 'core.router',
+        },
+        'admin_pair_request rate-limited',
+      );
+      ipcServer.sendToSession(evt.session_id, {
+        kind: 'admin_pair_result',
+        success: false,
+        error: 'too many pairing attempts; try again shortly',
+      });
+      return;
+    }
+
     const code = evt.code.toLowerCase();
-    const rec = lookupPairCode(db, code);
+    // Atomic redemption: redeemPairCode wraps the lookup and the DELETE in a
+    // single SQLite transaction. Two concurrent admin_pair_request events
+    // with the same code can race the lookup, but only one DELETE will see
+    // `changes === 1`; the loser gets null and is told the code is invalid.
+    const rec = redeemPairCode(db, code);
     if (!rec) {
       ipcServer.sendToSession(evt.session_id, {
         kind: 'admin_pair_result',
@@ -683,7 +720,7 @@ export function createRouter(opts: RouterOptions): Router {
       return;
     }
     if (isPairedDb(db, rec.adapter, rec.senderId, evt.session_id)) {
-      consumePairCode(db, code);
+      // Already paired; code is already consumed by the redeem above.
       ipcServer.sendToSession(evt.session_id, {
         kind: 'admin_pair_result',
         success: true,
@@ -700,7 +737,6 @@ export function createRouter(opts: RouterOptions): Router {
       senderId: rec.senderId,
       ...(rec.senderMetadata ? { metadata: rec.senderMetadata } : {}),
     });
-    consumePairCode(db, code);
     audit.write({
       kind: 'pair',
       session_id: evt.session_id,
