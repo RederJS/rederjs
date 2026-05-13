@@ -15,9 +15,11 @@ export interface TelegramUpdate {
     id: string;
     data?: string;
     from: { id: number; username?: string };
-    message?: { message_id: number; chat: { id: number } };
+    message?: { message_id: number; chat: { id: number; type?: string } };
   };
   edited_message?: TelegramUpdate['message'];
+  channel_post?: TelegramUpdate['message'];
+  edited_channel_post?: TelegramUpdate['message'];
 }
 
 export type ParseMode = 'MarkdownV2' | 'HTML' | undefined;
