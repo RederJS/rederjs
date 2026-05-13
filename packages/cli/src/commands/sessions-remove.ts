@@ -1,10 +1,10 @@
-import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, rmdirSync, rmSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import prompts from 'prompts';
 import { openDatabase } from '@rederjs/core/storage/db';
 import { deleteSession } from '@rederjs/core/sessions';
 import { loadConfigContext } from '../config-loader.js';
-import { defaultConfigPath } from '../paths.js';
+import { defaultConfigPath, sessionDataDir, shimTokenPathFor } from '../paths.js';
 import { peekSession, removeSession } from './config-writer.js';
 import { ConfigNotFoundError } from './sessions-add.js';
 import { removeClaudeHooks } from './claude-hooks.js';
@@ -30,6 +30,8 @@ export interface SessionRemoveResult {
   bindingsRemoved: number;
   mcpJsonPath: string | undefined;
   mcpEntryRemoved: boolean;
+  tokenFilePath: string;
+  tokenFileRemoved: boolean;
   warnings: string[];
 }
 
@@ -97,6 +99,28 @@ export function runSessionRemove(opts: SessionRemoveOptions): SessionRemoveResul
 
   const { removed: yamlRemoved } = removeSession({ configPath, sessionId: opts.sessionId });
 
+  // Remove the per-session shim token file (and the parent per-session dir if
+  // it ends up empty). Cleanup is best-effort: a leftover empty dir is
+  // harmless, but the token file itself should always go.
+  const tokenFilePath = shimTokenPathFor(ctx.dataDir, opts.sessionId);
+  let tokenFileRemoved = false;
+  try {
+    if (existsSync(tokenFilePath)) {
+      rmSync(tokenFilePath, { force: true });
+      tokenFileRemoved = true;
+    }
+  } catch (err) {
+    warnings.push(`failed to remove shim token file ${tokenFilePath}: ${(err as Error).message}`);
+  }
+  try {
+    const perSessionDir = sessionDataDir(ctx.dataDir, opts.sessionId);
+    if (existsSync(perSessionDir)) {
+      rmdirSync(perSessionDir);
+    }
+  } catch {
+    // Directory not empty or already gone — fine.
+  }
+
   return {
     sessionId: opts.sessionId,
     workspaceDir: existing.workspace_dir,
@@ -105,6 +129,8 @@ export function runSessionRemove(opts: SessionRemoveOptions): SessionRemoveResul
     bindingsRemoved,
     mcpJsonPath,
     mcpEntryRemoved,
+    tokenFilePath,
+    tokenFileRemoved,
     warnings,
   };
 }

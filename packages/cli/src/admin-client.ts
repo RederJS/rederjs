@@ -22,7 +22,9 @@ export interface DiscoveredSession {
 
 /**
  * Look for .mcp.json in cwd (and parents), extract a reder-shim entry, and
- * parse its --session-id / --token / --socket argv.
+ * parse its --session-id / --token-file / --socket argv. Falls back to
+ * legacy `--token` argv for .mcp.json written before the token-file change
+ * (the user can run `reder sessions repair` to migrate cleanly).
  */
 export function discoverSessionFromProject(startDir: string): DiscoveredSession | null {
   let dir = resolve(startDir);
@@ -37,8 +39,10 @@ export function discoverSessionFromProject(startDir: string): DiscoveredSession 
             entry.args.some((a) => /reder[-_]?shim/i.test(a));
           if (!isReder) continue;
           const session = findArg(entry.args, '--session-id');
-          const token = findArg(entry.args, '--token');
           const socket = findArg(entry.args, '--socket');
+          const tokenFile = findArg(entry.args, '--token-file');
+          const inlineToken = findArg(entry.args, '--token');
+          const token = tokenFile ? readTokenFromFile(tokenFile) : inlineToken;
           if (session && token && socket) {
             return { sessionId: session, token, socketPath: socket, projectDir: dir };
           }
@@ -50,6 +54,15 @@ export function discoverSessionFromProject(startDir: string): DiscoveredSession 
     const parent = resolve(dir, '..');
     if (parent === dir) return null;
     dir = parent;
+  }
+}
+
+function readTokenFromFile(path: string): string | null {
+  try {
+    const t = readFileSync(path, 'utf8').replace(/\s+$/, '');
+    return t.length > 0 ? t : null;
+  } catch {
+    return null;
   }
 }
 

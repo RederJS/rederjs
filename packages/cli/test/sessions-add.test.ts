@@ -111,7 +111,7 @@ describe('runSessionAdd', () => {
     expect(r.permissionMode).toBe('bypassPermissions');
   });
 
-  it('creates .mcp.json with token and mode 0600', async () => {
+  it('creates .mcp.json with --token-file (not --token) and mode 0600', async () => {
     seedConfig();
     const r = await runSessionAdd({ sessionId: 'booknerds', projectDir, configPath });
     expect(statSync(r.mcpJsonPath).mode & 0o777).toBe(0o600);
@@ -121,34 +121,45 @@ describe('runSessionAdd', () => {
     expect(doc.mcpServers.reder.command).toBe('reder-shim');
     const args = doc.mcpServers.reder.args;
     expect(args[args.indexOf('--session-id') + 1]).toBe('booknerds');
-    const token = args[args.indexOf('--token') + 1]!;
-    expect(token).toMatch(/^rdr_sess_/);
+    // Regression: token must NOT appear on argv anymore.
+    expect(args).not.toContain('--token');
+    expect(args).toContain('--token-file');
+    const tokenFilePath = args[args.indexOf('--token-file') + 1]!;
+    expect(tokenFilePath).toBe(r.tokenFilePath);
+    // Token file exists, is 0600, and contains a real session token.
+    expect(existsSync(tokenFilePath)).toBe(true);
+    expect(statSync(tokenFilePath).mode & 0o777).toBe(0o600);
+    const persisted = readFileSync(tokenFilePath, 'utf8').trim();
+    expect(persisted).toMatch(/^rdr_sess_/);
+    // The token file lives under dataDir, never inside the project workspace.
+    expect(tokenFilePath.startsWith(projectDir)).toBe(false);
     expect(r.tokenRotated).toBe(false);
 
-    // Also installs Claude hooks.
+    // Also installs Claude hooks — using --token-file (not --token).
     const settingsPath = join(projectDir, '.claude', 'settings.local.json');
     expect(existsSync(settingsPath)).toBe(true);
     const settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
-      hooks: Record<string, Array<{ _reder_session_id?: string }>>;
+      hooks: Record<
+        string,
+        Array<{ _reder_session_id?: string; hooks: Array<{ command: string }> }>
+      >;
     };
     expect(settings.hooks.UserPromptSubmit).toBeDefined();
     expect(settings.hooks.UserPromptSubmit[0]!._reder_session_id).toBe('booknerds');
+    const hookCmd = settings.hooks.UserPromptSubmit[0]!.hooks[0]!.command;
+    expect(hookCmd).toContain('--token-file');
+    // Hook command must NOT contain `--token '<value>'` (the leak we just
+    // fixed). The token literal must never appear in the shell string.
+    expect(hookCmd).not.toMatch(/--token\s+'[^']*'/);
+    expect(hookCmd).not.toContain(persisted);
   });
 
   it('rotates token on re-install', async () => {
     seedConfig();
     const first = await runSessionAdd({ sessionId: 'ss', projectDir, configPath });
-    const firstDoc = JSON.parse(readFileSync(first.mcpJsonPath, 'utf8')) as {
-      mcpServers: { reder: { args: string[] } };
-    };
-    const firstToken =
-      firstDoc.mcpServers.reder.args[firstDoc.mcpServers.reder.args.indexOf('--token') + 1];
+    const firstToken = readFileSync(first.tokenFilePath, 'utf8').trim();
     const second = await runSessionAdd({ sessionId: 'ss', projectDir, configPath });
-    const secondDoc = JSON.parse(readFileSync(second.mcpJsonPath, 'utf8')) as {
-      mcpServers: { reder: { args: string[] } };
-    };
-    const secondToken =
-      secondDoc.mcpServers.reder.args[secondDoc.mcpServers.reder.args.indexOf('--token') + 1];
+    const secondToken = readFileSync(second.tokenFilePath, 'utf8').trim();
     expect(secondToken).not.toBe(firstToken);
     expect(second.tokenRotated).toBe(true);
   });

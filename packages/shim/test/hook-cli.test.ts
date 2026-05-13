@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -15,7 +15,7 @@ let dir: string;
 let db: DatabaseHandle;
 let ipcServer: IpcServer;
 let socketPath: string;
-let token: string;
+let tokenFilePath: string;
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'reder-hook-cli-'));
@@ -24,7 +24,8 @@ beforeEach(async () => {
   const logger = createLogger({ level: 'error', destination: { write: () => {} } });
   ipcServer = await createIpcServer({ db: db.raw, socketPath, logger });
   const { token: t } = await createSession(db.raw, 'sess', 'Sess');
-  token = t;
+  tokenFilePath = join(dir, 'shim.token');
+  writeFileSync(tokenFilePath, t + '\n', { mode: 0o600 });
 });
 
 afterEach(async () => {
@@ -46,7 +47,7 @@ function runHook(args: string[], stdin: string): Promise<{ code: number | null; 
 }
 
 describe('reder-hook', () => {
-  it('delivers a hook_event and exits 0', async () => {
+  it('reads the token from --token-file and delivers a hook_event', async () => {
     const received: Array<{ hook: string }> = [];
     ipcServer.on('hook_event', (evt) => received.push({ hook: evt.hook }));
 
@@ -56,8 +57,8 @@ describe('reder-hook', () => {
         'sess',
         '--socket',
         socketPath,
-        '--token',
-        token,
+        '--token-file',
+        tokenFilePath,
         '--hook',
         'UserPromptSubmit',
       ],
@@ -76,8 +77,8 @@ describe('reder-hook', () => {
         'sess',
         '--socket',
         join(dir, 'nope.sock'),
-        '--token',
-        token,
+        '--token-file',
+        tokenFilePath,
         '--hook',
         'Stop',
       ],
@@ -90,5 +91,23 @@ describe('reder-hook', () => {
     const { code, stderr } = await runHook(['--hook', 'Stop'], '{}');
     expect(code).toBe(2);
     expect(stderr).toMatch(/missing --session-id/);
+  });
+
+  it('exits 2 when --token-file points at a missing path', async () => {
+    const { code, stderr } = await runHook(
+      [
+        '--session-id',
+        'sess',
+        '--socket',
+        socketPath,
+        '--token-file',
+        join(dir, 'nonexistent.token'),
+        '--hook',
+        'Stop',
+      ],
+      '{}',
+    );
+    expect(code).toBe(2);
+    expect(stderr).toMatch(/failed to read --token-file/);
   });
 });

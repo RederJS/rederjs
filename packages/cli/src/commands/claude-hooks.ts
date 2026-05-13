@@ -17,7 +17,12 @@ export interface HookInstallParams {
   sessionId: string;
   hookCommand: string; // e.g. "reder-hook" or absolute path
   socketPath: string;
-  token: string;
+  /**
+   * Absolute path to the per-session shim token file. The hook CLI reads the
+   * token from this file rather than receiving it on argv — argv leaks into
+   * /proc/<pid>/cmdline and `ps -ef`.
+   */
+  tokenFilePath: string;
 }
 
 export interface HookRemoveParams {
@@ -71,8 +76,8 @@ function buildCommand(p: HookInstallParams, event: HookedEvent): string {
     q(p.sessionId),
     '--socket',
     q(p.socketPath),
-    '--token',
-    q(p.token),
+    '--token-file',
+    q(p.tokenFilePath),
     '--hook',
     event,
   ].join(' ');
