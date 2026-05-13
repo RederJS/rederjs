@@ -254,3 +254,34 @@ export function listBindingsForSender(db: Db, adapter: string, senderId: string)
     metadata: r.metadata ? (JSON.parse(r.metadata) as Record<string, unknown>) : null,
   }));
 }
+
+/**
+ * Delete every binding for `(adapter, sessionId)` whose `sender_id` is NOT in
+ * `allowedSenderIds`. Returns the count of rows deleted. Used by adapters
+ * running in allowlist mode to reconcile persisted bindings against the
+ * current allowlist on startup — a sender removed from the allowlist must not
+ * be able to resolve outstanding bindings (e.g. permission-prompt callbacks).
+ *
+ * If `allowedSenderIds` is empty, deletes every binding for `(adapter,
+ * sessionId)`.
+ */
+export function deleteBindingsForSessionExceptSenders(
+  db: Db,
+  params: { adapter: string; sessionId: string; allowedSenderIds: readonly string[] },
+): number {
+  if (params.allowedSenderIds.length === 0) {
+    const result = db
+      .prepare(`DELETE FROM bindings WHERE adapter = ? AND session_id = ?`)
+      .run(params.adapter, params.sessionId);
+    return Number(result.changes);
+  }
+  const placeholders = params.allowedSenderIds.map(() => '?').join(', ');
+  const result = db
+    .prepare(
+      `DELETE FROM bindings
+         WHERE adapter = ? AND session_id = ?
+           AND sender_id NOT IN (${placeholders})`,
+    )
+    .run(params.adapter, params.sessionId, ...params.allowedSenderIds);
+  return Number(result.changes);
+}

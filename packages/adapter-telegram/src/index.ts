@@ -7,6 +7,7 @@ import {
   type SendResult,
 } from '@rederjs/core/adapter';
 import { RateLimiter } from '@rederjs/core/ratelimit';
+import { deleteBindingsForSessionExceptSenders } from '@rederjs/core/pairing';
 import { TelegramAdapterConfigSchema, type TelegramAdapterConfig } from './config.js';
 import type { TelegramTransport } from './transport.js';
 import { createGrammyTransport } from './grammy-transport.js';
@@ -92,6 +93,32 @@ export class TelegramAdapter extends Adapter {
       throw new Error(`invalid telegram adapter config: ${parsed.error.message}`);
     }
     this.config = parsed.data;
+
+    // Reconcile persisted bindings against the current allowlist. Bindings
+    // created by previous runs (or earlier in this run) for senders that have
+    // since been removed from `allowlist` must not survive — otherwise those
+    // senders could still resolve outstanding state (notably permission-prompt
+    // callbacks, which look up by binding rather than re-checking the
+    // allowlist). This is the root-cause fix complementing the defense-in-
+    // depth allowlist re-check in handleCallbackQuery.
+    //
+    // Only runs in `allowlist` mode. In `pairing` mode, bindings ARE the
+    // source of truth and must not be purged here.
+    if (this.config.mode === 'allowlist' && ctx.db) {
+      for (const bot of this.config.bots) {
+        const removed = deleteBindingsForSessionExceptSenders(ctx.db, {
+          adapter: 'telegram',
+          sessionId: bot.session_id,
+          allowedSenderIds: this.config.allowlist,
+        });
+        if (removed > 0) {
+          this.logger.info(
+            { session_id: bot.session_id, removed, component: 'adapter.telegram' },
+            'reconciled telegram bindings against allowlist',
+          );
+        }
+      }
+    }
 
     for (const bot of this.config.bots) {
       const token = this.resolveToken(bot);
@@ -493,6 +520,19 @@ export class TelegramAdapter extends Adapter {
       this.logger.warn(
         { sender_id: cbq.senderId, session_id: runtime.sessionId, component: 'adapter.telegram' },
         'callback from unpaired sender; dropping',
+      );
+      return;
+    }
+
+    // Defense-in-depth: in allowlist mode, re-check the live allowlist before
+    // honoring the verdict. A binding may have been created when the sender
+    // WAS on the allowlist, but if the operator has since removed them, their
+    // verdict must not resolve permission requests. Drop silently — we don't
+    // want to leak the membership signal to a probing client.
+    if (this.config.mode === 'allowlist' && !this.config.allowlist.includes(cbq.senderId)) {
+      this.logger.warn(
+        { sender_id: cbq.senderId, session_id: runtime.sessionId, component: 'adapter.telegram' },
+        'callback from sender no longer on allowlist; dropping',
       );
       return;
     }
