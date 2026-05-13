@@ -20,7 +20,7 @@ import {
 import { WebAdapterConfigSchema, type WebAdapterConfig } from './config.js';
 import { createSseRegistry, type SseRegistry } from './sse.js';
 import { buildApp, listen } from './http.js';
-import { loadOrCreateToken, buildLoginUrl } from './auth.js';
+import { loadOrCreateToken } from './auth.js';
 import { clearUnread, incrementUnread } from './routes/sessions.js';
 import { getSessionGit, invalidateSessionGit } from './git.js';
 
@@ -148,11 +148,6 @@ export class WebAdapter extends Adapter {
     this.server = await listen(app, this.cfg.bind, this.cfg.port);
     this.connectedSince = new Date();
 
-    const url = buildLoginUrl({
-      bind: this.cfg.bind,
-      port: this.cfg.port,
-      token: this.token,
-    });
     this.ctx.logger.info(
       {
         bind: this.cfg.bind,
@@ -161,7 +156,7 @@ export class WebAdapter extends Adapter {
         component: 'adapter.web',
       },
       this.cfg.auth === 'token'
-        ? `dashboard listening. First-time URL: ${url}`
+        ? 'dashboard listening (run `reder dashboard url` to get the bootstrap link)'
         : 'dashboard listening (auth disabled)',
     );
   }

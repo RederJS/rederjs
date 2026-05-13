@@ -1,4 +1,11 @@
-import { pino, type Logger, type DestinationStream, type LoggerOptions } from 'pino';
+import {
+  pino,
+  stdSerializers,
+  stdTimeFunctions,
+  type Logger,
+  type DestinationStream,
+  type LoggerOptions,
+} from 'pino';
 
 export const REDACTED_MARKER = '[REDACTED]';
 
@@ -20,6 +27,15 @@ const DEFAULT_REDACT_PATHS = [
   '*.*.bot_token',
 ];
 
+const TOKEN_PATTERN_BOT = /bot\d+:[A-Za-z0-9_-]+/g;
+const TOKEN_PATTERN_RDR = /rdr_(?:web|sess|pair)_[A-Za-z0-9_-]+/g;
+
+export function scrubTokens(input: string): string {
+  return input
+    .replace(TOKEN_PATTERN_BOT, 'bot<redacted>')
+    .replace(TOKEN_PATTERN_RDR, 'rdr_<redacted>');
+}
+
 export interface CreateLoggerOptions {
   level?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
   destination?: DestinationStream;
@@ -39,7 +55,25 @@ export function createLogger(opts: CreateLoggerOptions = {}): Logger {
       remove: false,
     },
     base: bindings ?? null,
-    timestamp: pino.stdTimeFunctions.isoTime,
+    timestamp: stdTimeFunctions.isoTime,
+    serializers: {
+      err: (err: Error) => {
+        const serialized = stdSerializers.err(err) as Record<string, unknown>;
+        if (typeof serialized['message'] === 'string') {
+          serialized['message'] = scrubTokens(serialized['message']);
+        }
+        if (typeof serialized['stack'] === 'string') {
+          serialized['stack'] = scrubTokens(serialized['stack']);
+        }
+        return serialized;
+      },
+    },
+    hooks: {
+      logMethod(args, method) {
+        const scrubbed = args.map((arg) => (typeof arg === 'string' ? scrubTokens(arg) : arg));
+        return method.apply(this, scrubbed as Parameters<typeof method>);
+      },
+    },
   };
 
   return destination ? pino(options, destination) : pino(options);
