@@ -61,7 +61,9 @@ export function createGrammyTransport(opts: GrammyTransportOptions): TelegramTra
     async downloadFile(filePath: string) {
       const url = `https://api.telegram.org/file/bot${opts.token}/${filePath}`;
       const res = await fetch(url);
-      if (!res.ok) throw new Error(`file download ${url}: ${res.status} ${res.statusText}`);
+      if (!res.ok) {
+        throw new Error(`file download failed (path=${filePath}): ${res.status} ${res.statusText}`);
+      }
       return Buffer.from(await res.arrayBuffer());
     },
     async sendPhoto(chatId, path, opts) {
