@@ -295,11 +295,10 @@ For the full local dev loop — linking the workspace bins onto your `PATH`, TS 
 
 ## Status & roadmap
 
-- ✅ v0.1 — Telegram, web dashboard, tmux auto-start, permission relay, persistent approvals, per-sender rate limit, audit log
+- ✅ v0.1 — Telegram, web dashboard (with browser-side voice input via the Web Speech API), tmux auto-start, permission relay, persistent approvals, per-sender rate limit, audit log
 - 🔜 Slack / Matrix adapters
 - 🔜 Full Claude Code terminal mirroring via `tmux pipe-pane`
 - 🔜 Upgrade-safe migrations
-- 🔜 Voice (Twilio)
 
 ## Reporting issues
 
