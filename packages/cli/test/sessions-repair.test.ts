@@ -63,18 +63,54 @@ describe('runSessionRepair', () => {
   });
 
   it('refreshes the token when the session token has drifted', async () => {
-    await runSessionAdd({
+    const added = await runSessionAdd({
       sessionId: 'sess',
       displayName: 'Sess',
       projectDir,
       configPath,
       shimCommand: ['reder-shim'],
     });
-    const before = readFileSync(join(projectDir, '.mcp.json'), 'utf8');
+    const tokenBefore = readFileSync(added.tokenFilePath, 'utf8').trim();
     const res = await runSessionRepair({ sessionId: 'sess', configPath });
     expect(res.tokenRotated).toBe(true);
-    const after = readFileSync(join(projectDir, '.mcp.json'), 'utf8');
-    expect(after).not.toBe(before); // token changed
+    const tokenAfter = readFileSync(res.tokenFilePath, 'utf8').trim();
+    expect(tokenAfter).not.toBe(tokenBefore);
+  });
+
+  it('migrates legacy .mcp.json that used --token to --token-file', async () => {
+    const added = await runSessionAdd({
+      sessionId: 'sess',
+      displayName: 'Sess',
+      projectDir,
+      configPath,
+      shimCommand: ['reder-shim'],
+    });
+    // Simulate a legacy .mcp.json from before this fix (token on argv).
+    const mcpPath = join(projectDir, '.mcp.json');
+    const doc = JSON.parse(readFileSync(mcpPath, 'utf8')) as {
+      mcpServers: { reder: { command: string; args: string[] } };
+    };
+    doc.mcpServers.reder.args = [
+      '--session-id',
+      'sess',
+      '--token',
+      'rdr_sess_legacy_inline_secret',
+      '--socket',
+      '/tmp/reder.sock',
+    ];
+    writeFileSync(mcpPath, JSON.stringify(doc, null, 2) + '\n');
+
+    await runSessionRepair({ sessionId: 'sess', configPath });
+    const after = JSON.parse(readFileSync(mcpPath, 'utf8')) as {
+      mcpServers: { reder: { args: string[] } };
+    };
+    expect(after.mcpServers.reder.args).not.toContain('--token');
+    expect(after.mcpServers.reder.args).toContain('--token-file');
+    expect(JSON.stringify(after)).not.toContain('rdr_sess_legacy_inline_secret');
+    // The token file is the same per-session path.
+    expect(
+      after.mcpServers.reder.args[after.mcpServers.reder.args.indexOf('--token-file') + 1],
+    ).toBe(added.tokenFilePath);
   });
 
   it('throws when the session is not registered', async () => {

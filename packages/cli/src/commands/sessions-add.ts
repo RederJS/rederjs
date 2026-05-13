@@ -1,12 +1,12 @@
 import { readFileSync, writeFileSync, existsSync, chmodSync, mkdirSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import prompts from 'prompts';
 import { openDatabase } from '@rederjs/core/storage/db';
 import { createSession } from '@rederjs/core/sessions';
 import type { PermissionMode } from '@rederjs/core/tmux';
 import { loadConfigContext } from '../config-loader.js';
-import { defaultConfigPath, socketPathFor } from '../paths.js';
+import { defaultConfigPath, shimTokenPathFor, socketPathFor } from '../paths.js';
 import { peekSession, upsertSession } from './config-writer.js';
 import { runStart, type ServiceResult } from './service.js';
 import { sanitizeSessionId, validateSessionId, prettifyDisplayName } from '../session-id.js';
@@ -81,6 +81,7 @@ export interface SessionAddResult {
   configPath: string;
   mcpJsonPath: string;
   socketPath: string;
+  tokenFilePath: string;
   tokenRotated: boolean;
   yamlCreated: boolean;
   yamlUpdated: boolean;
@@ -138,10 +139,20 @@ export async function runSessionAdd(opts: SessionAddOptions): Promise<SessionAdd
   const db = openDatabase(join(ctx.dataDir, 'reder.db'));
   let mcpJsonPath: string;
   let socketPath: string;
+  let tokenFilePath: string;
   let tokenRotated: boolean;
   try {
     const { token, created } = await createSession(db.raw, opts.sessionId, displayName);
     mcpJsonPath = join(projectDir, '.mcp.json');
+
+    // Persist the shim token to a per-session file under dataDir (NOT inside
+    // the project workspace — that gets committed to git). The shim and hook
+    // CLI read this file via `--token-file` so the secret never appears on
+    // argv (/proc/<pid>/cmdline, `ps -ef`).
+    tokenFilePath = shimTokenPathFor(ctx.dataDir, opts.sessionId);
+    mkdirSync(dirname(tokenFilePath), { recursive: true, mode: 0o700 });
+    writeFileSync(tokenFilePath, token + '\n', { mode: 0o600 });
+    chmodSync(tokenFilePath, 0o600);
 
     let doc: McpServersFile = {};
     if (existsSync(mcpJsonPath)) {
@@ -161,8 +172,8 @@ export async function runSessionAdd(opts: SessionAddOptions): Promise<SessionAdd
         ...command.slice(1),
         '--session-id',
         opts.sessionId,
-        '--token',
-        token,
+        '--token-file',
+        tokenFilePath,
         '--socket',
         socketPath,
       ],
@@ -177,7 +188,7 @@ export async function runSessionAdd(opts: SessionAddOptions): Promise<SessionAdd
         sessionId: opts.sessionId,
         hookCommand: resolveHookCommand(),
         socketPath,
-        token,
+        tokenFilePath,
       });
     } catch (err) {
       // Non-fatal — the session is still registered. `reder sessions repair` can
@@ -199,6 +210,7 @@ export async function runSessionAdd(opts: SessionAddOptions): Promise<SessionAdd
     configPath,
     mcpJsonPath,
     socketPath,
+    tokenFilePath,
     tokenRotated,
     yamlCreated,
     yamlUpdated,

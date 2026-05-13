@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { createConnection } from 'node:net';
 import { encode } from '@rederjs/core/ipc/codec';
@@ -80,12 +81,24 @@ function safeParse(raw: string): Record<string, unknown> {
   }
 }
 
+function readTokenFile(path: string): string {
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch (err) {
+    die(`failed to read --token-file ${path}: ${(err as Error).message}`);
+  }
+  const token = raw.replace(/\s+$/, '');
+  if (token.length === 0) die(`--token-file ${path} is empty`);
+  return token;
+}
+
 async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
       'session-id': { type: 'string' },
       socket: { type: 'string' },
-      token: { type: 'string' },
+      'token-file': { type: 'string' },
       hook: { type: 'string' },
     },
     strict: false,
@@ -93,15 +106,17 @@ async function main(): Promise<void> {
 
   if (!values['session-id']) die('missing --session-id');
   if (!values.socket) die('missing --socket');
-  if (!values.token) die('missing --token');
+  if (!values['token-file']) die('missing --token-file');
   if (!isHookName(values.hook as string | undefined)) die('invalid or missing --hook');
+
+  const token = readTokenFile(values['token-file'] as string);
 
   const payload = await readStdinJson(STDIN_TIMEOUT_MS);
 
   const frame = encode({
     kind: 'hook_event',
     session_id: values['session-id'] as string,
-    shim_token: values.token as string,
+    shim_token: token,
     hook: values.hook as HookName,
     timestamp: new Date().toISOString(),
     payload,

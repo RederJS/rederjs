@@ -34,7 +34,7 @@ function params(overrides: Partial<HookInstallParams> = {}): HookInstallParams {
     sessionId: 'sess',
     hookCommand: '/usr/local/bin/reder-hook',
     socketPath: '/tmp/reder.sock',
-    token: 'rdr_sess_token',
+    tokenFilePath: '/home/user/.local/share/reder/data/sessions/sess/shim.token',
     ...overrides,
   };
 }
@@ -80,14 +80,25 @@ describe('installClaudeHooks', () => {
     expect(doc.hooks.UserPromptSubmit).toHaveLength(1);
   });
 
-  it('updates the command path on re-install with new token', () => {
-    installClaudeHooks(params({ token: 'rdr_sess_old' }));
-    installClaudeHooks(params({ token: 'rdr_sess_new' }));
+  it('updates the command path on re-install with new tokenFilePath', () => {
+    installClaudeHooks(params({ tokenFilePath: '/var/reder/sessions/sess/old.token' }));
+    installClaudeHooks(params({ tokenFilePath: '/var/reder/sessions/sess/new.token' }));
     const doc = JSON.parse(readFileSync(settingsPath(), 'utf8')) as {
       hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
     };
-    expect(doc.hooks.UserPromptSubmit[0]!.hooks[0]!.command).toContain('rdr_sess_new');
-    expect(doc.hooks.UserPromptSubmit[0]!.hooks[0]!.command).not.toContain('rdr_sess_old');
+    expect(doc.hooks.UserPromptSubmit[0]!.hooks[0]!.command).toContain('new.token');
+    expect(doc.hooks.UserPromptSubmit[0]!.hooks[0]!.command).not.toContain('old.token');
+  });
+
+  it('emits --token-file (not --token) so the secret never appears on argv', () => {
+    installClaudeHooks(params({ tokenFilePath: '/var/reder/sessions/sess/shim.token' }));
+    const doc = JSON.parse(readFileSync(settingsPath(), 'utf8')) as {
+      hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+    };
+    const cmd = doc.hooks.UserPromptSubmit[0]!.hooks[0]!.command;
+    expect(cmd).toContain("--token-file '/var/reder/sessions/sess/shim.token'");
+    // Regression: hook command must not contain a `--token '<value>'` literal.
+    expect(cmd).not.toMatch(/--token\s+'[^']*'/);
   });
 
   it('writes settings.local.json with 0600 permissions', () => {

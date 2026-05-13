@@ -126,4 +126,14 @@ describe('runSessionRemove', () => {
     runSessionRemove({ sessionId: 'sess', configPath });
     expect(existsSync(join(projectDir, '.claude', 'settings.local.json'))).toBe(false);
   });
+
+  it('removes the per-session shim token file', async () => {
+    seedConfig();
+    const added = await runSessionAdd({ sessionId: 'tokrm', projectDir, configPath });
+    expect(existsSync(added.tokenFilePath)).toBe(true);
+    const result = runSessionRemove({ sessionId: 'tokrm', configPath });
+    expect(result.tokenFilePath).toBe(added.tokenFilePath);
+    expect(result.tokenFileRemoved).toBe(true);
+    expect(existsSync(added.tokenFilePath)).toBe(false);
+  });
 });
