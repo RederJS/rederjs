@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode, useMemo } from 'react';
+import { safeHref } from '../lib/sanitizeUrl';
 
 type InlineToken =
   | { kind: 'text'; value: string }
@@ -93,12 +94,22 @@ function renderInline(tokens: InlineToken[], keyPrefix = ''): ReactNode[] {
         return <strong key={key}>{renderInline(t.children, `${key}-`)}</strong>;
       case 'em':
         return <em key={key}>{renderInline(t.children, `${key}-`)}</em>;
-      case 'link':
+      case 'link': {
+        // Treat the href as untrusted: message content can originate from
+        // any adapter (Telegram, anything POSTing /api/sessions/:id/messages).
+        // React does NOT sanitize href, so `javascript:` / `data:` URLs would
+        // become click-to-XSS in the dashboard's origin. Fall back to plain
+        // text (preserve the label) when the scheme is not on the allowlist.
+        const href = safeHref(t.href);
+        if (href === null) {
+          return <Fragment key={key}>{renderInline(t.children, `${key}-`)}</Fragment>;
+        }
         return (
-          <a key={key} href={t.href} target="_blank" rel="noreferrer">
+          <a key={key} href={href} target="_blank" rel="noreferrer">
             {renderInline(t.children, `${key}-`)}
           </a>
         );
+      }
     }
   });
 }
