@@ -17,8 +17,28 @@ import {
 import { startSession as startTmuxSession, getPaneCommand } from '@rederjs/core/tmux';
 import type { Adapter } from '@rederjs/core/adapter';
 import { createAdapterHost, type AdapterHost, loadAdapter } from './adapter-host.js';
-import { hasClaudeHooks } from 'rederjs/commands/claude-hooks';
 export type { AdapterHost };
+
+/**
+ * Best-effort check that the Claude Code hooks were installed in a session's
+ * workspace. Lives in the `rederjs` (CLI) package — daemon dynamically imports
+ * it so the daemon can be installed/run without the CLI present (and to avoid
+ * a circular npm dep). If the CLI isn't on the module path, the check is
+ * silently skipped — it only drives a warning log, not behavior.
+ */
+async function checkClaudeHooks(args: {
+  projectDir: string;
+  sessionId: string;
+}): Promise<boolean | null> {
+  try {
+    const mod = (await import('rederjs/commands/claude-hooks')) as {
+      hasClaudeHooks: (a: { projectDir: string; sessionId: string }) => boolean;
+    };
+    return mod.hasClaudeHooks(args);
+  } catch {
+    return null;
+  }
+}
 
 export interface BootstrapResult {
   config: Config;
@@ -212,11 +232,16 @@ export async function bootstrap(opts: BootstrapOptions): Promise<BootstrapResult
     }
   }
 
-  // Warn about sessions that are auto-started but missing their Claude hook config.
+  // Warn about sessions that are auto-started but missing their Claude hook
+  // config. Best-effort — if the CLI package isn't installed alongside the
+  // daemon, the check returns null and we skip the warning.
   for (const s of config.sessions) {
     if (!s.auto_start || !s.workspace_dir) continue;
-    const present = hasClaudeHooks({ projectDir: s.workspace_dir, sessionId: s.session_id });
-    if (!present) {
+    const present = await checkClaudeHooks({
+      projectDir: s.workspace_dir,
+      sessionId: s.session_id,
+    });
+    if (present === false) {
       logger.warn(
         {
           session_id: s.session_id,
