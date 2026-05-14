@@ -92,7 +92,13 @@ function makeEntry(event: HookedEvent, p: HookInstallParams): HookEntry {
 }
 
 function isOurs(entry: HookEntry, sessionId: string): boolean {
-  return entry._reder_session_id === sessionId;
+  if (entry._reder_session_id === sessionId) return true;
+  // Legacy entries from older shim versions (no _reder_session_id marker, often
+  // with --token inline instead of --token-file). Detect by command shape so
+  // re-install/repair cleans them up rather than appending a duplicate.
+  const escaped = sessionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const sidRe = new RegExp(`--session-id\\s+'${escaped}'`);
+  return entry.hooks.some((h) => /reder-hook'\s+--/.test(h.command) && sidRe.test(h.command));
 }
 
 export function installClaudeHooks(p: HookInstallParams): void {

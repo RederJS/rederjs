@@ -3,7 +3,7 @@ import { Command } from 'commander';
 import { interactiveInit } from './commands/init.js';
 import { interactiveSessionAdd } from './commands/sessions-add.js';
 import { interactiveSessionRemove } from './commands/sessions-remove.js';
-import { runSessionRepair } from './commands/sessions-repair.js';
+import { interactiveSessionRepair, type SessionRepairOutcome } from './commands/sessions-repair.js';
 import { runStatus, formatStatus } from './commands/status.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { runPair, formatPairResult } from './commands/pair.js';
@@ -336,20 +336,57 @@ sessions
   });
 
 sessions
-  .command('repair <session-id>')
-  .description('re-write .mcp.json and .claude/settings.local.json for a registered session')
-  .action(async (sessionId: string) => {
+  .command('repair [session-id]')
+  .description(
+    're-write .mcp.json and .claude/settings.local.json for a registered session ' +
+      '(omit id to pick interactively, or use --all)',
+  )
+  .option('--all', 'repair every registered session')
+  .action(async (sessionId: string | undefined, opts: Record<string, unknown>) => {
     try {
-      const result = await runSessionRepair({ sessionId, ...buildCfgOpts() });
+      const result = await interactiveSessionRepair({
+        ...(sessionId !== undefined ? { sessionIdArg: sessionId } : {}),
+        ...(opts['all'] === true ? { all: true } : {}),
+        ...buildCfgOpts(),
+        nonInteractive: jsonMode(),
+      });
       if (jsonMode()) {
         process.stdout.write(JSON.stringify(result) + '\n');
-      } else {
+        return;
+      }
+      if (result.kind === 'cancelled') {
+        process.stdout.write('Cancelled.\n');
+        return;
+      }
+      if (result.kind === 'single') {
+        const r = result.result;
         const lines = [
-          `Repaired session '${result.sessionId}' (workspace ${result.workspaceDir})`,
-          `  .mcp.json: ${result.mcpJsonPath}${result.tokenRotated ? ' (token rotated)' : ''}`,
+          `Repaired session '${r.sessionId}' (workspace ${r.workspaceDir})`,
+          `  .mcp.json: ${r.mcpJsonPath}${r.tokenRotated ? ' (token rotated)' : ''}`,
         ];
         process.stdout.write(lines.join('\n') + '\n');
+        return;
       }
+      // result.kind === 'all'
+      const outcomes = result.result.results;
+      const okCount = outcomes.filter((o) => o.ok).length;
+      const failCount = outcomes.length - okCount;
+      const lines: string[] = [];
+      for (const o of outcomes as SessionRepairOutcome[]) {
+        if (o.ok) {
+          lines.push(
+            `  ✓ ${o.sessionId} (${o.result.workspaceDir})${o.result.tokenRotated ? ' — token rotated' : ''}`,
+          );
+        } else {
+          lines.push(`  ✗ ${o.sessionId}: ${o.error}`);
+        }
+      }
+      lines.unshift(
+        `Repaired ${okCount} of ${outcomes.length} session${outcomes.length === 1 ? '' : 's'}` +
+          (failCount > 0 ? ` (${failCount} skipped/failed)` : ''),
+      );
+      process.stdout.write(lines.join('\n') + '\n');
+      if (failCount > 0) process.exitCode = 1;
     } catch (err) {
       fail(err);
     }
