@@ -10,6 +10,15 @@
     "mcp",
     "shim"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RederJS/rederjs.git",
+    "directory": "packages/shim"
+  },
+  "homepage": "https://rederjs.com",
+  "bugs": {
+    "url": "https://github.com/RederJS/rederjs/issues"
+  },
   "engines": {
     "node": ">=20"
   },
