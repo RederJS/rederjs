@@ -16,3 +16,5 @@ coverage/
 design/
 # Superpowers workflow artifacts (specs graduate to docs/design/; plans stay local)
 docs/superpowers/
+# Per-user Claude Code state (settings, scheduled tasks, worktrees) — never for git.
+.claude/
