@@ -1,6 +1,6 @@
 # @rederjs/adapter-telegram
 
-The reder Telegram adapter — DM your Claude Code sessions, receive replies, and approve permission prompts from your phone. Built on [grammY](https://grammy.dev/). Part of the [reder](https://github.com/mred9/reder) project.
+The reder Telegram adapter — DM your Claude Code sessions, receive replies, and approve permission prompts from your phone. Built on [grammY](https://grammy.dev/). Part of the [reder](https://github.com/RederJS/rederjs) project.
 
 ## Install
 
@@ -23,4 +23,4 @@ adapters:
 
 Pair the bot to a project: DM it to get a pair code, then run `reder pair <code>` from a workspace where you've already run `reder sessions add`.
 
-See also: the [main repo README](https://github.com/mred9/reder#readme) for the Telegram quickstart and architecture diagram.
+See also: the [main repo README](https://github.com/RederJS/rederjs#readme) for the Telegram quickstart and architecture diagram.

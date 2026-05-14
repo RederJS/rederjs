@@ -13,7 +13,7 @@ This guide takes you from a fresh clone to a working dev loop where edits to any
 ## Clone, install, build, test
 
 ```sh
-git clone https://github.com/…/reder
+git clone https://github.com/RederJS/rederjs
 cd reder
 npm install
 npm run build

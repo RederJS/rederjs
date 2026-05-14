@@ -270,7 +270,7 @@ Write your own: [docs/adapter-authoring.md](docs/adapter-authoring.md).
 ## Development
 
 ```sh
-git clone https://github.com/…/reder
+git clone https://github.com/RederJS/rederjs
 cd reder
 npm install
 npm run build

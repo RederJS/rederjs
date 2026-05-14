@@ -1,6 +1,6 @@
 # @rederjs/daemon
 
-The reder daemon (`rederd`) — a long-running process that hosts the Unix socket every Claude Code shim connects to, owns the SQLite store, runs the configured adapters, and serves the web dashboard. Part of the [reder](https://github.com/mred9/reder) project.
+The reder daemon (`rederd`) — a long-running process that hosts the Unix socket every Claude Code shim connects to, owns the SQLite store, runs the configured adapters, and serves the web dashboard. Part of the [reder](https://github.com/RederJS/rederjs) project.
 
 You typically don't install this package directly. It comes along with the CLI:
 
@@ -18,4 +18,4 @@ reder status    # query its HTTP API
 reder restart   # restart after a config change
 ```
 
-See also: the [main repo README](https://github.com/mred9/reder#readme) for the architecture diagram and configuration reference.
+See also: the [main repo README](https://github.com/RederJS/rederjs#readme) for the architecture diagram and configuration reference.

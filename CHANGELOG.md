@@ -37,10 +37,10 @@ Six npm packages publish at this version:
 ### Added
 
 - `reder sessions repair` accepts no args (interactive picker) and
-  `--all` for non-interactive bulk repair (#58).
+  `--all` for non-interactive bulk repair.
 - Hook installer (`@rederjs/cli`) now detects and removes legacy unmarked
   Claude Code hook entries on re-install/repair, in addition to entries
-  carrying the `_reder_session_id` marker (#58).
+  carrying the `_reder_session_id` marker.
 
 ### Changed
 
@@ -55,16 +55,16 @@ Six npm packages publish at this version:
   [GHSA-4w7w-66w2-5vf9](https://github.com/advisories/GHSA-4w7w-66w2-5vf9)
   (path traversal in optimized-deps `.map` handling) and
   [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99)
-  (esbuild dev-server unrestricted CORS, transitively) (#59).
+  (esbuild dev-server unrestricted CORS, transitively).
 - `vitest` bumped from `^2.0.0` to `^3.2.4`; root `overrides` block
-  removed since vitest 3 dedupes naturally to a single vite (#60).
+  removed since vitest 3 dedupes naturally to a single vite.
 
 ### Fixed
 
 - Repair / re-install of Claude Code hooks no longer leaves stale legacy
   entries in `.claude/settings.local.json` — those carried inline
   `--token` values that became invalid after token rotation, causing
-  every prompt/session/stop event to fire a failing hook (#58).
+  every prompt/session/stop event to fire a failing hook.
 
-[Unreleased]: https://github.com/mred9/reder/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/mred9/reder/releases/tag/v0.1.0
+[Unreleased]: https://github.com/RederJS/rederjs/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/RederJS/rederjs/releases/tag/v0.1.0
