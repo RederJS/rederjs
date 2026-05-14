@@ -128,5 +128,21 @@ describe('logger', () => {
       expect(out.match(/bot<redacted>/g)).toHaveLength(2);
       expect(out).toContain('rdr_<redacted>');
     });
+
+    it('does not emit literal token bytes at trace level (regression — daemon bootstrap)', () => {
+      // daemon/src/bootstrap.ts logs { token, session_id } at trace level when
+      // a shim authenticates. `token` is on the redact paths list AND token
+      // strings are scrubbed, so the literal bytes should never reach the
+      // output even at the most verbose level. Guards against future config
+      // drift that might bypass either layer.
+      const { lines, dest } = capture();
+      const log = createLogger({ level: 'trace', destination: dest });
+      const secretToken = 'rdr_sess_TraceLevelTokenLiteral-xyz789';
+      log.trace({ token: secretToken, session_id: 'demo' }, 'shim authenticated');
+      expect(lines[0]).not.toContain(secretToken);
+      // The key-based redact ([REDACTED]) handles the structured field; the
+      // string scrub (rdr_<redacted>) is a defense-in-depth backstop.
+      expect(lines[0]).toMatch(/\[REDACTED\]|rdr_<redacted>/);
+    });
   });
 });

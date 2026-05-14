@@ -5,9 +5,15 @@ import type { Database as Db } from 'better-sqlite3';
 const TOKEN_PREFIX = 'rdr_sess_';
 const TOKEN_ENTROPY_BYTES = 32;
 
+// Argon2id parameters. OWASP Password Storage Cheat Sheet (2024) documents
+// m=46 MiB, t=1, p=1 as the minimum for argon2id. The `argon2` npm library
+// enforces its own minimum of t>=2, so we use t=2 (above OWASP on time) and
+// m=46 MiB (matching OWASP on memory). Brute-force is already infeasible for
+// our 32-byte random tokens; this just matches the cheat-sheet floor and
+// pre-empts review-comment churn during open-source security audits.
 const ARGON2_OPTIONS: argon2.Options = {
   type: argon2.argon2id,
-  memoryCost: 1 << 15, // 32 MiB
+  memoryCost: 47104, // 46 MiB (47104 KiB)
   timeCost: 2,
   parallelism: 1,
 };
