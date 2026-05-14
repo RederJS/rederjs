@@ -101,6 +101,71 @@ describe('installClaudeHooks', () => {
     expect(cmd).not.toMatch(/--token\s+'[^']*'/);
   });
 
+  it('strips legacy unmarked entries on re-install (same session-id, --token inline)', () => {
+    // Pre-seed settings.local.json with a legacy entry written by an older
+    // shim: bare `reder-hook` command, inline --token, no _reder_session_id
+    // marker. Repair / re-install must remove this rather than appending a
+    // duplicate that fires a now-stale token on every event.
+    writeFileSync(
+      settingsPath(),
+      JSON.stringify({
+        hooks: {
+          UserPromptSubmit: [
+            {
+              matcher: '*',
+              hooks: [
+                {
+                  type: 'command',
+                  command:
+                    "'reder-hook' --session-id 'sess' --socket '/tmp/reder.sock' " +
+                    "--token 'rdr_sess_legacy_inline_secret' --hook UserPromptSubmit",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    installClaudeHooks(params());
+    const doc = JSON.parse(readFileSync(settingsPath(), 'utf8')) as {
+      hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+    };
+    expect(doc.hooks.UserPromptSubmit).toHaveLength(1);
+    const cmd = doc.hooks.UserPromptSubmit[0]!.hooks[0]!.command;
+    expect(cmd).toContain('--token-file');
+    expect(cmd).not.toContain('rdr_sess_legacy_inline_secret');
+  });
+
+  it('preserves legacy unmarked entries that belong to a different session', () => {
+    // A legacy entry for session 'other' must not be stripped when repairing
+    // session 'sess' — different ownership.
+    writeFileSync(
+      settingsPath(),
+      JSON.stringify({
+        hooks: {
+          UserPromptSubmit: [
+            {
+              matcher: '*',
+              hooks: [
+                {
+                  type: 'command',
+                  command:
+                    "'reder-hook' --session-id 'other' --socket '/tmp/reder.sock' " +
+                    "--token 'rdr_sess_other_secret' --hook UserPromptSubmit",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    installClaudeHooks(params());
+    const doc = JSON.parse(readFileSync(settingsPath(), 'utf8')) as {
+      hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+    };
+    expect(doc.hooks.UserPromptSubmit).toHaveLength(2);
+  });
+
   it('writes settings.local.json with 0600 permissions', () => {
     installClaudeHooks(params());
     const mode = statSync(settingsPath()).mode & 0o777;

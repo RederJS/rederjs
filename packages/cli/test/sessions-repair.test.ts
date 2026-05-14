@@ -11,7 +11,11 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runSessionAdd } from '../src/commands/sessions-add.js';
-import { runSessionRepair } from '../src/commands/sessions-repair.js';
+import {
+  runSessionRepair,
+  runSessionRepairAll,
+  interactiveSessionRepair,
+} from '../src/commands/sessions-repair.js';
 
 let dir: string;
 let projectDir: string;
@@ -125,6 +129,147 @@ describe('runSessionRepair', () => {
     );
     await expect(runSessionRepair({ sessionId: 'ad_hoc', configPath })).rejects.toThrow(
       /workspace_dir/i,
+    );
+  });
+});
+
+describe('runSessionRepairAll', () => {
+  it('repairs every registered session and rotates each token', async () => {
+    const projA = join(dir, 'a');
+    const projB = join(dir, 'b');
+    mkdirSync(projA, { recursive: true });
+    mkdirSync(projB, { recursive: true });
+    const a = await runSessionAdd({
+      sessionId: 'sess_a',
+      displayName: 'A',
+      projectDir: projA,
+      configPath,
+      shimCommand: ['reder-shim'],
+    });
+    const b = await runSessionAdd({
+      sessionId: 'sess_b',
+      displayName: 'B',
+      projectDir: projB,
+      configPath,
+      shimCommand: ['reder-shim'],
+    });
+    const tokenA = readFileSync(a.tokenFilePath, 'utf8').trim();
+    const tokenB = readFileSync(b.tokenFilePath, 'utf8').trim();
+
+    const res = await runSessionRepairAll({ configPath });
+    expect(res.results).toHaveLength(2);
+    expect(res.results.every((r) => r.ok)).toBe(true);
+    const ids = res.results.map((r) => r.sessionId).sort();
+    expect(ids).toEqual(['sess_a', 'sess_b']);
+    expect(readFileSync(a.tokenFilePath, 'utf8').trim()).not.toBe(tokenA);
+    expect(readFileSync(b.tokenFilePath, 'utf8').trim()).not.toBe(tokenB);
+  });
+
+  it('skips sessions without workspace_dir, reports them, and continues', async () => {
+    const projA = join(dir, 'a');
+    mkdirSync(projA, { recursive: true });
+    await runSessionAdd({
+      sessionId: 'sess_a',
+      displayName: 'A',
+      projectDir: projA,
+      configPath,
+      shimCommand: ['reder-shim'],
+    });
+    // Insert a workspace-less session into the YAML by rewriting the sessions
+    // block. The naive `cur + '  - session_id: ...'` appends after `adapters:`
+    // and produces invalid YAML.
+    writeFileSync(
+      configPath,
+      `version: 1\nruntime:\n  runtime_dir: ${dir}/runtime\n  data_dir: ${dir}/data\n` +
+        `sessions:\n` +
+        `  - session_id: sess_a\n` +
+        `    display_name: A\n` +
+        `    workspace_dir: ${projA}\n` +
+        `    auto_start: false\n` +
+        `    permission_mode: default\n` +
+        `  - session_id: ad_hoc\n` +
+        `    display_name: Adhoc\n` +
+        `    auto_start: false\n` +
+        `    permission_mode: default\n` +
+        `adapters: {}\n`,
+    );
+
+    const res = await runSessionRepairAll({ configPath });
+    expect(res.results).toHaveLength(2);
+    const adhoc = res.results.find((r) => r.sessionId === 'ad_hoc');
+    expect(adhoc).toBeDefined();
+    expect(adhoc!.ok).toBe(false);
+    if (!adhoc!.ok) expect(adhoc!.reason).toBe('no_workspace_dir');
+    const sa = res.results.find((r) => r.sessionId === 'sess_a');
+    expect(sa!.ok).toBe(true);
+  });
+
+  it('returns empty results when no sessions are configured', async () => {
+    const res = await runSessionRepairAll({ configPath });
+    expect(res.results).toEqual([]);
+  });
+});
+
+describe('interactiveSessionRepair', () => {
+  it('dispatches single-session repair when sessionIdArg is provided', async () => {
+    const proj = join(dir, 'proj');
+    mkdirSync(proj, { recursive: true });
+    await runSessionAdd({
+      sessionId: 'sess',
+      displayName: 'Sess',
+      projectDir: proj,
+      configPath,
+      shimCommand: ['reder-shim'],
+    });
+    const r = await interactiveSessionRepair({
+      sessionIdArg: 'sess',
+      configPath,
+      nonInteractive: true,
+    });
+    expect(r.kind).toBe('single');
+    if (r.kind === 'single') expect(r.result.sessionId).toBe('sess');
+  });
+
+  it('dispatches bulk repair when all=true', async () => {
+    const proj = join(dir, 'proj');
+    mkdirSync(proj, { recursive: true });
+    await runSessionAdd({
+      sessionId: 'sess',
+      displayName: 'Sess',
+      projectDir: proj,
+      configPath,
+      shimCommand: ['reder-shim'],
+    });
+    const r = await interactiveSessionRepair({
+      all: true,
+      configPath,
+      nonInteractive: true,
+    });
+    expect(r.kind).toBe('all');
+    if (r.kind === 'all') expect(r.result.results).toHaveLength(1);
+  });
+
+  it('throws in non-interactive mode when neither sessionIdArg nor all is provided', async () => {
+    const proj = join(dir, 'proj');
+    mkdirSync(proj, { recursive: true });
+    await runSessionAdd({
+      sessionId: 'sess',
+      displayName: 'Sess',
+      projectDir: proj,
+      configPath,
+      shimCommand: ['reder-shim'],
+    });
+    await expect(interactiveSessionRepair({ configPath, nonInteractive: true })).rejects.toThrow(
+      /<session-id>|--all/,
+    );
+  });
+
+  it('throws when no sessions are configured', async () => {
+    await expect(
+      interactiveSessionRepair({ all: true, configPath, nonInteractive: true }),
+    ).resolves.toMatchObject({ kind: 'all', result: { results: [] } });
+    await expect(interactiveSessionRepair({ configPath, nonInteractive: true })).rejects.toThrow(
+      /No sessions configured/,
     );
   });
 });
