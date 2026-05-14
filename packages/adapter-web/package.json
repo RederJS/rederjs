@@ -12,6 +12,15 @@
     "react",
     "adapter"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RederJS/rederjs.git",
+    "directory": "packages/adapter-web"
+  },
+  "homepage": "https://rederjs.com",
+  "bugs": {
+    "url": "https://github.com/RederJS/rederjs/issues"
+  },
   "engines": {
     "node": ">=20"
   },

@@ -1,6 +1,6 @@
 # rederjs
 
-The `reder` CLI — configure the daemon, register Claude Code sessions, manage tmux auto-start, and pair Telegram bots. Part of the [reder](https://github.com/mred9/reder) project.
+The `reder` CLI — configure the daemon, register Claude Code sessions, manage tmux auto-start, and pair Telegram bots. Part of the [reder](https://github.com/RederJS/rederjs) project.
 
 ## Install
 
@@ -25,4 +25,4 @@ reder sessions add --auto-start  # register the project
 reder dashboard url              # print the authenticated dashboard URL
 ```
 
-See also: the [main repo README](https://github.com/mred9/reder#readme) for full setup, configuration, and the architecture diagram.
+See also: the [main repo README](https://github.com/RederJS/rederjs#readme) for full setup, configuration, and the architecture diagram.

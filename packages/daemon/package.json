@@ -11,6 +11,15 @@
     "daemon",
     "tmux"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RederJS/rederjs.git",
+    "directory": "packages/daemon"
+  },
+  "homepage": "https://rederjs.com",
+  "bugs": {
+    "url": "https://github.com/RederJS/rederjs/issues"
+  },
   "engines": {
     "node": ">=20"
   },

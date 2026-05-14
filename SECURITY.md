@@ -13,7 +13,7 @@ Reder is pre-1.0. Only the latest minor receives security fixes; older 0.1.x pat
 
 ## Reporting a vulnerability
 
-**Preferred:** open a [private security advisory on GitHub](https://github.com/mred9/reder/security/advisories/new). This keeps the discussion confidential and lets us coordinate a fix and disclosure.
+**Preferred:** open a [private security advisory on GitHub](https://github.com/RederJS/rederjs/security/advisories/new). This keeps the discussion confidential and lets us coordinate a fix and disclosure.
 
 **Fallback:** email `ed@degrootventures.com` if you cannot use GitHub advisories.
 
