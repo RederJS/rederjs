@@ -6,7 +6,18 @@ export const TelegramAdapterConfigSchema = z.object({
   bots: z
     .array(
       z.object({
+        /**
+         * Name of an env var holding the bot token. Preferred over inline `token`
+         * for any deployed environment — the token never appears in the config
+         * file, in `git diff` output, or in shell history.
+         */
         token_env: z.string().min(1).optional(),
+        /**
+         * Discouraged: inline bot token. Convenient for first-run smoke tests
+         * but should be replaced with `token_env` before committing the config
+         * or sharing a config file. Will be removed from `reder.config.yaml`
+         * dumps in a future release.
+         */
         token: z.string().min(1).optional(),
         session_id: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,62}$/),
         allow_groups: z.boolean().default(false),
