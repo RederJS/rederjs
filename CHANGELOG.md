@@ -5,6 +5,15 @@ All notable changes to reder are documented here. The project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `npm run release -- <patch|minor|major|x.y.z>` lockstep release helper.
+  Bumps every workspace + the root, rewrites inter-package dep ranges to
+  the new version, refreshes the lockfile, moves the `[Unreleased]`
+  changelog heading into a dated section, then commits and tags. Prints
+  the dependency-ordered `npm publish` commands at the end — actual
+  publishing is left to the operator (needs npm auth).
+
 ## [0.1.0] — first public release
 
 First real publish of the `rederjs` CLI and `@rederjs/*` packages. Replaces
