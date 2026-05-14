@@ -207,6 +207,35 @@ describe('TelegramAdapter permission relay', () => {
     expect(verdicts).toHaveLength(0);
   });
 
+  it('pairing mode: callback_query from paired sender is accepted (no allowlist check)', async () => {
+    // Sanity check: pairing mode (default in beforeEach) must not gate on the
+    // (empty) allowlist. Sender 99 was pre-bound in beforeEach.
+    await adapter.sendPermissionPrompt({
+      requestId: 'r-pairing',
+      sessionId: 'booknerds',
+      toolName: 'Bash',
+      description: 'x',
+      inputPreview: '{}',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const verdicts: unknown[] = [];
+    const orig = router.ingestPermissionVerdict.bind(router);
+    router.ingestPermissionVerdict = async (v) => {
+      verdicts.push(v);
+      return orig(v);
+    };
+    fake.enqueueCallbackQuery({
+      update_id: 1,
+      id: 'cbq-pairing',
+      chatId: 42,
+      messageId: 1003,
+      senderId: 99,
+      data: 'perm:r-pairing:allow',
+    });
+    await waitFor(() => verdicts.length > 0, 2000);
+    expect(verdicts).toHaveLength(1);
+  });
+
   it('cancelPermissionPrompt edits the message and clears storage', async () => {
     await adapter.sendPermissionPrompt({
       requestId: 'rx',
